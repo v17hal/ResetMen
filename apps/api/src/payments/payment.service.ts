@@ -486,8 +486,16 @@ export class PaymentService {
     productOrderId?: string;
   }) {
     if (params.bookingId !== undefined) {
+      // `userId: null` is included deliberately. A hold made before signing in belongs to
+      // nobody yet — that is the whole point of the anonymous hold on POST /bookings/hold,
+      // which exists so nobody loses a slot while they go and find their phone. Without
+      // this, such a booking can never be paid for and the slot simply expires.
       const booking = await this.prisma.booking.findFirst({
-        where: { id: params.bookingId, storeId: params.storeId, userId: params.userId },
+        where: {
+          id: params.bookingId,
+          storeId: params.storeId,
+          OR: [{ userId: params.userId }, { userId: null }],
+        },
         include: {
           user: { select: { name: true, phone: true, email: true } },
           store: { include: { settings: { select: { currency: true } } } },
@@ -512,12 +520,38 @@ export class PaymentService {
         );
       }
 
+      /**
+       * Claim an unowned hold for whoever is paying for it.
+       *
+       * A conditional UPDATE, not a read-then-write: `userId: null` in the WHERE clause
+       * means this is a no-op the moment the booking already has an owner, so two people
+       * racing on the same id cannot take it from each other. A booking already belonging
+       * to somebody else was never selected above.
+       *
+       * Claimed before the gateway call, so the row is already owned if the payment
+       * succeeds — the alternative leaves a captured payment attached to a booking with no
+       * customer, which is the hardest kind of mismatch to unpick afterwards.
+       */
+      let user = booking.user;
+
+      if (booking.userId === null) {
+        await this.prisma.booking.updateMany({
+          where: { id: booking.id, userId: null, status: 'HELD' },
+          data: { userId: params.userId },
+        });
+
+        user = await this.prisma.user.findUnique({
+          where: { id: params.userId },
+          select: { name: true, phone: true, email: true },
+        });
+      }
+
       return {
         amountPaise: booking.payablePaise,
         currency: booking.store.settings?.currency ?? 'INR',
         receipt: booking.publicId,
         notes: { bookingId: booking.id, publicId: booking.publicId } as Record<string, string>,
-        user: booking.user,
+        user,
       };
     }
 

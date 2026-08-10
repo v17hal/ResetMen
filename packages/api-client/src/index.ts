@@ -75,5 +75,6 @@ export type {
   StreakRuleInput,
   UserProfile,
   UtilisationReport,
+  VerifyPaymentRequest,
   WalletEntry,
 } from '@reset/types';

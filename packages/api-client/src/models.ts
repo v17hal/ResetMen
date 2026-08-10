@@ -1,4 +1,5 @@
 import type {
+  AdminRole,
   BookingStatus,
   PaymentStatus,
   ProductOrderStatus,
@@ -17,6 +18,27 @@ import type {
  * to change with it — a typecheck will not catch the drift, so the citation is the only
  * thing keeping the two honest.
  */
+
+// ── Admin auth — apps/api/src/auth/auth.service.ts ───────────────────────────
+
+/**
+ * Staff sign-in.
+ *
+ * Deliberately not the customer `AuthTokens` shape: the staff record comes back under
+ * `admin`, carries a `role`, and has no `isNewUser`. The role here is for rendering only —
+ * every admin route re-checks the JWT, so hiding a nav item is a convenience, not a control.
+ */
+export interface AdminLoginResponse {
+  accessToken: string;
+  refreshToken: string;
+  admin: {
+    id: string;
+    name: string;
+    email: string;
+    role: AdminRole;
+    storeId: string;
+  };
+}
 
 // ── Catalog — apps/api/src/catalog/catalog.service.ts ────────────────────────
 

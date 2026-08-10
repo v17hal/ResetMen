@@ -5,7 +5,6 @@ import type {
   AdminStatusChange,
   AllocationRuleInput,
   AllocationRulePreview,
-  AuthTokens,
   BlackoutInput,
   BlockCustomerInput,
   BookingDetail,
@@ -36,6 +35,7 @@ import type {
 
 import type { HttpClient } from '../http.js';
 import type {
+  AdminLoginResponse,
   AdminPaymentRow,
   AdminProductOrderRow,
   AuditEntry,
@@ -71,16 +71,16 @@ export interface CheckinResult {
 export class AdminAuthResource {
   constructor(private readonly http: HttpClient) {}
 
-  async login(email: string, password: string): Promise<AuthTokens> {
-    const tokens = await this.http.post<AuthTokens>('/admin/auth/login', {
+  async login(email: string, password: string): Promise<AdminLoginResponse> {
+    const result = await this.http.post<AdminLoginResponse>('/admin/auth/login', {
       body: { email, password },
       anonymous: true,
     });
     this.http.setTokens({
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
     });
-    return tokens;
+    return result;
   }
 
   signOut(): void {

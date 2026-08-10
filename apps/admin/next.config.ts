@@ -16,6 +16,22 @@ const config: NextConfig = {
     ignoreBuildErrors: false,
   },
 
+  /**
+   * Lets webpack resolve the `.js` specifiers that ESM TypeScript is written with.
+   *
+   * `packages/ui` and the workspace packages import `./cn.js` and mean `./cn.ts` — that is
+   * what NodeNext resolution requires, and tsc rewrites it on the way out. Webpack does not
+   * do that rewrite on its own, so without this every relative import inside a transpiled
+   * workspace package fails to resolve at build time while typechecking passes cleanly.
+   */
+  webpack: (config) => {
+    config.resolve.extensionAlias = {
+      '.js': ['.ts', '.tsx', '.js'],
+      '.jsx': ['.tsx', '.jsx'],
+    };
+    return config;
+  },
+
   async headers() {
     return [
       {

@@ -124,6 +124,75 @@ export interface HomeDto {
   services: ServiceListItem[];
 }
 
+// ── Admin catalog — apps/api/src/admin/admin-catalog.service.ts ──────────────
+//
+// These are Prisma rows, so they carry every column plus the relations the service
+// includes. Only the fields the admin UI actually uses are declared; the rest are real but
+// undeclared, which is safer than guessing at Prisma's exact nullability for each one.
+
+export interface AdminSegmentRow {
+  id: string;
+  name: string;
+  slug: string;
+  imageUrl: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  _count: { categories: number };
+}
+
+export interface AdminCategoryRow {
+  id: string;
+  segmentId: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  imageUrl: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  segment: { name: string };
+  _count: { services: number };
+}
+
+export interface AdminServiceRow {
+  id: string;
+  categoryId: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  imageUrl: string | null;
+  pricePaise: number;
+  durationMinutes: number;
+  bufferOverrideMinutes: number | null;
+  maxPerSlot: number | null;
+  sortOrder: number;
+  isActive: boolean;
+  category: { name: string; segment: { name: string } };
+  addonGroups: Array<{ addonGroup: { id: string; name: string } }>;
+  /** How many stations are designated for this service. Zero means it can never be booked. */
+  _count: { stationServices: number };
+}
+
+export interface AdminAddonOptionRow {
+  id: string;
+  addonGroupId: string;
+  name: string;
+  pricePaise: number;
+  durationDeltaMinutes: number;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface AdminAddonGroupRow {
+  id: string;
+  name: string;
+  minSelect: number;
+  maxSelect: number;
+  sortOrder: number;
+  isActive: boolean;
+  options: AdminAddonOptionRow[];
+  services: Array<{ service: { id: string; name: string } }>;
+}
+
 // ── Availability — apps/api/src/availability/availability.service.ts ─────────
 
 export interface AvailabilityDto {

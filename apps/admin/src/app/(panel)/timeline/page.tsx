@@ -3,11 +3,11 @@
 import { Button, ErrorState, LoadingState, Skeleton, addDays, formatDate, todayLocal } from '@reset/ui';
 import { useState } from 'react';
 
-import { BookingDrawer } from '@/components/booking-drawer.js';
-import { StationTimeline } from '@/components/station-timeline.js';
-import { WalkInDialog } from '@/components/walk-in-dialog.js';
-import { errorMessage } from '@/lib/auth.js';
-import { useTimeline } from '@/lib/queries.js';
+import { BookingDrawer } from '@/components/booking-drawer';
+import { StationTimeline } from '@/components/station-timeline';
+import { WalkInDialog } from '@/components/walk-in-dialog';
+import { errorMessage } from '@/lib/auth';
+import { useTimeline } from '@/lib/queries';
 
 export default function TimelinePage() {
   const [date, setDate] = useState(todayLocal());

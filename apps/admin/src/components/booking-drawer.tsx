@@ -17,10 +17,10 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
-import { errorMessage } from '@/lib/auth.js';
-import { adminClient } from '@/lib/client.js';
-import { keys, useStations } from '@/lib/queries.js';
-import { isoToLocalInput, localInputToIso } from '@/lib/time.js';
+import { errorMessage } from '@/lib/auth';
+import { adminClient } from '@/lib/client';
+import { keys, useStations } from '@/lib/queries';
+import { isoToLocalInput, localInputToIso } from '@/lib/time';
 
 export interface BookingDrawerProps {
   booking: (TimelineBooking & { stationId: string }) | null;

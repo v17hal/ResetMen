@@ -35,17 +35,19 @@ import type {
 
 import type { HttpClient } from '../http.js';
 import type {
+  AdminAddonGroupRow,
+  AdminAddonOptionRow,
+  AdminCategoryRow,
   AdminLoginResponse,
   AdminPaymentRow,
   AdminProductOrderRow,
+  AdminSegmentRow,
+  AdminServiceRow,
   AuditEntry,
-  CategoryDto,
   DashboardDto,
   HoldResponse,
   MediaAsset,
   Page,
-  SegmentDto,
-  ServiceListItem,
   TimelineDto,
 } from '../models.js';
 
@@ -139,57 +141,73 @@ export class AdminCheckinResource {
   }
 }
 
+/**
+ * Catalog CRUD.
+ *
+ * Every list here is wrapped in `{ data }` by the controller, and unwrapped on the way out
+ * so callers get an array. The write endpoints return the row directly, unwrapped — the
+ * asymmetry is the server's, and this is where it stops.
+ */
 export class AdminCatalogResource {
   constructor(private readonly http: HttpClient) {}
 
   // Segments
-  segments(): Promise<SegmentDto[]> {
-    return this.http.get('/admin/catalog/segments');
+  async segments(): Promise<AdminSegmentRow[]> {
+    const { data } = await this.http.get<{ data: AdminSegmentRow[] }>(
+      '/admin/catalog/segments',
+    );
+    return data;
   }
-  createSegment(input: SegmentInput): Promise<SegmentDto> {
+  createSegment(input: SegmentInput): Promise<AdminSegmentRow> {
     return this.http.post('/admin/catalog/segments', { body: input });
   }
-  updateSegment(id: string, input: SegmentInput): Promise<SegmentDto> {
+  updateSegment(id: string, input: SegmentInput): Promise<AdminSegmentRow> {
     return this.http.put(`/admin/catalog/segments/${encodeURIComponent(id)}`, { body: input });
   }
-  deleteSegment(id: string): Promise<void> {
+  deleteSegment(id: string): Promise<{ deleted: boolean }> {
     return this.http.delete(`/admin/catalog/segments/${encodeURIComponent(id)}`);
   }
 
   // Categories
-  categories(): Promise<CategoryDto[]> {
-    return this.http.get('/admin/catalog/categories');
+  async categories(): Promise<AdminCategoryRow[]> {
+    const { data } = await this.http.get<{ data: AdminCategoryRow[] }>(
+      '/admin/catalog/categories',
+    );
+    return data;
   }
-  createCategory(input: CategoryInput): Promise<CategoryDto> {
+  createCategory(input: CategoryInput): Promise<AdminCategoryRow> {
     return this.http.post('/admin/catalog/categories', { body: input });
   }
-  updateCategory(id: string, input: CategoryInput): Promise<CategoryDto> {
+  updateCategory(id: string, input: CategoryInput): Promise<AdminCategoryRow> {
     return this.http.put(`/admin/catalog/categories/${encodeURIComponent(id)}`, { body: input });
   }
-  deleteCategory(id: string): Promise<void> {
+  deleteCategory(id: string): Promise<{ deleted: boolean }> {
     return this.http.delete(`/admin/catalog/categories/${encodeURIComponent(id)}`);
   }
 
   // Services
-  services(): Promise<ServiceListItem[]> {
-    return this.http.get('/admin/catalog/services');
+  async services(): Promise<AdminServiceRow[]> {
+    const { data } = await this.http.get<{ data: AdminServiceRow[] }>(
+      '/admin/catalog/services',
+    );
+    return data;
   }
-  createService(input: ServiceInput): Promise<ServiceListItem> {
+  createService(input: ServiceInput): Promise<AdminServiceRow> {
     return this.http.post('/admin/catalog/services', { body: input });
   }
-  updateService(id: string, input: ServiceInput): Promise<ServiceListItem> {
+  updateService(id: string, input: ServiceInput): Promise<AdminServiceRow> {
     return this.http.put(`/admin/catalog/services/${encodeURIComponent(id)}`, { body: input });
   }
   /**
    * Publish or unpublish. Publishing fails without a duration — which is what keeps the
    * unpriced Instant Glow placeholders invisible to customers.
    */
-  setServiceActive(id: string, isActive: boolean): Promise<ServiceListItem> {
+  setServiceActive(id: string, isActive: boolean): Promise<AdminServiceRow> {
     return this.http.post(`/admin/catalog/services/${encodeURIComponent(id)}/active`, {
       body: { isActive },
     });
   }
-  deleteService(id: string): Promise<void> {
+  deleteService(id: string): Promise<{ deleted: boolean }> {
     return this.http.delete(`/admin/catalog/services/${encodeURIComponent(id)}`);
   }
   setServiceAddonGroups(id: string, addonGroupIds: readonly string[]): Promise<unknown> {
@@ -199,24 +217,27 @@ export class AdminCatalogResource {
   }
 
   // Add-on groups and options
-  addonGroups(): Promise<unknown[]> {
-    return this.http.get('/admin/catalog/addon-groups');
+  async addonGroups(): Promise<AdminAddonGroupRow[]> {
+    const { data } = await this.http.get<{ data: AdminAddonGroupRow[] }>(
+      '/admin/catalog/addon-groups',
+    );
+    return data;
   }
-  createAddonGroup(input: AddonGroupInput): Promise<unknown> {
+  createAddonGroup(input: AddonGroupInput): Promise<AdminAddonGroupRow> {
     return this.http.post('/admin/catalog/addon-groups', { body: input });
   }
-  updateAddonGroup(id: string, input: AddonGroupInput): Promise<unknown> {
+  updateAddonGroup(id: string, input: AddonGroupInput): Promise<AdminAddonGroupRow> {
     return this.http.put(`/admin/catalog/addon-groups/${encodeURIComponent(id)}`, { body: input });
   }
-  addAddonOption(groupId: string, input: AddonOptionInput): Promise<unknown> {
+  addAddonOption(groupId: string, input: AddonOptionInput): Promise<AdminAddonOptionRow> {
     return this.http.post(`/admin/catalog/addon-groups/${encodeURIComponent(groupId)}/options`, {
       body: input,
     });
   }
-  updateAddonOption(id: string, input: AddonOptionInput): Promise<unknown> {
+  updateAddonOption(id: string, input: AddonOptionInput): Promise<AdminAddonOptionRow> {
     return this.http.put(`/admin/catalog/addon-options/${encodeURIComponent(id)}`, { body: input });
   }
-  deleteAddonOption(id: string): Promise<void> {
+  deleteAddonOption(id: string): Promise<{ deleted: boolean }> {
     return this.http.delete(`/admin/catalog/addon-options/${encodeURIComponent(id)}`);
   }
 

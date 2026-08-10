@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 
-import { errorMessage, useAuth } from '@/lib/auth.js';
+import { errorMessage, useAuth } from '@/lib/auth';
 
 export default function LoginPage() {
   const { session, loading, signIn } = useAuth();

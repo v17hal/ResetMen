@@ -14,8 +14,8 @@ import {
 } from '@reset/ui';
 import Link from 'next/link';
 
-import { errorMessage } from '@/lib/auth.js';
-import { useDashboard, useTimeline } from '@/lib/queries.js';
+import { errorMessage } from '@/lib/auth';
+import { useDashboard, useTimeline } from '@/lib/queries';
 
 /**
  * Today.

@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
-import { useAuth } from '@/lib/auth.js';
+import { useAuth } from '@/lib/auth';
 
 interface NavItem {
   href: string;
@@ -22,7 +22,10 @@ const NAV: readonly NavItem[] = [
   { href: '/', label: 'Today', minimum: 'STAFF', group: 'counter' },
   { href: '/timeline', label: 'Timeline', minimum: 'STAFF', group: 'counter' },
   { href: '/checkin', label: 'Check in', minimum: 'STAFF', group: 'counter' },
-  { href: '/bookings', label: 'Bookings', minimum: 'STAFF', group: 'counter' },
+  // No "all bookings" entry: the API exposes the day by station (timeline) and a customer's
+  // history (customers/:id), but no cross-customer booking list. A nav item pointing at a
+  // screen that cannot be built is worse than its absence — the CSV export covers the
+  // reporting case.
 
   { href: '/customers', label: 'Customers', minimum: 'STAFF', group: 'manage' },
   { href: '/catalog', label: 'Catalog', minimum: 'MANAGER', group: 'manage' },

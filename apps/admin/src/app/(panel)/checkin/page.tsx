@@ -16,10 +16,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 
-import { QrScanner } from '@/components/qr-scanner.js';
-import { errorMessage } from '@/lib/auth.js';
-import { adminClient } from '@/lib/client.js';
-import { keys } from '@/lib/queries.js';
+import { QrScanner } from '@/components/qr-scanner';
+import { errorMessage } from '@/lib/auth';
+import { adminClient } from '@/lib/client';
+import { keys } from '@/lib/queries';
 
 /**
  * The counter screen.

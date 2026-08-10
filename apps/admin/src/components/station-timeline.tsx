@@ -4,7 +4,7 @@ import type { TimelineDto } from '@reset/api-client';
 import { cn, formatTime } from '@reset/ui';
 import { useEffect, useState } from 'react';
 
-import { hourIn, isoAtMinute, localDateIn } from '@/lib/time.js';
+import { hourIn, isoAtMinute, localDateIn } from '@/lib/time';
 
 /** Pixels per hour. Wide enough that a 15-minute booking is still a readable block. */
 const HOUR_HEIGHT = 96;

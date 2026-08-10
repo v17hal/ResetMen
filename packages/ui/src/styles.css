@@ -1,0 +1,61 @@
+/*
+ * Base layer for both web surfaces. Imported once in each app's root layout, after
+ * `@reset/design-tokens/css` so the custom properties exist before anything reads them.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    /* Prevents iOS Safari inflating text in landscape, which breaks the slot grid. */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--reset-color-bg);
+    color: var(--reset-color-text);
+    font-family: var(--reset-font-body), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+   * Only for keyboard users. A focus ring drawn on every mouse click reads as a bug and
+   * gets removed entirely by the next person, taking keyboard access with it.
+   */
+  :focus-visible {
+    outline: none;
+  }
+
+  /*
+   * Honour the OS setting rather than shipping motion someone has explicitly asked not to
+   * see. Not `animation: none` — that would cancel the entry animations mid-flight and
+   * leave elements stuck at opacity 0, so they are collapsed to a single frame instead.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Visible to screen readers, invisible on screen. For skip links and field context. */
+  .sr-only-focusable:not(:focus):not(:focus-within) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+}

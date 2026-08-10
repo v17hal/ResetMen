@@ -1,0 +1,41 @@
+{
+  "name": "@reset/ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared React primitives, formatting and motion for the RESET web and admin apps, built on @reset/design-tokens.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tailwind-preset": "./tailwind-preset.ts",
+    "./styles.css": "./src/styles.css"
+  },
+  "scripts": {
+    "build": "echo \"consumed as source by the Next apps — no build step\"",
+    "clean": "rimraf .turbo",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "echo \"lint: configured in a later phase\""
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.4",
+    "@reset/design-tokens": "workspace:*",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.6.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^3.4.17"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "rimraf": "^6.0.1",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

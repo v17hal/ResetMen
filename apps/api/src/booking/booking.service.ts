@@ -32,6 +32,12 @@ export interface QuoteDto {
     readonly id: string;
     readonly label: string;
     readonly discountPaise: number;
+    /**
+     * Cashback only, and zero for every other type. Credited on check-in rather than taken
+     * off the total, so the checkout screen shows it as "₹50 back after your visit" instead
+     * of as a discount that never arrives.
+     */
+    readonly postVisitCreditPaise: number;
   } | null;
 }
 
@@ -127,6 +133,7 @@ export class BookingService {
               id: applied.reward.id,
               label: labelFor(applied.reward),
               discountPaise: applied.discountPaise,
+              postVisitCreditPaise: applied.postVisitCreditPaise,
             },
     };
   }

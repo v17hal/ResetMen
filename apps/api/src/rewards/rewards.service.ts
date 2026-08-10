@@ -74,13 +74,17 @@ export class RewardsService {
    *
    * Throws rather than silently returning zero: a customer who picked a reward and sees no
    * change in the total will assume the app is broken, and they will be right.
+   *
+   * Both money figures come back, for the same reason `wallet()` reports both. Cashback
+   * discounts nothing at checkout, so a caller with only `discountPaise` would render a
+   * selected reward that appears to do nothing — the exact failure the wallet was fixed for.
    */
   async priceWith(params: {
     rewardId: string;
     userId: string | null;
     storeId: string;
     basket: Basket;
-  }): Promise<{ reward: UserReward; discountPaise: number }> {
+  }): Promise<{ reward: UserReward; discountPaise: number; postVisitCreditPaise: number }> {
     if (params.userId === null) {
       throw new AppError('REWARD_INVALID', 422, 'Sign in to use a reward');
     }
@@ -95,7 +99,11 @@ export class RewardsService {
       throw new AppError('REWARD_INVALID', 422, 'Reward cannot be used', reason);
     }
 
-    return { reward, discountPaise: discountFor(reward, params.basket) };
+    return {
+      reward,
+      discountPaise: discountFor(reward, params.basket),
+      postVisitCreditPaise: postVisitCreditFor(reward, params.basket),
+    };
   }
 
   /**

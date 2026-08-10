@@ -14,6 +14,7 @@
     "db:seed": "tsx prisma/seed/index.ts",
     "db:studio": "prisma studio",
     "db:validate": "prisma validate",
+    "openapi:export": "nest build && node ./scripts/export-openapi.mjs",
     "clean": "rimraf dist .turbo",
     "lint": "echo \"lint: configured in a later phase\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",

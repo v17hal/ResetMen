@@ -1,0 +1,4111 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "operationId": "HealthController_live",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "operationId": "HealthController_ready",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/catalog/store": {
+      "get": {
+        "operationId": "CatalogController_store",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/segments": {
+      "get": {
+        "operationId": "CatalogController_segments",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/categories": {
+      "get": {
+        "operationId": "CatalogController_categories",
+        "parameters": [
+          {
+            "name": "segmentId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/services": {
+      "get": {
+        "operationId": "CatalogController_services",
+        "parameters": [
+          {
+            "name": "categoryId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/home": {
+      "get": {
+        "operationId": "CatalogController_home",
+        "parameters": [
+          {
+            "name": "segmentId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/services/{idOrSlug}": {
+      "get": {
+        "operationId": "CatalogController_service",
+        "parameters": [
+          {
+            "name": "idOrSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/availability/slots": {
+      "get": {
+        "operationId": "AvailabilityController_slots",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "availability"
+        ]
+      }
+    },
+    "/api/v1/availability/days": {
+      "get": {
+        "operationId": "AvailabilityController_days",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "availability"
+        ]
+      }
+    },
+    "/api/v1/bookings/quote": {
+      "post": {
+        "operationId": "BookingController_quote",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/api/v1/bookings/hold": {
+      "post": {
+        "operationId": "BookingController_hold",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/api/v1/bookings": {
+      "get": {
+        "operationId": "BookingController_list",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/api/v1/bookings/{id}": {
+      "get": {
+        "operationId": "BookingController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/api/v1/bookings/{id}/reschedule": {
+      "post": {
+        "operationId": "BookingController_reschedule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/api/v1/bookings/{id}/cancel": {
+      "post": {
+        "operationId": "BookingController_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/api/v1/bookings/{id}/confirm": {
+      "post": {
+        "operationId": "BookingController_confirm",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/api/v1/admin/checkins": {
+      "post": {
+        "operationId": "CheckinController_scan",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/checkins/manual": {
+      "post": {
+        "operationId": "CheckinController_manual",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/payments/order": {
+      "post": {
+        "operationId": "PaymentController_createOrder",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/v1/payments/verify": {
+      "post": {
+        "operationId": "PaymentController_verify",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/v1/payments/{id}": {
+      "get": {
+        "operationId": "PaymentController_status",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/v1/payments/{id}/simulate-success": {
+      "post": {
+        "operationId": "PaymentController_simulate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/v1/rewards/wallet": {
+      "get": {
+        "operationId": "RewardsController_wallet",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "rewards"
+        ]
+      }
+    },
+    "/api/v1/rewards/streak": {
+      "get": {
+        "operationId": "RewardsController_streak",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "rewards"
+        ]
+      }
+    },
+    "/api/v1/rewards/scratch-cards": {
+      "get": {
+        "operationId": "RewardsController_cards",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "rewards"
+        ]
+      }
+    },
+    "/api/v1/rewards/scratch-cards/{id}/scratch": {
+      "post": {
+        "operationId": "RewardsController_scratchCard",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "rewards"
+        ]
+      }
+    },
+    "/api/v1/notifications/devices": {
+      "post": {
+        "operationId": "NotificationController_register",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      },
+      "delete": {
+        "operationId": "NotificationController_unregister",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "operationId": "NotificationController_list",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/products": {
+      "get": {
+        "operationId": "ProductController_list",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/v1/products/{slug}": {
+      "get": {
+        "operationId": "ProductController_detail",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/v1/orders": {
+      "post": {
+        "operationId": "ProductOrderController_create",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "products"
+        ]
+      },
+      "get": {
+        "operationId": "ProductOrderController_list",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/v1/orders/{id}": {
+      "get": {
+        "operationId": "ProductOrderController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/v1/media/{storeId}/{file}": {
+      "get": {
+        "operationId": "MediaController_serve",
+        "parameters": [
+          {
+            "name": "storeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/v1/admin/stations": {
+      "get": {
+        "operationId": "CapacityController_listStations",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "CapacityController_createStation",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/stations/{id}": {
+      "put": {
+        "operationId": "CapacityController_updateStation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/stations/{id}/services": {
+      "put": {
+        "operationId": "CapacityController_setStationServices",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/stations/coverage": {
+      "get": {
+        "operationId": "CapacityController_coverage",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/allocation-rules": {
+      "get": {
+        "operationId": "CapacityController_listRules",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "CapacityController_createRule",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/allocation-rules/{id}": {
+      "put": {
+        "operationId": "CapacityController_updateRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "operationId": "CapacityController_deleteRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/allocation-rules/preview": {
+      "post": {
+        "operationId": "CapacityController_previewRule",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/store-hours": {
+      "get": {
+        "operationId": "CapacityController_getHours",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "CapacityController_setHours",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/blackouts": {
+      "get": {
+        "operationId": "CapacityController_listBlackouts",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "CapacityController_createBlackout",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/blackouts/{id}": {
+      "delete": {
+        "operationId": "CapacityController_deleteBlackout",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/settings": {
+      "get": {
+        "operationId": "CapacityController_getSettings",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "CapacityController_updateSettings",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/availability-preview": {
+      "get": {
+        "operationId": "CapacityController_availabilityPreview",
+        "parameters": [
+          {
+            "name": "date",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/bookings/timeline": {
+      "get": {
+        "operationId": "AdminBookingsController_timeline",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/bookings/walk-in": {
+      "post": {
+        "operationId": "AdminBookingsController_walkIn",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/bookings/{id}/status": {
+      "post": {
+        "operationId": "AdminBookingsController_setStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/bookings/{id}/reassign-station": {
+      "post": {
+        "operationId": "AdminBookingsController_reassign",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/bookings/{id}/reschedule": {
+      "post": {
+        "operationId": "AdminBookingsController_reschedule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/segments": {
+      "get": {
+        "operationId": "AdminCatalogController_listSegments",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "AdminCatalogController_createSegment",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/segments/{id}": {
+      "put": {
+        "operationId": "AdminCatalogController_updateSegment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "operationId": "AdminCatalogController_deleteSegment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/categories": {
+      "get": {
+        "operationId": "AdminCatalogController_listCategories",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "AdminCatalogController_createCategory",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/categories/{id}": {
+      "put": {
+        "operationId": "AdminCatalogController_updateCategory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "operationId": "AdminCatalogController_deleteCategory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/services": {
+      "get": {
+        "operationId": "AdminCatalogController_listServices",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "AdminCatalogController_createService",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/services/{id}": {
+      "put": {
+        "operationId": "AdminCatalogController_updateService",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "operationId": "AdminCatalogController_deleteService",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/services/{id}/active": {
+      "post": {
+        "operationId": "AdminCatalogController_setServiceActive",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/services/{id}/addon-groups": {
+      "put": {
+        "operationId": "AdminCatalogController_setServiceAddonGroups",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/addon-groups": {
+      "get": {
+        "operationId": "AdminCatalogController_listAddonGroups",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "AdminCatalogController_createAddonGroup",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/addon-groups/{id}": {
+      "put": {
+        "operationId": "AdminCatalogController_updateAddonGroup",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/addon-groups/{id}/options": {
+      "post": {
+        "operationId": "AdminCatalogController_createAddonOption",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/addon-options/{id}": {
+      "put": {
+        "operationId": "AdminCatalogController_updateAddonOption",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "operationId": "AdminCatalogController_deleteAddonOption",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/reorder/{entity}": {
+      "post": {
+        "operationId": "AdminCatalogController_reorder",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/customers": {
+      "get": {
+        "operationId": "AdminCustomersController_list",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/customers/{id}": {
+      "get": {
+        "operationId": "AdminCustomersController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/customers/{id}/block": {
+      "post": {
+        "operationId": "AdminCustomersController_block",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/staff": {
+      "get": {
+        "operationId": "AdminStaffController_list",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "AdminStaffController_create",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/staff/{id}": {
+      "put": {
+        "operationId": "AdminStaffController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "operationId": "AdminStaffController_deactivate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/staff/{id}/password": {
+      "post": {
+        "operationId": "AdminStaffController_setPassword",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/rewards/streak-rules": {
+      "get": {
+        "operationId": "AdminRewardsController_listStreakRules",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "AdminRewardsController_createStreakRule",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/rewards/streak-rules/{id}": {
+      "put": {
+        "operationId": "AdminRewardsController_updateStreakRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "operationId": "AdminRewardsController_deleteStreakRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/rewards/campaigns": {
+      "get": {
+        "operationId": "AdminRewardsController_listCampaigns",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "AdminRewardsController_createCampaign",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/rewards/campaigns/{id}/stats": {
+      "get": {
+        "operationId": "AdminRewardsController_campaignStats",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/rewards/campaigns/{id}": {
+      "put": {
+        "operationId": "AdminRewardsController_updateCampaign",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "operationId": "AdminRewardsController_deactivateCampaign",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/rewards/grants": {
+      "post": {
+        "operationId": "AdminRewardsController_grant",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/rewards/grants/{id}/revoke": {
+      "post": {
+        "operationId": "AdminRewardsController_revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/products": {
+      "get": {
+        "operationId": "AdminProductsController_list",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "AdminProductsController_create",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/products/{id}": {
+      "put": {
+        "operationId": "AdminProductsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "operationId": "AdminProductsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/products/{id}/stock": {
+      "post": {
+        "operationId": "AdminProductsController_adjustStock",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/products/orders/all": {
+      "get": {
+        "operationId": "AdminProductsController_listOrders",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/products/orders/{id}/status": {
+      "post": {
+        "operationId": "AdminProductsController_setOrderStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/payments": {
+      "get": {
+        "operationId": "AdminPaymentsController_list",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/payments/{id}/refund": {
+      "post": {
+        "operationId": "AdminPaymentsController_refund",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/payments/webhook-failures": {
+      "get": {
+        "operationId": "AdminPaymentsController_webhookFailures",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/audit": {
+      "get": {
+        "operationId": "AdminAuditController_list",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/reports/dashboard": {
+      "get": {
+        "operationId": "ReportsController_dashboard",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/reports/revenue": {
+      "get": {
+        "operationId": "ReportsController_revenue",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/reports/utilisation": {
+      "get": {
+        "operationId": "ReportsController_utilisation",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/reports/no-show": {
+      "get": {
+        "operationId": "ReportsController_noShow",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/reports/retention": {
+      "get": {
+        "operationId": "ReportsController_retention",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/reports/export": {
+      "get": {
+        "operationId": "ReportsController_export",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/media": {
+      "post": {
+        "operationId": "MediaAdminController_upload",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "media"
+        ]
+      },
+      "get": {
+        "operationId": "MediaAdminController_list",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/v1/admin/media/{id}": {
+      "delete": {
+        "operationId": "MediaAdminController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/v1/auth/otp/request": {
+      "post": {
+        "operationId": "AuthController_requestOtp",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/otp/verify": {
+      "post": {
+        "operationId": "AuthController_verifyOtp",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "auth"
+        ]
+      },
+      "patch": {
+        "operationId": "AuthController_update",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "auth"
+        ]
+      },
+      "delete": {
+        "operationId": "AuthController_deleteAccount",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/admin/auth/login": {
+      "post": {
+        "operationId": "AdminAuthController_login",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/auth/refresh": {
+      "post": {
+        "operationId": "AdminAuthController_refresh",
+        "parameters": [
+          {
+            "name": "X-Store-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional for a single-outlet install — the only active store is used.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "RESET API",
+    "description": "Slot & station booking platform. Errors are RFC 9457 problem+json; clients switch on `code`, never on `title` or `detail`.",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {}
+  }
+}

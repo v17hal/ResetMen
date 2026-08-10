@@ -1,0 +1,40 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+.turbo/
+
+.env
+.env.*
+!.env.example
+
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Prisma
+apps/api/prisma/*.db
+
+# Uploaded media. Customer-facing images, written at runtime — belongs in a backup, not in
+# the repository.
+var/
+apps/api/var/
+
+# Flutter
+apps/mobile/.dart_tool/
+apps/mobile/.flutter-plugins
+apps/mobile/.flutter-plugins-dependencies
+apps/mobile/build/
+apps/mobile/**/*.g.dart
+apps/mobile/**/*.freezed.dart
+apps/mobile/android/key.properties
+apps/mobile/android/app/google-services.json
+apps/mobile/ios/Runner/GoogleService-Info.plist

@@ -1,0 +1,34 @@
+{
+  "name": "reset-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RESET — slot & station booking platform (API, web, admin, Flutter app)",
+  "packageManager": "pnpm@10.18.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:watch": "turbo run test:watch",
+    "test:integration": "turbo run test:integration",
+    "clean": "turbo run clean && rimraf node_modules",
+    "db:migrate": "pnpm --filter @reset/api db:migrate",
+    "db:seed": "pnpm --filter @reset/api db:seed",
+    "db:studio": "pnpm --filter @reset/api db:studio",
+    "gen:api": "pnpm --filter @reset/api openapi:export && pnpm --filter @reset/api-client generate",
+    "gen:tokens": "pnpm --filter @reset/design-tokens build",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "rimraf": "^6.0.1",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

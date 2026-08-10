@@ -1,0 +1,30 @@
+{
+  "name": "@reset/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "One source of truth for RESET's colour, type, spacing, elevation and motion — emitted to TypeScript, CSS custom properties and Dart.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./css": "./generated/tokens.css"
+  },
+  "files": ["dist", "generated"],
+  "scripts": {
+    "build": "tsx src/build.ts && tsc -p tsconfig.json",
+    "clean": "rimraf dist generated .turbo",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "lint": "echo \"lint: configured in a later phase\""
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

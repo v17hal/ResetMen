@@ -1,0 +1,150 @@
+/*
+ * GENERATED FILE — do not edit by hand.
+ * Source: packages/design-tokens/src/tokens.ts
+ * Regenerate: pnpm gen:tokens
+ */
+
+:root {
+  --reset-color-bg: #F8F6F2;
+  --reset-color-surface: #FFFFFF;
+  --reset-color-surface2: #F1EDE6;
+  --reset-color-border: #E4DED4;
+  --reset-color-text: #0B0F14;
+  --reset-color-text-muted: #6B7280;
+  --reset-color-primary: #0E9F76;
+  --reset-color-primary-fg: #FFFFFF;
+  --reset-color-accent: #D97706;
+  --reset-color-success: #0E9F76;
+  --reset-color-warning: #B45309;
+  --reset-color-danger: #DC2626;
+  --reset-color-info: #2563EB;
+
+  --reset-space-xs: 4px;
+  --reset-space-sm: 8px;
+  --reset-space-md: 12px;
+  --reset-space-base: 16px;
+  --reset-space-lg: 20px;
+  --reset-space-xl: 24px;
+  --reset-space-2xl: 32px;
+  --reset-space-3xl: 40px;
+  --reset-space-4xl: 56px;
+  --reset-space-5xl: 72px;
+
+  --reset-radius-sm: 8px;
+  --reset-radius-md: 12px;
+  --reset-radius-lg: 16px;
+  --reset-radius-xl: 24px;
+  --reset-radius-full: 999px;
+
+  --reset-font-display: 'Plus Jakarta Sans';
+  --reset-font-body: 'Inter';
+  --reset-font-mono: 'JetBrains Mono';
+
+  --reset-type-display-size: 32px;
+  --reset-type-display-line: 38px;
+  --reset-type-display-weight: 700;
+  --reset-type-display-tracking: -0.4px;
+  --reset-type-h1-size: 24px;
+  --reset-type-h1-line: 30px;
+  --reset-type-h1-weight: 700;
+  --reset-type-h1-tracking: -0.3px;
+  --reset-type-h2-size: 20px;
+  --reset-type-h2-line: 26px;
+  --reset-type-h2-weight: 600;
+  --reset-type-h2-tracking: -0.2px;
+  --reset-type-body-size: 16px;
+  --reset-type-body-line: 24px;
+  --reset-type-body-weight: 400;
+  --reset-type-body-tracking: 0px;
+  --reset-type-body-sm-size: 14px;
+  --reset-type-body-sm-line: 20px;
+  --reset-type-body-sm-weight: 400;
+  --reset-type-body-sm-tracking: 0px;
+  --reset-type-caption-size: 12px;
+  --reset-type-caption-line: 16px;
+  --reset-type-caption-weight: 500;
+  --reset-type-caption-tracking: 0.2px;
+  --reset-type-mono-size: 16px;
+  --reset-type-mono-line: 20px;
+  --reset-type-mono-weight: 600;
+  --reset-type-mono-tracking: 0.5px;
+
+  --reset-elevation-none: 0px 0px 0px 0px rgb(0 0 0 / 0);
+  --reset-elevation-card: 0px 4px 16px 0px rgb(0 0 0 / 0.1);
+  --reset-elevation-raised: 0px 8px 24px 0px rgb(0 0 0 / 0.12);
+  --reset-elevation-overlay: 0px 16px 40px 0px rgb(0 0 0 / 0.18);
+
+  --reset-duration-micro: 150ms;
+  --reset-duration-base: 250ms;
+  --reset-duration-slow: 600ms;
+  --reset-easing-standard: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --reset-easing-decelerate: cubic-bezier(0.0, 0.0, 0.2, 1);
+  --reset-easing-accelerate: cubic-bezier(0.4, 0.0, 1, 1);
+  --reset-stagger-rise: 40px;
+
+  --reset-layout-touch-target: 44px;
+  --reset-layout-touch-target-admin: 48px;
+  --reset-layout-gutter: 20px;
+  --reset-layout-content-max-width: 1120px;
+  --reset-layout-bottom-nav-height: 62px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --reset-color-bg: #0B0F14;
+    --reset-color-surface: #12181F;
+    --reset-color-surface2: #1A222B;
+    --reset-color-border: #252F3A;
+    --reset-color-text: #F3F5F7;
+    --reset-color-text-muted: #9AA6B2;
+    --reset-color-primary: #12B886;
+    --reset-color-primary-fg: #05100C;
+    --reset-color-accent: #F59E0B;
+    --reset-color-success: #12B886;
+    --reset-color-warning: #F59E0B;
+    --reset-color-danger: #F87171;
+    --reset-color-info: #60A5FA;
+  }
+}
+
+/* The theme toggle stamps data-theme on the root and must win over the media query. */
+:root[data-theme="light"] {
+  --reset-color-bg: #F8F6F2;
+  --reset-color-surface: #FFFFFF;
+  --reset-color-surface2: #F1EDE6;
+  --reset-color-border: #E4DED4;
+  --reset-color-text: #0B0F14;
+  --reset-color-text-muted: #6B7280;
+  --reset-color-primary: #0E9F76;
+  --reset-color-primary-fg: #FFFFFF;
+  --reset-color-accent: #D97706;
+  --reset-color-success: #0E9F76;
+  --reset-color-warning: #B45309;
+  --reset-color-danger: #DC2626;
+  --reset-color-info: #2563EB;
+}
+
+:root[data-theme="dark"] {
+  --reset-color-bg: #0B0F14;
+  --reset-color-surface: #12181F;
+  --reset-color-surface2: #1A222B;
+  --reset-color-border: #252F3A;
+  --reset-color-text: #F3F5F7;
+  --reset-color-text-muted: #9AA6B2;
+  --reset-color-primary: #12B886;
+  --reset-color-primary-fg: #05100C;
+  --reset-color-accent: #F59E0B;
+  --reset-color-success: #12B886;
+  --reset-color-warning: #F59E0B;
+  --reset-color-danger: #F87171;
+  --reset-color-info: #60A5FA;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --reset-duration-micro: 0ms;
+    --reset-duration-base: 0ms;
+    --reset-duration-slow: 0ms;
+    --reset-stagger-rise: 0px;
+  }
+}

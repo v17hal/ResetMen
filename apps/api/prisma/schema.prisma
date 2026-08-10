@@ -1,0 +1,1078 @@
+// RESET — database schema
+//
+// Conventions (see docs/04-data-model.md):
+//   • Money is integer PAISE. Never floats, never rupees. `pricePaise`, not `price`.
+//   • Instants are `timestamptz`. Recurring wall-clock config uses `time` + store timezone.
+//   • Durations are integer minutes.
+//   • Every table carries `storeId` — multi-outlet costs nothing now and is a rewrite later.
+//   • Catalog and user rows soft-delete. Bookings and payments never delete.
+//
+// The one thing Prisma cannot express, and the most important line in the whole system, is
+// the GiST exclusion constraint that makes double-booking a station physically impossible.
+// It lives in prisma/migrations/*/migration.sql and is applied with every migration.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  UNDISCLOSED
+}
+
+enum AdminRole {
+  OWNER
+  MANAGER
+  STAFF
+}
+
+enum AllocationMode {
+  /// Listed stations may serve ONLY the listed services during the window.
+  EXCLUSIVE_TO
+  /// Listed stations may NOT serve the listed services during the window.
+  EXCLUDE_FROM
+}
+
+enum AllocationRecurrence {
+  ONE_OFF
+  WEEKLY
+}
+
+enum BookingStatus {
+  /// Slot soft-locked while payment is in progress. Occupies the station.
+  HELD
+  CONFIRMED
+  CHECKED_IN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  /// Hold TTL elapsed without payment. Releases the station.
+  EXPIRED
+}
+
+enum BookingSource {
+  APP
+  WEB
+  ADMIN_WALKIN
+}
+
+enum ActorType {
+  CUSTOMER
+  ADMIN
+  SYSTEM
+}
+
+enum PaymentGateway {
+  RAZORPAY
+}
+
+enum PaymentStatus {
+  CREATED
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+enum RewardType {
+  PERCENT_OFF
+  FLAT_OFF
+  FREE_SERVICE
+  FREE_ADDON
+  CASHBACK
+}
+
+enum RewardSource {
+  SCRATCH_CARD
+  STREAK
+  PROMO
+  MANUAL
+}
+
+enum RewardStatus {
+  ACTIVE
+  REDEEMED
+  EXPIRED
+  REVOKED
+}
+
+enum ScratchTrigger {
+  ON_CHECKIN
+  ON_NTH_BOOKING
+  ON_STREAK_COMPLETE
+}
+
+enum ScratchCardStatus {
+  ISSUED
+  SCRATCHED
+  EXPIRED
+}
+
+enum ProductOrderStatus {
+  PENDING
+  PAID
+  READY_FOR_PICKUP
+  PICKED_UP
+  CANCELLED
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+  WEB
+}
+
+enum NotificationChannel {
+  PUSH
+  SMS
+  WHATSAPP
+  EMAIL
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Store & capacity
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Store {
+  id       String  @id @default(uuid()) @db.Uuid
+  name     String
+  slug     String  @unique
+  timezone String  @default("Asia/Kolkata")
+  address  String?
+  city     String?
+  pincode  String?
+  phone    String?
+  lat      Decimal? @db.Decimal(10, 7)
+  lng      Decimal? @db.Decimal(10, 7)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  settings         StoreSettings?
+  stations         Station[]
+  storeHours       StoreHour[]
+  blackouts        Blackout[]
+  allocationRules  AllocationRule[]
+  segments         Segment[]
+  categories       Category[]
+  services         Service[]
+  addonGroups      AddonGroup[]
+  bookings         Booking[]
+  payments         Payment[]
+  adminUsers       AdminUser[]
+  streakRules      StreakRule[]
+  userStreaks      UserStreak[]
+  scratchCampaigns ScratchCampaign[]
+  userRewards      UserReward[]
+  products         Product[]
+  productOrders    ProductOrder[]
+  mediaAssets      MediaAsset[]
+  auditLogs        AuditLog[]
+
+  @@map("stores")
+}
+
+model StoreSettings {
+  storeId String @id @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  /// Cleaning / station reset time appended to every booking.
+  bufferMinutes Int @default(5)
+  /// The grid slot start times snap to.
+  slotGranularityMinutes Int @default(5)
+  /// How far ahead customers may book.
+  bookingHorizonDays Int @default(7)
+  /// Earliest a booking may start relative to now. 0 reproduces the proposal's example.
+  minLeadMinutes Int @default(0)
+  /// Payment soft-lock window.
+  holdTtlMinutes Int @default(10)
+  cancellationWindowMinutes Int @default(120)
+  currency String @default("INR")
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("store_settings")
+}
+
+/// Internal name for a bed/table. Never rendered to customers — the engine assigns one
+/// silently and the customer only ever sees a time.
+model Station {
+  id      String @id @default(uuid()) @db.Uuid
+  storeId String @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  name      String
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+  /// false → restricted to the services listed in `stationServices`.
+  allowsAllServices Boolean @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  stationServices StationService[]
+  blackouts       Blackout[]
+  bookings        Booking[]
+  allocationRules AllocationRuleStation[]
+
+  @@index([storeId, isActive])
+  @@map("stations")
+}
+
+/// Station → service designation. Client requirement 02/08/2026:
+/// "certain beds may be designated only for head massage based on space constraints".
+/// Consulted only when `Station.allowsAllServices` is false.
+model StationService {
+  stationId String  @db.Uuid
+  serviceId String  @db.Uuid
+  station   Station @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@id([stationId, serviceId])
+  @@map("station_services")
+}
+
+/// Multiple rows per weekday are allowed, which is how a lunch-break split is expressed.
+model StoreHour {
+  id      String @id @default(uuid()) @db.Uuid
+  storeId String @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  /// 0 = Sunday … 6 = Saturday
+  dayOfWeek Int
+  opensAt   DateTime @db.Time(0)
+  closesAt  DateTime @db.Time(0)
+  isClosed  Boolean  @default(false)
+
+  @@index([storeId, dayOfWeek])
+  @@map("store_hours")
+}
+
+/// Holidays, maintenance windows and ad-hoc blocks.
+/// `stationId = null` blacks out the whole store.
+model Blackout {
+  id        String   @id @default(uuid()) @db.Uuid
+  storeId   String   @db.Uuid
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  stationId String?  @db.Uuid
+  station   Station? @relation(fields: [stationId], references: [id], onDelete: Cascade)
+
+  startsAt DateTime @db.Timestamptz(3)
+  endsAt   DateTime @db.Timestamptz(3)
+  reason   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([storeId, startsAt, endsAt])
+  @@map("blackouts")
+}
+
+/// Time-boxed station reservation. Client requirement 02/08/2026:
+/// "in the morning, I can push for ₹199 service … allocate only a predefined number of beds
+///  exclusively for that service during that time."
+///
+/// Stations are listed explicitly rather than by count: "reserve 2 beds" is ambiguous, and
+/// resolving *which* two differently on each availability query produces slot lists that
+/// flicker between page loads. The admin UI offers "reserve N stations" and persists the
+/// chosen ones.
+model AllocationRule {
+  id      String @id @default(uuid()) @db.Uuid
+  storeId String @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  name        String
+  mode        AllocationMode
+  recurrence  AllocationRecurrence @default(WEEKLY)
+  /// For WEEKLY: 0 = Sunday … 6 = Saturday.
+  daysOfWeek  Int[]                @default([])
+  dateFrom    DateTime?            @db.Date
+  dateTo      DateTime?            @db.Date
+  startsAtLocal DateTime           @db.Time(0)
+  endsAtLocal   DateTime           @db.Time(0)
+  /// Higher wins when two rules both apply to the same station and interval.
+  priority    Int                  @default(100)
+  isActive    Boolean              @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  stations AllocationRuleStation[]
+  services AllocationRuleService[]
+
+  @@index([storeId, isActive])
+  @@map("allocation_rules")
+}
+
+model AllocationRuleStation {
+  ruleId    String         @db.Uuid
+  stationId String         @db.Uuid
+  rule      AllocationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  station   Station        @relation(fields: [stationId], references: [id], onDelete: Cascade)
+
+  @@id([ruleId, stationId])
+  @@map("allocation_rule_stations")
+}
+
+model AllocationRuleService {
+  ruleId    String         @db.Uuid
+  serviceId String         @db.Uuid
+  rule      AllocationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  service   Service        @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@id([ruleId, serviceId])
+  @@map("allocation_rule_services")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Catalog — Segment → Category → Service → Add-on group → Add-on option
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Top-level split (Men / Women). Present from day one: retrofitting it later would mean
+/// touching every catalog query, screen and report. The picker hides itself when only one
+/// segment is active.
+model Segment {
+  id      String @id @default(uuid()) @db.Uuid
+  storeId String @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  name      String
+  slug      String
+  imageUrl  String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  deletedAt DateTime? @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  categories        Category[]
+  preferringUsers   User[]
+
+  @@unique([storeId, slug])
+  @@map("segments")
+}
+
+model Category {
+  id        String  @id @default(uuid()) @db.Uuid
+  storeId   String  @db.Uuid
+  segmentId String  @db.Uuid
+  store     Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  segment   Segment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+
+  name        String
+  slug        String
+  description String?
+  imageUrl    String?
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  deletedAt   DateTime? @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  services Service[]
+
+  @@unique([storeId, slug])
+  @@index([segmentId, sortOrder])
+  @@map("categories")
+}
+
+model Service {
+  id         String   @id @default(uuid()) @db.Uuid
+  storeId    String   @db.Uuid
+  categoryId String   @db.Uuid
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  name        String
+  slug        String
+  description String?
+  imageUrl    String?
+  pricePaise  Int
+  /// Required and positive. The availability engine cannot function without it, so the
+  /// admin panel refuses to publish a service that has none.
+  durationMinutes Int
+  /// Falls back to StoreSettings.bufferMinutes when null.
+  bufferOverrideMinutes Int?
+  /// Optional cap independent of station count.
+  maxPerSlot Int?
+  isActive   Boolean   @default(true)
+  sortOrder  Int       @default(0)
+  deletedAt  DateTime? @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  addonGroups     ServiceAddonGroup[]
+  stationServices StationService[]
+  allocationRules AllocationRuleService[]
+  bookings        Booking[]
+  streakRules     StreakRule[]
+
+  @@unique([storeId, slug])
+  @@index([categoryId, sortOrder])
+  @@map("services")
+}
+
+/// Reusable across services — the menu attaches the same "Oil Choice" group to all three
+/// Stress Relief services ("same"), so the relationship is many-to-many.
+model AddonGroup {
+  id      String @id @default(uuid()) @db.Uuid
+  storeId String @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  name      String
+  /// Oil Choice is optional-pick-one: minSelect 0, maxSelect 1.
+  minSelect Int @default(0)
+  maxSelect Int @default(1)
+  sortOrder Int @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  options  AddonOption[]
+  services ServiceAddonGroup[]
+
+  @@map("addon_groups")
+}
+
+model ServiceAddonGroup {
+  serviceId    String     @db.Uuid
+  addonGroupId String     @db.Uuid
+  sortOrder    Int        @default(0)
+  service      Service    @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  addonGroup   AddonGroup @relation(fields: [addonGroupId], references: [id], onDelete: Cascade)
+
+  @@id([serviceId, addonGroupId])
+  @@map("service_addon_groups")
+}
+
+model AddonOption {
+  id           String     @id @default(uuid()) @db.Uuid
+  addonGroupId String     @db.Uuid
+  addonGroup   AddonGroup @relation(fields: [addonGroupId], references: [id], onDelete: Cascade)
+
+  name            String
+  pricePaise      Int @map("price_delta_paise")
+  /// Fed straight into the slot engine. Zero today, but modelling it now costs nothing and
+  /// adding it later would mean a migration plus an engine change.
+  durationDeltaMinutes Int @default(0)
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  bookingAddons BookingAddon[]
+
+  @@index([addonGroupId, sortOrder])
+  @@map("addon_options")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Users
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id    String  @id @default(uuid()) @db.Uuid
+  /// E.164, e.g. +919404491801
+  phone String  @unique
+  name  String?
+  gender Gender @default(UNDISCLOSED)
+  email  String?
+  dateOfBirth DateTime? @db.Date
+
+  preferredSegmentId String?  @db.Uuid
+  preferredSegment   Segment? @relation(fields: [preferredSegmentId], references: [id])
+
+  isBlocked     Boolean   @default(false)
+  blockedReason String?
+  lastLoginAt   DateTime? @db.Timestamptz(3)
+  /// DPDP Act 2023 — explicit consent captured at signup.
+  consentAt     DateTime? @db.Timestamptz(3)
+  /// Soft delete; purged 30 days later by a scheduled job.
+  deletedAt     DateTime? @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  bookings      Booking[]
+  streak        UserStreak?
+  scratchCards  ScratchCard[]
+  rewards       UserReward[]
+  deviceTokens  DeviceToken[]
+  productOrders ProductOrder[]
+  notifications NotificationLog[]
+
+  @@map("users")
+}
+
+model AdminUser {
+  id      String  @id @default(uuid()) @db.Uuid
+  /// null = all stores (owner).
+  storeId String? @db.Uuid
+  store   Store?  @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         AdminRole @default(STAFF)
+  totpSecret   String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime? @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  checkins  CheckinToken[]
+  auditLogs AuditLog[]
+
+  @@map("admin_users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Bookings
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Booking {
+  id String @id @default(uuid()) @db.Uuid
+  /// Short, human-readable, read out at the counter: RST-2K8F4M
+  publicId String @unique
+
+  storeId   String  @db.Uuid
+  /// null for staff-created walk-ins with no customer account.
+  userId    String? @db.Uuid
+  serviceId String  @db.Uuid
+  /// Assigned by the engine at hold time. Never exposed to the customer.
+  stationId String  @db.Uuid
+
+  store   Store   @relation(fields: [storeId], references: [id])
+  user    User?   @relation(fields: [userId], references: [id])
+  service Service @relation(fields: [serviceId], references: [id])
+  station Station @relation(fields: [stationId], references: [id])
+
+  status BookingStatus @default(HELD)
+  source BookingSource @default(APP)
+
+  startsAt DateTime @db.Timestamptz(3)
+  endsAt   DateTime @db.Timestamptz(3)
+  /// endsAt + buffer. This — not endsAt — is what the exclusion constraint ranges over.
+  blockedUntil DateTime @db.Timestamptz(3)
+  totalDurationMinutes Int
+  holdExpiresAt DateTime? @db.Timestamptz(3)
+
+  /// Prices and names change; receipts must not.
+  serviceNameSnapshot String
+  basePricePaise      Int
+  addonsPricePaise    Int @default(0)
+  discountPaise       Int @default(0)
+  payablePaise        Int
+
+  appliedRewardId String?     @db.Uuid
+  appliedReward   UserReward? @relation("RewardRedemption", fields: [appliedRewardId], references: [id])
+
+  idempotencyKey String?
+  notes          String?
+
+  cancelledAt  DateTime? @db.Timestamptz(3)
+  cancelReason String?
+  checkedInAt  DateTime? @db.Timestamptz(3)
+  completedAt  DateTime? @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  addons        BookingAddon[]
+  statusHistory BookingStatusHistory[]
+  checkinToken  CheckinToken?
+  payments      Payment[]
+  scratchCards  ScratchCard[]
+
+  @@unique([storeId, idempotencyKey], name: "booking_idempotency")
+  @@index([storeId, startsAt])
+  @@index([userId, startsAt(sort: Desc)])
+  @@index([stationId, startsAt])
+  @@index([status, holdExpiresAt])
+  @@map("bookings")
+}
+
+model BookingAddon {
+  id        String @id @default(uuid()) @db.Uuid
+  bookingId String @db.Uuid
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  addonOptionId String       @db.Uuid
+  addonOption   AddonOption  @relation(fields: [addonOptionId], references: [id])
+
+  nameSnapshot         String
+  pricePaise           Int
+  durationDeltaMinutes Int @default(0)
+
+  @@index([bookingId])
+  @@map("booking_addons")
+}
+
+/// Every transition, attributable. When the owner asks why a booking was cancelled at
+/// 9:04 pm, there is an answer.
+model BookingStatusHistory {
+  id        String  @id @default(uuid()) @db.Uuid
+  bookingId String  @db.Uuid
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  fromStatus BookingStatus?
+  toStatus   BookingStatus
+  actorType  ActorType
+  actorId    String?        @db.Uuid
+  reason     String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([bookingId, createdAt])
+  @@map("booking_status_history")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Payments
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Payment {
+  id      String @id @default(uuid()) @db.Uuid
+  storeId String @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  bookingId      String?  @db.Uuid
+  booking        Booking? @relation(fields: [bookingId], references: [id])
+  productOrderId String?  @db.Uuid @unique
+  productOrder   ProductOrder? @relation(fields: [productOrderId], references: [id])
+
+  gateway          PaymentGateway @default(RAZORPAY)
+  gatewayOrderId   String
+  gatewayPaymentId String?        @unique
+  amountPaise      Int
+  currency         String         @default("INR")
+  status           PaymentStatus  @default(CREATED)
+  method           String?
+  failureReason    String?
+  rawPayload       Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  refunds Refund[]
+
+  @@index([storeId, status, createdAt])
+  @@index([gatewayOrderId])
+  @@map("payments")
+}
+
+model Refund {
+  id        String  @id @default(uuid()) @db.Uuid
+  paymentId String  @db.Uuid
+  payment   Payment @relation(fields: [paymentId], references: [id])
+
+  gatewayRefundId String?      @unique
+  amountPaise     Int
+  status          RefundStatus @default(PENDING)
+  reason          String?
+  initiatedBy     String?      @db.Uuid
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([paymentId])
+  @@map("refunds")
+}
+
+/// Webhook idempotency. Razorpay retries; the unique `eventId` turns a duplicate delivery
+/// into a failed insert, which is treated as already-processed.
+model PaymentEvent {
+  id      String         @id @default(uuid()) @db.Uuid
+  gateway PaymentGateway @default(RAZORPAY)
+  eventId String         @unique
+  eventType String
+  payload Json
+
+  processedAt     DateTime? @db.Timestamptz(3)
+  processingError String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([eventType, createdAt])
+  @@map("payment_events")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Check-in
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// QR payload is `RST1.<booking.publicId>.<hmac>` — signed, so a forged code fails
+/// verification, and single-use, so a screenshot cannot be replayed.
+model CheckinToken {
+  id        String  @id @default(uuid()) @db.Uuid
+  bookingId String  @unique @db.Uuid
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  token          String     @unique
+  issuedAt       DateTime   @default(now()) @db.Timestamptz(3)
+  usedAt         DateTime?  @db.Timestamptz(3)
+  usedByAdminId  String?    @db.Uuid
+  usedByAdmin    AdminUser? @relation(fields: [usedByAdminId], references: [id])
+
+  @@map("checkin_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Rewards
+// ─────────────────────────────────────────────────────────────────────────────
+
+model StreakRule {
+  id      String @id @default(uuid()) @db.Uuid
+  storeId String @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  name           String
+  requiredVisits Int
+  /// Rolling window in days.
+  withinDays     Int
+  rewardType     RewardType
+  rewardValue    Int
+  rewardServiceId String?  @db.Uuid
+  rewardService   Service? @relation(fields: [rewardServiceId], references: [id])
+  validityDays   Int      @default(30)
+  isActive       Boolean  @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([storeId, isActive])
+  @@map("streak_rules")
+}
+
+/// Streaks accrue only on CHECKED_IN (proposal §3.6), never on booking.
+model UserStreak {
+  userId  String @id @db.Uuid
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storeId String @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  currentCount    Int       @default(0)
+  bestCount       Int       @default(0)
+  totalVisits     Int       @default(0)
+  lastCheckinAt   DateTime? @db.Timestamptz(3)
+  windowStartedAt DateTime? @db.Timestamptz(3)
+
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("user_streaks")
+}
+
+model ScratchCampaign {
+  id      String @id @default(uuid()) @db.Uuid
+  storeId String @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  name         String
+  trigger      ScratchTrigger
+  triggerValue Int?
+  isActive     Boolean        @default(true)
+  startsAt     DateTime?      @db.Timestamptz(3)
+  endsAt       DateTime?      @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  rewards ScratchReward[]
+  cards   ScratchCard[]
+
+  @@index([storeId, isActive])
+  @@map("scratch_campaigns")
+}
+
+/// The prize pool. Drawn server-side at scratch time inside a transaction that weight-samples
+/// and decrements `stockUsed` under a row lock, so concurrent scratches cannot blow a cap.
+model ScratchReward {
+  id         String          @id @default(uuid()) @db.Uuid
+  campaignId String          @db.Uuid
+  campaign   ScratchCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  label        String
+  rewardType   RewardType
+  rewardValue  Int
+  weight       Int        @default(1)
+  stockTotal   Int?
+  stockUsed    Int        @default(0)
+  validityDays Int        @default(30)
+  isActive     Boolean    @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  cards ScratchCard[]
+
+  @@index([campaignId, isActive])
+  @@map("scratch_rewards")
+}
+
+model ScratchCard {
+  id         String          @id @default(uuid()) @db.Uuid
+  userId     String          @db.Uuid
+  campaignId String          @db.Uuid
+  bookingId  String?         @db.Uuid
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign   ScratchCampaign @relation(fields: [campaignId], references: [id])
+  booking    Booking?        @relation(fields: [bookingId], references: [id])
+
+  status          ScratchCardStatus @default(ISSUED)
+  scratchRewardId String?           @db.Uuid
+  scratchReward   ScratchReward?    @relation(fields: [scratchRewardId], references: [id])
+
+  issuedAt    DateTime  @default(now()) @db.Timestamptz(3)
+  scratchedAt DateTime? @db.Timestamptz(3)
+  expiresAt   DateTime? @db.Timestamptz(3)
+
+  @@index([userId, status])
+  @@map("scratch_cards")
+}
+
+/// The redeemable ledger. Redemption takes `SELECT … FOR UPDATE` on the row inside the
+/// booking transaction, so a reward can never be spent twice by two parallel checkouts.
+model UserReward {
+  id      String @id @default(uuid()) @db.Uuid
+  userId  String @db.Uuid
+  storeId String @db.Uuid
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  source   RewardSource
+  sourceId String?      @db.Uuid
+
+  rewardType    RewardType
+  rewardValue   Int
+  minOrderPaise Int          @default(0)
+  validFrom     DateTime     @default(now()) @db.Timestamptz(3)
+  validTill     DateTime     @db.Timestamptz(3)
+  status        RewardStatus @default(ACTIVE)
+
+  redeemedBookingId String? @db.Uuid
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  redemptions Booking[] @relation("RewardRedemption")
+
+  @@index([userId, status, validTill])
+  @@map("user_rewards")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Products (P2) — pickup at store, no delivery
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Product {
+  id      String @id @default(uuid()) @db.Uuid
+  storeId String @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  name        String
+  slug        String
+  description String?
+  images      Json    @default("[]")
+  pricePaise  Int
+  mrpPaise    Int?
+  stockQty    Int     @default(0)
+  sku         String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+  deletedAt   DateTime? @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  orderItems ProductOrderItem[]
+
+  @@unique([storeId, slug])
+  @@map("products")
+}
+
+model ProductOrder {
+  id       String @id @default(uuid()) @db.Uuid
+  publicId String @unique
+  storeId  String @db.Uuid
+  userId   String @db.Uuid
+  store    Store  @relation(fields: [storeId], references: [id])
+  user     User   @relation(fields: [userId], references: [id])
+
+  status     ProductOrderStatus @default(PENDING)
+  totalPaise Int
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  items   ProductOrderItem[]
+  payment Payment?
+
+  @@index([storeId, status, createdAt])
+  @@map("product_orders")
+}
+
+model ProductOrderItem {
+  id             String       @id @default(uuid()) @db.Uuid
+  productOrderId String       @db.Uuid
+  productId      String       @db.Uuid
+  productOrder   ProductOrder @relation(fields: [productOrderId], references: [id], onDelete: Cascade)
+  product        Product      @relation(fields: [productId], references: [id])
+
+  nameSnapshot   String
+  unitPricePaise Int
+  qty            Int
+
+  @@index([productOrderId])
+  @@map("product_order_items")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Platform
+// ─────────────────────────────────────────────────────────────────────────────
+
+model DeviceToken {
+  id       String         @id @default(uuid()) @db.Uuid
+  userId   String         @db.Uuid
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token    String         @unique
+  platform DevicePlatform
+
+  lastSeenAt DateTime @default(now()) @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+model NotificationLog {
+  id      String  @id @default(uuid()) @db.Uuid
+  userId  String? @db.Uuid
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  channel  NotificationChannel
+  template String
+  payload  Json?
+  status   NotificationStatus  @default(QUEUED)
+  error    String?
+  sentAt   DateTime?           @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([userId, createdAt])
+  @@map("notification_log")
+}
+
+/// The live OTP for a phone number.
+///
+/// Only a salted hash is stored, and it is consumed on first successful use — a code that
+/// still works after login is a replayable credential, and a leaked database must not hand
+/// over working login codes.
+model OtpCode {
+  phone      String    @id
+  codeHash   String    @map("code_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("otp_codes")
+}
+
+/// OTP endpoints get abused within days of launch, so the rate limit is a table, not a hope.
+model OtpAttempt {
+  id              String    @id @default(uuid()) @db.Uuid
+  phone           String
+  attempts        Int       @default(0)
+  windowStartedAt DateTime  @default(now()) @db.Timestamptz(3)
+  blockedUntil    DateTime? @db.Timestamptz(3)
+
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([phone])
+  @@map("otp_attempts")
+}
+
+model MediaAsset {
+  id      String @id @default(uuid()) @db.Uuid
+  storeId String @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  key      String @unique
+  mime     String
+  bytes    Int
+  width    Int?
+  height   Int?
+  variants Json   @default("{}")
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@map("media_assets")
+}
+
+/// Pricing and capacity changes must be attributable.
+model AuditLog {
+  id          String  @id @default(uuid()) @db.Uuid
+  storeId     String? @db.Uuid
+  store       Store?  @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  adminUserId String? @db.Uuid
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
+
+  action     String
+  entityType String
+  entityId   String?
+  before     Json?
+  after      Json?
+  ip         String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([storeId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_log")
+}
+
+model IdempotencyKey {
+  key       String   @id
+  storeId   String   @db.Uuid
+  endpoint  String
+  requestHash String
+  response  Json?
+  expiresAt DateTime @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}

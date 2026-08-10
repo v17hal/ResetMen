@@ -1,0 +1,17 @@
+﻿# apps/mobile is a Flutter project and deliberately lives outside the pnpm workspace.
+packages:
+  - "apps/api"
+  - "apps/web"
+  - "apps/admin"
+  - "packages/*"
+
+# Prisma and esbuild need their postinstall scripts to function at all
+# (engine download, native binary). pnpm 10 blocks build scripts by default.
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - "@prisma/engines"
+  - prisma
+  - esbuild
+  # Native image codecs. Without its build script sharp resolves but has no binary, and the
+  # failure surfaces as a module-not-found at the first upload rather than at install.
+  - sharp

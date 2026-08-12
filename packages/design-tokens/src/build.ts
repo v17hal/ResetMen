@@ -21,7 +21,18 @@ import {
 } from './tokens.js';
 import type { ColorToken, TypeStyle } from './tokens.js';
 
-const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'generated');
+const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const outDir = join(packageRoot, 'generated');
+
+/**
+ * The Flutter app gets its own copy.
+ *
+ * Dart has no equivalent of a workspace dependency on a TypeScript package, so the file
+ * has to live inside `apps/mobile/lib` for the analyzer and the build to see it. Written
+ * here rather than copied by hand, because a hand-copied generated file drifts — which is
+ * the exact failure this package exists to prevent.
+ */
+const dartAppDir = join(packageRoot, '..', '..', 'apps', 'mobile', 'lib', 'src', 'theme');
 
 const BANNER_LINES = [
   'GENERATED FILE — do not edit by hand.',
@@ -221,10 +232,16 @@ function buildDart(): string {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+const dart = buildDart();
+
 mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, 'tokens.css'), buildCss(), 'utf8');
-writeFileSync(join(outDir, 'reset_tokens.dart'), buildDart(), 'utf8');
+writeFileSync(join(outDir, 'reset_tokens.dart'), dart, 'utf8');
+
+mkdirSync(dartAppDir, { recursive: true });
+writeFileSync(join(dartAppDir, 'reset_tokens.dart'), dart, 'utf8');
 
 console.log('▸ design tokens emitted');
 console.log(`  ${join('generated', 'tokens.css')}`);
 console.log(`  ${join('generated', 'reset_tokens.dart')}`);
+console.log('  apps/mobile/lib/src/theme/reset_tokens.dart');

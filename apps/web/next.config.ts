@@ -1,7 +1,20 @@
+import { fileURLToPath } from 'node:url';
+
 import type { NextConfig } from 'next';
+
+// `new URL('../..', import.meta.url).pathname` looks equivalent and is not: on Windows it
+// yields `/C:/Users/...`, with a leading slash before the drive letter, which is not a
+// valid path. fileURLToPath handles both platforms.
+const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url));
 
 const config: NextConfig = {
   reactStrictMode: true,
+
+  // Traces exactly the files the server needs into .next/standalone — roughly 100 MB
+  // instead of shipping the whole workspace's node_modules into the image.
+  output: 'standalone',
+  // The trace root is the workspace, not this app, or the shared packages are left behind.
+  outputFileTracingRoot: workspaceRoot,
 
   transpilePackages: ['@reset/ui', '@reset/api-client', '@reset/types', '@reset/design-tokens'],
 

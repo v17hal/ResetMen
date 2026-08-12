@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
 import { BottomNav } from '@/components/bottom-nav';
+import { fontVariables } from './fonts';
 import './globals.css';
 import { Providers } from './providers';
 
@@ -30,7 +31,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={fontVariables}>
       <body className="min-h-dvh bg-bg text-text antialiased">
         <a
           href="#main"

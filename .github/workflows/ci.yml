@@ -1,0 +1,178 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+# A second push to the same branch cancels the first. Nobody needs the results of a commit
+# that has already been superseded, and the Postgres service container is the slow part.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '10.18.1'
+
+jobs:
+  # ── TypeScript: typecheck, unit tests, and both Next builds ────────────────
+  node:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Prisma Client is generated code that nothing imports until it exists. Without this
+      # the typecheck fails on every `@prisma/client` import with a message that points
+      # nowhere near the cause.
+      - name: Generate Prisma client
+        run: pnpm --filter @reset/api db:generate
+
+      - run: pnpm typecheck
+
+      - run: pnpm test
+
+      - name: Build both web surfaces
+        run: pnpm build
+        env:
+          # Inlined at build time. The real origin is set per environment at deploy.
+          NEXT_PUBLIC_API_URL: https://api.reset.app
+
+      # Proves the contract the Flutter app is generated from still emits, and that the
+      # generator still runs. A drift here means the app is built against a stale enum.
+      - name: Regenerate contracts and fail on drift
+        run: |
+          pnpm gen:tokens
+          pnpm --filter @reset/api-client generate
+          git diff --exit-code -- packages/design-tokens/generated apps/mobile/lib/src \
+            || (echo "::error::Generated files are out of date. Run 'pnpm gen:tokens' and 'pnpm gen:api', then commit." && exit 1)
+
+  # ── The tests that need a real database ───────────────────────────────────
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        # 16, matching production. The no-double-booking guarantee is an EXCLUDE USING
+        # gist constraint, so a mock or an older engine would prove nothing.
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: reset
+          POSTGRES_PASSWORD: reset
+          POSTGRES_DB: reset_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U reset"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://reset:reset@localhost:5432/reset_test?schema=public
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: test
+      JWT_ACCESS_SECRET: ci-access-secret-at-least-32-characters
+      JWT_REFRESH_SECRET: ci-refresh-secret-at-least-32-characters
+      CHECKIN_HMAC_SECRET: ci-checkin-secret-at-least-32-characters
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations
+        run: pnpm --filter @reset/api db:migrate:deploy
+
+      # Proves the exclusion constraint is actually in the database, not just in a
+      # migration file. This is the guarantee the whole product rests on.
+      - name: Verify the no-double-booking constraint
+        run: |
+          PGPASSWORD=reset psql -h localhost -U reset -d reset_test \
+            -f apps/api/prisma/verify-constraint.sql
+
+      - run: pnpm db:seed
+
+      - run: pnpm --filter @reset/api test:integration
+
+  # ── Flutter ────────────────────────────────────────────────────────────────
+  flutter:
+    name: Flutter analyze, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.3'
+          channel: stable
+          cache: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Resolve dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Check formatting
+        working-directory: apps/mobile
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze
+        working-directory: apps/mobile
+        run: flutter analyze
+
+      - name: Test
+        working-directory: apps/mobile
+        run: flutter test
+
+      # Signed with debug keys here — Play rejects those, which is the point: CI proves the
+      # build compiles and shrinks, and only the release workflow can produce something
+      # shippable.
+      - name: Build release APK
+        working-directory: apps/mobile
+        run: flutter build apk --release --dart-define=API_URL=https://api.reset.app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reset-apk-${{ github.sha }}
+          path: apps/mobile/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14

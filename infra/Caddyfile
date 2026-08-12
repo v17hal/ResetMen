@@ -1,0 +1,94 @@
+# Caddy terminates TLS and routes to the three surfaces.
+#
+# Caddy over nginx for one reason that matters at this scale: certificates are automatic
+# and renew themselves. An expired certificate on a Sunday is a shop that cannot take
+# bookings, and nobody is watching a cron job on a VPS.
+
+{
+	# Where Let's Encrypt sends expiry warnings if renewal ever does fail.
+	email {$ACME_EMAIL:ops@reset.app}
+
+	servers {
+		# Real client IPs reach the API's rate limiter. Without this every request appears
+		# to come from the Docker bridge and one attacker exhausts everybody's quota.
+		trusted_proxies static private_ranges
+	}
+}
+
+# ── Shared hardening ───────────────────────────────────────────────────────────
+(security) {
+	header {
+		# One year, and only once the domain is confirmed working — preload is very hard
+		# to undo, so it is deliberately absent.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Nothing here needs a camera, a microphone or a location.
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(self)"
+		-Server
+	}
+}
+
+# ── API ────────────────────────────────────────────────────────────────────────
+{$API_DOMAIN} {
+	import security
+
+	# The webhook signature is an HMAC over the exact bytes Razorpay sent. Nothing may
+	# rewrite or re-encode this path — a changed byte is a rejected signature and a
+	# payment stuck in CREATED.
+	@webhooks path /api/v1/webhooks/*
+	handle @webhooks {
+		reverse_proxy api:4000
+	}
+
+	handle {
+		reverse_proxy api:4000 {
+			health_uri /api/v1/health/ready
+			health_interval 30s
+		}
+	}
+
+	# Uploaded media is immutable — the key is content-addressed, so a changed image is a
+	# new key. A year is safe and takes the images off the origin entirely.
+	@media path /api/v1/media/*
+	header @media Cache-Control "public, max-age=31536000, immutable"
+
+	log {
+		output file /data/access-api.log {
+			roll_size 20mb
+			roll_keep 5
+		}
+	}
+}
+
+# ── Customer web app ───────────────────────────────────────────────────────────
+{$WEB_DOMAIN} {
+	import security
+
+	header {
+		# The customer app loads Razorpay's checkout script and posts to their API. Framing
+		# is allowed only for their sheet.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' {$API_ORIGIN} https://*.razorpay.com; frame-src https://*.razorpay.com; font-src 'self' data:; base-uri 'self'; form-action 'self'"
+	}
+
+	reverse_proxy web:3000
+}
+
+# ── Admin panel ────────────────────────────────────────────────────────────────
+{$ADMIN_DOMAIN} {
+	import security
+
+	header {
+		# Stricter than the customer app: no third-party scripts, no framing at all.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' {$API_ORIGIN}; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		X-Frame-Options "DENY"
+	}
+
+	# The panel is a counter tool, not a public site. Uncomment once the shop's fixed IP is
+	# known — until then a leaked staff password is the only thing between an attacker and
+	# the customer table.
+	# @office not remote_ip {$OFFICE_IP}
+	# respond @office 403
+
+	reverse_proxy admin:3001
+}

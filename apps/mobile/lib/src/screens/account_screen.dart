@@ -1,0 +1,253 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../api/generated/reset_enums.dart';
+import '../format.dart';
+import '../providers.dart';
+import '../theme/app_theme.dart';
+import '../theme/reset_tokens.dart';
+import '../widgets/common.dart';
+import 'sign_in_sheet.dart';
+
+class AccountScreen extends ConsumerStatefulWidget {
+  const AccountScreen({super.key});
+
+  @override
+  ConsumerState<AccountScreen> createState() => _AccountScreenState();
+}
+
+class _AccountScreenState extends ConsumerState<AccountScreen> {
+  final _name = TextEditingController();
+  final _email = TextEditingController();
+  Gender _gender = Gender.undisclosed;
+  bool _saving = false;
+  bool _seeded = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _email.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      await ref.read(repositoryProvider).updateProfile(
+            name: _name.text.trim().isEmpty ? null : _name.text.trim(),
+            email: _email.text.trim().isEmpty ? null : _email.text.trim(),
+            gender: _gender.wire,
+          );
+      ref.invalidate(sessionProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Saved.')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(friendlyMessage(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _signOut() async {
+    final repository = ref.read(repositoryProvider);
+    await repository.signOut();
+    // The cached QR belongs to the person who just left. Leaving it on the device would
+    // show the next user someone else's booking.
+    await ref.read(bookingCacheProvider).clear();
+    ref.invalidate(sessionProvider);
+    _seeded = false;
+  }
+
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete your account?'),
+        content: const Text(
+          'This cannot be undone. Cancel any upcoming bookings first if you want a refund.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep my account'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(repositoryProvider).deleteAccount();
+      await _signOut();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Your account will be deleted.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(friendlyMessage(error))));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final session = ref.watch(sessionProvider);
+    final user = session.valueOrNull;
+
+    // Seed the fields once, not on every rebuild — otherwise typing is overwritten the
+    // moment any provider this screen watches emits.
+    if (user != null && !_seeded) {
+      _name.text = user.name ?? '';
+      _email.text = user.email ?? '';
+      _gender = user.gender ?? Gender.undisclosed;
+      _seeded = true;
+    }
+
+    if (user == null && !session.isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('You')),
+        body: EmptyState(
+          title: 'Sign in',
+          message: 'Your mobile number is all you need. No password to remember.',
+          action: FilledButton(
+            onPressed: () => showSignInSheet(context),
+            child: const Text('Sign in'),
+          ),
+        ),
+      );
+    }
+
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('You')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: Text(user.name ?? 'Your account')),
+      body: ListView(
+        padding: const EdgeInsets.all(ResetTokens.gutter),
+        children: [
+          Text(
+            formatPhone(user.phone),
+            style: ResetTokens.bodySm.copyWith(color: theme.mutedColor),
+          ),
+          const SizedBox(height: ResetTokens.spaceLg),
+
+          ResetCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Details', style: ResetTokens.h2),
+                const SizedBox(height: ResetTokens.spaceBase),
+
+                TextField(
+                  controller: _name,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                    helperText: 'What we call you at the counter.',
+                  ),
+                ),
+                const SizedBox(height: ResetTokens.spaceBase),
+
+                TextField(
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    helperText: 'Optional. Only used for booking receipts.',
+                  ),
+                ),
+                const SizedBox(height: ResetTokens.spaceBase),
+
+                DropdownButtonFormField<Gender>(
+                  initialValue: _gender,
+                  decoration: const InputDecoration(labelText: 'Gender'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: Gender.undisclosed,
+                      child: Text('Prefer not to say'),
+                    ),
+                    DropdownMenuItem(value: Gender.male, child: Text('Male')),
+                    DropdownMenuItem(value: Gender.female, child: Text('Female')),
+                    DropdownMenuItem(value: Gender.other, child: Text('Other')),
+                  ],
+                  onChanged: (value) =>
+                      setState(() => _gender = value ?? Gender.undisclosed),
+                ),
+                const SizedBox(height: ResetTokens.spaceBase),
+
+                PrimaryButton(label: 'Save', loading: _saving, onPressed: _save),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: ResetTokens.spaceBase),
+
+          ResetCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Account', style: ResetTokens.h2),
+                const SizedBox(height: ResetTokens.spaceSm),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _signOut,
+                    child: const Text('Sign out'),
+                  ),
+                ),
+                const SizedBox(height: ResetTokens.spaceSm),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: _deleteAccount,
+                    child: Text(
+                      'Delete my account',
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
+                  ),
+                ),
+
+                // Required by Play Store policy and the DPDP Act. Says plainly what
+                // survives: bookings are financial records, kept without the person.
+                Text(
+                  'Deleting removes your name, number and contact details after a short '
+                  'grace period. Records of past payments are kept for tax purposes, '
+                  'without you attached to them.',
+                  style: ResetTokens.caption.copyWith(color: theme.mutedColor),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: ResetTokens.spaceXl),
+          Center(
+            child: Text(
+              'RESET · v1.0.0',
+              style: ResetTokens.caption.copyWith(color: theme.mutedColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

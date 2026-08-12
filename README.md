@@ -59,8 +59,17 @@ slot, pays online, walks in, gets scanned in via QR, earns streaks and scratch-c
 | **DPDP data retention** | ✅ Done — accounts anonymised 30 days after deletion, bookings preserved |
 | **Idempotency-Key + Redis rate limiting** | ✅ Done |
 | **Scheduled jobs** | ✅ Done — 15 jobs |
-| **Tests** | ✅ 174 passing — 63 engine · 38 API unit · 73 integration |
-| Web / admin / Flutter UI | ⏳ Next — the bulk of what remains |
+| `@reset/api-client` — typed client, single-flight refresh | ✅ Done |
+| `@reset/ui` — primitives, formatting, motion, Tailwind preset | ✅ Done |
+| **Admin panel** — 14 routes | ✅ Done — production build clean |
+| **Customer web app** — 10 routes | ✅ Done — production build clean |
+| **Flutter app** — 9 screens, offline QR cache | ✅ Done — analyze clean, release APK builds |
+| **CI** — typecheck, tests, both Next builds, integration on real Postgres, Flutter | ✅ Done |
+| **Infra** — Caddy/TLS, prod compose, nightly backups, restore rehearsal | ✅ Done |
+| **Tests** | ✅ 198 — 63 engine · 38 API unit · 73 integration · 24 client · 20 ui · 13 Flutter |
+| Push notifications in the app | ⏳ Blocked — needs the client's Firebase project |
+| Play Store submission | ⏳ Blocked — needs the client's Play Console |
+| Load / soak test | ⏳ Phase 4 gate |
 
 **Phase 1 exit gate — met.** 50 simultaneous holds on the last remaining slot produce
 exactly one booking, 49 clean `409`s, and zero overlapping rows.
@@ -76,9 +85,26 @@ docker compose up -d              # postgres · redis · minio
 cp .env.example apps/api/.env     # DATABASE_URL is all the API needs today
 pnpm --filter @reset/api exec prisma migrate deploy
 pnpm db:seed                      # loads the photographed MEN menu
-pnpm test                         # 101 unit tests (63 engine + 38 API)
+pnpm test                         # 145 unit tests across the workspace
 pnpm --filter @reset/api dev      # API on :4000, Swagger at /docs
 ```
+
+Then whichever surface you are working on:
+
+```bash
+cp apps/web/.env.example apps/web/.env.local        # NEXT_PUBLIC_API_URL
+cp apps/admin/.env.example apps/admin/.env.local
+
+pnpm --filter @reset/web dev      # customer app on :3000
+pnpm --filter @reset/admin dev    # admin panel on :3001
+
+# The Flutter app. 10.0.2.2 is the emulator's route to the host — localhost is the
+# emulator itself, which is the first thing everyone gets wrong.
+cd apps/mobile && flutter run --dart-define=API_URL=http://10.0.2.2:4000
+```
+
+Deployment — one VPS, five containers behind Caddy — is in [infra/README.md](infra/README.md),
+including the restore rehearsal that should be run before launch and quarterly after.
 
 **Third-party integrations degrade to logging** until your client's accounts exist, so every
 path is demonstrable today:

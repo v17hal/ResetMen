@@ -1,7 +1,18 @@
+import { fileURLToPath } from 'node:url';
+
 import type { NextConfig } from 'next';
+
+// See apps/web/next.config.ts: the `.pathname` form yields `/C:/Users/...` on Windows,
+// with a leading slash before the drive letter, which is not a valid path.
+const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url));
 
 const config: NextConfig = {
   reactStrictMode: true,
+
+  // See apps/web/next.config.ts — standalone output, traced from the workspace root so
+  // the shared packages come with it.
+  output: 'standalone',
+  outputFileTracingRoot: workspaceRoot,
 
   /**
    * `@reset/ui` and `@reset/api-client` are consumed as TypeScript source rather than as

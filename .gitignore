@@ -38,3 +38,17 @@ apps/mobile/**/*.freezed.dart
 apps/mobile/android/key.properties
 apps/mobile/android/app/google-services.json
 apps/mobile/ios/Runner/GoogleService-Info.plist
+apps/mobile/android/.gradle/
+apps/mobile/android/local.properties
+
+# Signing keys. Losing the upload keystore means the app can never be updated under the
+# same Play listing — Google will not accept a differently-signed build — so the original
+# belongs in the client's password manager, and a copy in CI secrets. Never here.
+*.jks
+*.keystore
+
+# Live secrets
+infra/.env.prod
+
+# Generated from the running app; regenerate with `pnpm gen:api`.
+docs/openapi.json

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
+import { fontVariables } from './fonts.js';
 import './globals.css';
 import { Providers } from './providers.js';
 
@@ -21,7 +22,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={fontVariables}>
       <body className="min-h-dvh bg-bg text-text antialiased">
         <a
           href="#main"

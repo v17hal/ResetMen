@@ -1,0 +1,78 @@
+# syntax=docker/dockerfile:1.7
+
+# The API image.
+#
+# Multi-stage, and the reason is not image size — it is that the build needs the whole
+# pnpm workspace (types, slot-engine-core, prisma generate) while the runtime needs none of
+# it. Shipping the build toolchain into production means shipping its CVEs too.
+
+# ── Dependencies ───────────────────────────────────────────────────────────────
+FROM node:22-alpine AS deps
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@10.18.1 --activate
+
+# Manifests only, so this layer is cached until a dependency actually changes. Copying the
+# sources first would rebuild node_modules on every code edit.
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/types/package.json ./packages/types/
+COPY packages/slot-engine-core/package.json ./packages/slot-engine-core/
+COPY packages/config/package.json ./packages/config/
+COPY apps/api/package.json ./apps/api/
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm config set store-dir /pnpm/store && \
+    pnpm install --frozen-lockfile --filter @reset/api...
+
+# ── Build ──────────────────────────────────────────────────────────────────────
+FROM deps AS build
+WORKDIR /app
+
+COPY tsconfig.base.json turbo.json ./
+COPY packages ./packages
+COPY apps/api ./apps/api
+
+# sharp compiles a native binary; without it media uploads fail at runtime rather than at
+# build time, which is the wrong place to find out.
+RUN pnpm rebuild sharp || true
+
+RUN pnpm --filter @reset/types build && \
+    pnpm --filter @reset/slot-engine-core build && \
+    pnpm --filter @reset/api db:generate && \
+    pnpm --filter @reset/api build
+
+# Strip dev dependencies from what gets copied forward.
+RUN pnpm --filter @reset/api --prod deploy /out
+
+# ── Runtime ────────────────────────────────────────────────────────────────────
+FROM node:22-alpine AS runtime
+WORKDIR /app
+
+# Non-root. The process only ever writes to /app/var, which is a mounted volume.
+RUN addgroup -S reset && adduser -S reset -G reset
+
+# Prisma's query engine needs OpenSSL, and tini gives the container a real init so a
+# SIGTERM from `docker compose down` reaches Node instead of being swallowed by PID 1 —
+# without it, shutdown hooks never run and in-flight requests are cut off.
+RUN apk add --no-cache openssl tini
+
+COPY --from=build --chown=reset:reset /out ./
+COPY --from=build --chown=reset:reset /app/apps/api/prisma ./prisma
+
+RUN mkdir -p /app/var/media && chown -R reset:reset /app/var
+
+USER reset
+
+ENV NODE_ENV=production
+ENV API_PORT=4000
+ENV MEDIA_ROOT=/app/var/media
+
+EXPOSE 4000
+
+# Hits the readiness endpoint, which checks the database rather than just returning 200.
+# A container that is up but cannot reach Postgres should not receive traffic.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:4000/api/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "dist/main.js"]

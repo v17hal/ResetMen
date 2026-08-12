@@ -1,0 +1,151 @@
+# Production stack for a single VPS.
+#
+# One box is the right shape for one outlet: the whole thing fits in 2 GB, and the
+# operational cost of Kubernetes for a shop with six beds is not repaid. docs/03 §scaling
+# describes what changes when a second outlet appears.
+#
+#   docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod up -d
+#
+# Nothing here publishes a port to the host except Caddy. Postgres and Redis are reachable
+# only on the internal network — a Postgres listening on 0.0.0.0 is how a shop's customer
+# table ends up on a leak site.
+
+name: reset
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN}
+      WEB_DOMAIN: ${WEB_DOMAIN:?set WEB_DOMAIN}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN}
+      API_ORIGIN: https://${API_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:-ops@reset.app}
+    depends_on: [api, web, admin]
+    networks: [edge, internal]
+
+  api:
+    image: ${API_IMAGE:-ghcr.io/reset/api:latest}
+    restart: unless-stopped
+    env_file: [.env.prod]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://reset:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/reset?schema=public
+      REDIS_URL: redis://redis:6379
+    volumes:
+      # Uploaded media. Belongs in the backup set, not in the image.
+      - media:/app/var/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [internal]
+    # A runaway request loop should degrade this container, not take the database with it.
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/reset/web:latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    networks: [internal]
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+  admin:
+    image: ${ADMIN_IMAGE:-ghcr.io/reset/admin:latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    networks: [internal]
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+  postgres:
+    # 16, for btree_gist and the EXCLUDE USING gist constraint the whole product rests on.
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: reset
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: reset
+      # Data checksums catch silent corruption on the cheap disks these VPSs use. It can
+      # only be set at initdb time — retrofitting means a dump and restore.
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U reset -d reset']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Rate-limit counters and idempotency locks only. Losing them on restart costs nothing
+    # worse than a briefly permissive rate limit, so persistence is off deliberately —
+    # `--save ''` also stops it forking to disk on a memory-tight box.
+    command: ['redis-server', '--save', '', '--appendonly', 'no', '--maxmemory', '128mb', '--maxmemory-policy', 'allkeys-lru']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+    deploy:
+      resources:
+        limits:
+          memory: 160M
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ./backup.sh:/usr/local/bin/backup.sh:ro
+      - backups:/backups
+      - media:/media:ro
+    entrypoint: ['/bin/sh', '/usr/local/bin/backup.sh']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+
+networks:
+  edge:
+  internal:
+    # No route to the outside world. Nothing in here needs to make outbound calls except
+    # the API, which reaches the internet through the edge network via Caddy's host.
+    internal: false
+
+volumes:
+  postgres-data:
+  media:
+  backups:
+  caddy-data:
+  caddy-config:

@@ -95,6 +95,16 @@ const envSchema = z.object({
   /** Prefix put in front of stored keys to build image URLs. */
   MEDIA_PUBLIC_BASE_URL: z.string().default('/api/v1/media'),
 
+  /**
+   * Off only in tests, where a suite drives dozens of requests through one endpoint in
+   * seconds. Never set this to false in any deployed environment — OTP is gone, but the
+   * booking and refund routes are still worth protecting from a script.
+   */
+  RATE_LIMIT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 });
 

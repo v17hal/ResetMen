@@ -3878,34 +3878,9 @@
         ]
       }
     },
-    "/api/v1/auth/otp/request": {
+    "/api/v1/auth/firebase": {
       "post": {
-        "operationId": "AuthController_requestOtp",
-        "parameters": [
-          {
-            "name": "X-Store-Id",
-            "in": "header",
-            "required": false,
-            "description": "Optional for a single-outlet install — the only active store is used.",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/api/v1/auth/otp/verify": {
-      "post": {
-        "operationId": "AuthController_verifyOtp",
+        "operationId": "AuthController_firebase",
         "parameters": [
           {
             "name": "X-Store-Id",

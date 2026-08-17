@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, Logger, SetMetadata } from '
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 
+import { loadEnv } from '../config/env.js';
 import { AppError } from './errors.js';
 import { RedisService } from './redis.service.js';
 
@@ -47,12 +48,24 @@ export class RateLimitGuard implements CanActivate {
   private readonly buckets = new Map<string, Bucket>();
   private warnedAboutFallback = false;
 
+  /**
+   * Explicit config rather than an `if (NODE_ENV === 'test')` buried in the hot path.
+   *
+   * Integration suites drive dozens of holds through one endpoint in seconds and would
+   * otherwise trip a limit meant for one human with a phone. Making it a flag means the
+   * bypass is visible in the environment, and a suite that wants to *test* the limiter can
+   * turn it back on for itself.
+   */
+  private readonly enabled = loadEnv().RATE_LIMIT_ENABLED;
+
   constructor(
     private readonly reflector: Reflector,
     private readonly redis: RedisService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (!this.enabled) return true;
+
     const config = this.reflector.getAllAndOverride<RateLimit | undefined>(RATE_LIMIT_KEY, [
       context.getHandler(),
       context.getClass(),

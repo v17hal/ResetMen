@@ -99,6 +99,14 @@ jobs:
       JWT_ACCESS_SECRET: ci-access-secret-at-least-32-characters
       JWT_REFRESH_SECRET: ci-refresh-secret-at-least-32-characters
       CHECKIN_HMAC_SECRET: ci-checkin-secret-at-least-32-characters
+      # Never contacted — token verification only compares the audience against it.
+      FIREBASE_PROJECT_ID: reset-ci-project
+      # The suite drives dozens of holds through one endpoint in seconds, which would trip
+      # a limit sized for one human with a phone.
+      RATE_LIMIT_ENABLED: 'false'
+      # The payments-off suite sets this to false for itself; every other suite needs the
+      # Razorpay path live so it cannot rot while switched off in production.
+      PAYMENTS_ENABLED: 'true'
 
     steps:
       - uses: actions/checkout@v4

@@ -26,6 +26,7 @@ slot, pays online, walks in, gets scanned in via QR, earns streaks and scratch-c
 | 08 | [UI/UX Design](docs/08-ui-ux-design.md) | Design tokens, component inventory, screen-by-screen wireframes, states |
 | 09 | [Delivery Plan](docs/09-delivery-plan.md) | Milestones, sequencing, definition of done per phase |
 | 10 | [Open Questions](docs/10-open-questions.md) | Decisions needed from the client before/during build |
+| 11 | [**Scope changes, Aug 2026**](docs/11-scope-changes.md) | No payments, no SMS, Google sign-in. **Read this before 01–10** — where they disagree, 11 is what the code does |
 
 ## Reading order
 
@@ -46,16 +47,16 @@ slot, pays online, walks in, gets scanned in via QR, earns streaks and scratch-c
 | Design tokens → CSS + TS + Dart | ✅ Done |
 | `@reset/types` — shared Zod contract | ✅ Done |
 | **API: catalog · availability · booking (full lifecycle)** | ✅ Done |
-| **API: auth — phone OTP, JWT, admin login, RBAC** | ✅ Done |
+| **API: auth — Google via Firebase, JWT, admin login, RBAC** | ✅ Done — phone/OTP removed Aug 2026, see [doc 11](docs/11-scope-changes.md) |
 | **API: admin capacity — designation, allocation rules + preview** | ✅ Done |
 | **API: QR check-in, walk-ins, station timeline** | ✅ Done |
-| **API: payments — Razorpay orders, signed webhook, refunds, reconciliation** | ✅ Done — runs in simulated mode until the client's Razorpay account exists |
+| **API: payments — Razorpay orders, signed webhook, refunds, reconciliation** | ✅ Built and tested, but **switched off** (`PAYMENTS_ENABLED=false`) — the store takes money at the counter |
 | **API: rewards — wallet, streaks, scratch cards with stock caps** | ✅ Done |
 | **API: notifications — FCM, device tokens, T-60 / T-10 reminders** | ✅ Done — logs instead of sending until Firebase is configured |
 | **API: storefront — products, orders, stock** | ✅ Done |
 | **API: admin — catalog CRUD, customers, staff, reports, CSV, audit log** | ✅ Done |
 | **API: media upload** | ✅ Done — local disk behind an object-storage-shaped interface, WebP renditions |
-| **SMS / WhatsApp / email delivery** | ✅ Done — MSG91 + Twilio + Resend adapters; log instead of sending until keys exist |
+| **SMS / WhatsApp / email delivery** | ✅ Adapters built; **no SMS account**, so these log instead of sending. Push is the live channel |
 | **DPDP data retention** | ✅ Done — accounts anonymised 30 days after deletion, bookings preserved |
 | **Idempotency-Key + Redis rate limiting** | ✅ Done |
 | **Scheduled jobs** | ✅ Done — 15 jobs |
@@ -66,7 +67,7 @@ slot, pays online, walks in, gets scanned in via QR, earns streaks and scratch-c
 | **Flutter app** — 9 screens, offline QR cache | ✅ Done — analyze clean, release APK builds |
 | **CI** — typecheck, tests, both Next builds, integration on real Postgres, Flutter | ✅ Done |
 | **Infra** — Caddy/TLS, prod compose, nightly backups, restore rehearsal | ✅ Done |
-| **Tests** | ✅ 198 — 63 engine · 38 API unit · 73 integration · 24 client · 20 ui · 13 Flutter |
+| **Tests** | ✅ 229 — 63 engine · 31 API unit · **78 integration** · 24 client · 20 ui · 13 Flutter |
 | Push notifications in the app | ⏳ Blocked — needs the client's Firebase project |
 | Play Store submission | ⏳ Blocked — needs the client's Play Console |
 | Load / soak test | ⏳ Phase 4 gate |
@@ -106,19 +107,20 @@ cd apps/mobile && flutter run --dart-define=API_URL=http://10.0.2.2:4000
 Deployment — one VPS, five containers behind Caddy — is in [infra/README.md](infra/README.md),
 including the restore rehearsal that should be run before launch and quarterly after.
 
-**Third-party integrations degrade to logging** until your client's accounts exist, so every
-path is demonstrable today:
+**Third-party integrations degrade to logging**, so every path is demonstrable today:
 
 | Unconfigured | Behaviour | Production |
 |---|---|---|
-| `RAZORPAY_*` | Orders fabricated locally; `POST /payments/:id/simulate-success` completes a checkout | **Refuses to start** |
-| SMS (`MSG91_*` / `TWILIO_*`) | OTP printed to the log | **Refuses to start** |
+| `FIREBASE_PROJECT_ID` | Sign-in fails | **Refuses to start** |
+| `RAZORPAY_*` | Irrelevant while `PAYMENTS_ENABLED=false` | Refuses to start **only if** payments are on |
+| SMS (`MSG91_*` / `TWILIO_*`) | SMS logged, not sent | Degrades — push is the live channel |
 | `FCM_SERVICE_ACCOUNT_JSON` | Push logged | Degrades |
 | `EMAIL_API_KEY` | Email logged | Degrades |
 | `REDIS_URL` | Rate limits per-process | Degrades |
 
-The two that refuse are the two where pretending would be dangerous: a live deployment must
-never silently accept a fake payment, and must never look healthy while nobody can sign in.
+Only one refuses to boot, and it is the one where pretending is dangerous: an API that
+looks healthy while nobody can sign in is worse than one that will not start. See
+[doc 11](docs/11-scope-changes.md) for why the payment and SMS guards moved.
 
 Verify the core guarantee for yourself — an overlapping booking is rejected by the database,
 not by application code:

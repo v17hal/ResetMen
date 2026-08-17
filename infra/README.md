@@ -43,9 +43,12 @@ docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod \
   exec api node dist/../prisma/seed/create-admin.js owner@reset.app 'a-real-password' OWNER
 ```
 
-The API **refuses to start** without Razorpay keys and an SMS provider. That is deliberate:
-a deployment that silently accepts fake payments, or looks healthy while nobody can sign in,
-is worse than one that will not boot.
+The API **refuses to start** without `FIREBASE_PROJECT_ID`. That is deliberate: customers
+sign in through Firebase, and a deployment that looks healthy while nobody can sign in is
+worse than one that will not boot.
+
+Payments and SMS are both off for this store — see [doc 11](../docs/11-scope-changes.md).
+Razorpay keys become mandatory only if `PAYMENTS_ENABLED` is ever set to `true`.
 
 ## Backups
 
@@ -132,10 +135,14 @@ Rolling back means pinning the previous tag and running `up -d` again — which 
 
 - [ ] DNS resolves for all three domains
 - [ ] `.env.prod` is `chmod 600`, with three *different* JWT secrets
-- [ ] Razorpay webhook points at `https://api.reset.app/api/v1/webhooks/razorpay`
-- [ ] MSG91 DLT templates approved — Indian operators drop unregistered SMS silently
+- [ ] `FIREBASE_PROJECT_ID` set — the API will not boot without it
+- [ ] **Play app-signing SHA-1 added to Firebase** — the fingerprint real installs carry.
+      Sign-in works in testing and fails for every real user until this is done
+- [ ] Firebase API key restricted to the app's package + SHA-1 in Google Cloud console
 - [ ] **Restore rehearsal passed**
 - [ ] Off-site backup sync running
 - [ ] First OWNER account created, default passwords nowhere
-- [ ] A real ₹1 payment taken and refunded
+- [ ] A real booking made, confirmed and scanned in at the counter — the payments-off
+      equivalent of the ₹1 payment gate
 - [ ] Admin panel IP allowlist decided (see the commented block in the Caddyfile)
+- [ ] No-show policy agreed — a booking currently costs nothing to make or break

@@ -2,11 +2,11 @@ import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { DateTime } from 'luxon';
-import { createHash } from 'node:crypto';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../../src/app.module.js';
+import { TokenService } from '../../src/auth/token.service.js';
 import { ProblemJsonFilter } from '../../src/common/problem-json.filter.js';
 
 /**
@@ -42,26 +42,26 @@ describe('idempotency', () => {
     timezone = store.timezone;
     serviceId = (await raw.service.findFirstOrThrow({ where: { storeId, slug: 'head' } })).id;
 
-    // Sign in through the real OTP path rather than minting a token by hand — it is two
-    // calls, and it keeps this test honest about the guard the route actually carries.
-    const phone = '+919200000001';
-    await request(app.getHttpServer()).post('/api/v1/auth/otp/request').send({ phone }).expect(201);
-
-    // Codes are stored hashed, so the generated one cannot be read back. Overwrite the hash
-    // with a known code instead of reaching into the provider's log. `phone` is the primary
-    // key — there is one live code per number by design.
-    const code = '424242';
-    await raw.otpCode.update({
-      where: { phone },
-      data: { codeHash: hashOtp(phone, code), consumedAt: null },
+    /**
+     * The token is minted directly rather than driven through sign-in.
+     *
+     * Sign-in now requires a Firebase ID token signed by Google, and this suite is about
+     * idempotency, not authentication — standing up a fake Google signing key here would
+     * test the mock rather than the behaviour under examination. The Firebase verifier has
+     * its own coverage.
+     */
+    const user = await raw.user.upsert({
+      where: { firebaseUid: 'test-idempotency-user' },
+      create: {
+        firebaseUid: 'test-idempotency-user',
+        email: 'idempotency@test.reset.app',
+        name: 'Idempotency Test',
+        consentAt: new Date(),
+      },
+      update: {},
     });
 
-    const verified = await request(app.getHttpServer())
-      .post('/api/v1/auth/otp/verify')
-      .send({ phone, code })
-      .expect(201);
-
-    token = verified.body.accessToken;
+    token = app.get(TokenService).issueAccess({ sub: user.id, aud: 'customer' });
   });
 
   afterAll(async () => {
@@ -180,7 +180,3 @@ describe('idempotency', () => {
   });
 });
 
-/** Mirrors `AuthService`'s storage format. */
-function hashOtp(phone: string, code: string): string {
-  return createHash('sha256').update(`${phone}:${code}`).digest('hex');
-}

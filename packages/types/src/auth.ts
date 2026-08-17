@@ -7,9 +7,6 @@ export const phone = z
   .string()
   .regex(/^\+[1-9]\d{7,14}$/, 'Expected an E.164 phone number, e.g. +919404491801');
 
-export const otpRequest = z.object({ phone });
-export type OtpRequest = z.infer<typeof otpRequest>;
-
 /**
  * Sign in with a Firebase ID token.
  *
@@ -25,14 +22,6 @@ export const firebaseSignIn = z.object({
 });
 export type FirebaseSignIn = z.infer<typeof firebaseSignIn>;
 
-export const otpVerify = z.object({
-  phone,
-  code: z.string().regex(/^\d{4,8}$/, 'Expected a numeric OTP'),
-  deviceToken: z.string().optional(),
-  platform: z.enum(['ANDROID', 'IOS', 'WEB']).optional(),
-});
-export type OtpVerify = z.infer<typeof otpVerify>;
-
 export const gender = z.enum(['MALE', 'FEMALE', 'OTHER', 'UNDISCLOSED']);
 
 export const userProfile = z.object({
@@ -45,6 +34,11 @@ export const userProfile = z.object({
   name: z.string().nullable(),
   gender,
   email: z.string().email().nullable(),
+  /**
+   * `YYYY-MM-DD`, not an instant — a birthday has no time of day, and serialising it as
+   * one shifts it a day either side of midnight depending on the reader's timezone.
+   */
+  dateOfBirth: z.string().date().nullable(),
   preferredSegmentId: uuid.nullable(),
 });
 export type UserProfile = z.infer<typeof userProfile>;

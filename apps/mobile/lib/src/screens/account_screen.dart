@@ -20,6 +20,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _phone = TextEditingController();
+  DateTime? _dob;
   Gender _gender = Gender.undisclosed;
   bool _saving = false;
   bool _seeded = false;
@@ -44,6 +45,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             // E.164 check on the server and turn "I didn't want to give my number" into
             // a validation error.
             phone: phone.isEmpty ? null : toE164(phone),
+            dateOfBirth: _dob == null ? null : formatIsoDate(_dob!),
           );
       ref.invalidate(sessionProvider);
       if (mounted) {
@@ -124,6 +126,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       _name.text = user.name ?? '';
       _email.text = user.email ?? '';
       _phone.text = user.phone ?? '';
+      _dob = user.dateOfBirth == null ? null : DateTime.tryParse(user.dateOfBirth!);
       _gender = user.gender ?? Gender.undisclosed;
       _seeded = true;
     }
@@ -201,6 +204,37 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     labelText: 'Mobile number',
                     prefixText: '+91 ',
                     helperText: 'Optional — lets the store reach you about your booking.',
+                  ),
+                ),
+                const SizedBox(height: ResetTokens.spaceBase),
+
+                // A date picker rather than a text field: typing a birthday invites every
+                // ambiguity between DD/MM and MM/DD, and the picker cannot produce one.
+                InkWell(
+                  onTap: () async {
+                    final now = DateTime.now();
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _dob ?? DateTime(now.year - 25),
+                      firstDate: DateTime(now.year - 100),
+                      // No future birthdays, and nobody under 13 — the age below which
+                      // consent is a parent's to give under the DPDP Act.
+                      lastDate: DateTime(now.year - 13, now.month, now.day),
+                      helpText: 'Date of birth',
+                    );
+                    if (picked != null) setState(() => _dob = picked);
+                  },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Date of birth',
+                      helperText: 'Optional — the store sends a birthday treat.',
+                    ),
+                    child: Text(
+                      _dob == null ? 'Not set' : formatDate(_dob!),
+                      style: _dob == null
+                          ? ResetTokens.body.copyWith(color: theme.mutedColor)
+                          : ResetTokens.body,
+                    ),
                   ),
                 ),
                 const SizedBox(height: ResetTokens.spaceBase),

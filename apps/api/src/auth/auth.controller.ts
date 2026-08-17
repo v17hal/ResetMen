@@ -1,13 +1,6 @@
 import { Body, Controller, Delete, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import {
-  adminLogin,
-  firebaseSignIn,
-  otpRequest,
-  otpVerify,
-  refreshRequest,
-  updateProfile,
-} from '@reset/types';
+import { adminLogin, firebaseSignIn, refreshRequest, updateProfile } from '@reset/types';
 import type { z } from 'zod';
 
 import { RateLimitGuard, RateLimited } from '../common/rate-limit.guard.js';
@@ -20,23 +13,6 @@ import { CurrentUser, CustomerGuard } from './auth.guards.js';
 @UseGuards(RateLimitGuard)
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
-
-  /**
-   * Per-IP cap on top of the per-phone cap in AuthService. One attacker with a list of ten
-   * thousand numbers would otherwise never trip the per-phone limit, and every SMS is
-   * billable.
-   */
-  @Post('otp/request')
-  @RateLimited({ limit: 10, windowSeconds: 3600 })
-  async requestOtp(@Body(new ZodValidationPipe(otpRequest)) body: z.infer<typeof otpRequest>) {
-    return this.auth.requestOtp(body.phone);
-  }
-
-  @Post('otp/verify')
-  @RateLimited({ limit: 20, windowSeconds: 3600 })
-  async verifyOtp(@Body(new ZodValidationPipe(otpVerify)) body: z.infer<typeof otpVerify>) {
-    return this.auth.verifyOtp(body);
-  }
 
   /**
    * The customer sign-in path.

@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 
+import { CompleteProfileBanner } from '@/components/complete-profile-banner';
 import { errorMessage } from '@/lib/auth';
 import { api } from '@/lib/client';
 
@@ -53,6 +54,8 @@ export default function HomePage() {
           Pick a service, choose a time, and walk straight in.
         </p>
       </header>
+
+      <CompleteProfileBanner />
 
       {home.isPending ? (
         <HomeSkeleton />

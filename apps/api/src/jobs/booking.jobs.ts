@@ -112,10 +112,4 @@ export class BookingJobs {
 
     if (count > 0) this.logger.log(`Completed ${count} finished session(s)`);
   }
-
-  /** Expired OTP codes are dead weight and a small liability. */
-  @Cron(CronExpression.EVERY_HOUR, { name: 'purge-otp-codes' })
-  async purgeOtpCodes(): Promise<void> {
-    await this.prisma.$executeRaw`DELETE FROM otp_codes WHERE expires_at < now() - interval '1 day'`;
-  }
 }

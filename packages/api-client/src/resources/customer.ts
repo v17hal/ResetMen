@@ -39,32 +39,6 @@ import type {
 export class AuthResource {
   constructor(private readonly http: HttpClient) {}
 
-  /** Sends an OTP. In development it is printed to the API log instead. */
-  requestOtp(phone: string): Promise<{ sent: boolean; expiresInSeconds: number }> {
-    return this.http.post('/auth/otp/request', { body: { phone }, anonymous: true });
-  }
-
-  /**
-   * Verifies the code and signs in. The returned tokens are stored on the client, so
-   * everything afterwards is authenticated without the caller doing anything.
-   */
-  async verifyOtp(input: {
-    phone: string;
-    code: string;
-    deviceToken?: string;
-    platform?: 'ANDROID' | 'IOS' | 'WEB';
-  }): Promise<AuthTokens> {
-    const tokens = await this.http.post<AuthTokens>('/auth/otp/verify', {
-      body: input,
-      anonymous: true,
-    });
-    this.http.setTokens({
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-    });
-    return tokens;
-  }
-
   /**
    * Exchanges a Firebase ID token for a RESET session.
    *

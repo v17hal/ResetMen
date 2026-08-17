@@ -1,13 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type { AdminRole } from '@prisma/client';
-import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 
 import { AppError } from '../common/errors.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { FirebaseTokenVerifier } from './firebase-token.verifier.js';
-import { OTP_PROVIDER, generateOtpCode } from './otp.provider.js';
-import type { OtpProvider } from './otp.provider.js';
 import { TokenService } from './token.service.js';
 
 const scrypt = promisify(scryptCb) as (
@@ -16,17 +14,11 @@ const scrypt = promisify(scryptCb) as (
   keylen: number,
 ) => Promise<Buffer>;
 
-/** OTP abuse starts within days of launch, so these are enforced from day one. */
-const OTP_TTL_MINUTES = 5;
-const OTP_MAX_ATTEMPTS_PER_HOUR = 3;
-const OTP_BLOCK_MINUTES = 60;
-
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
-    @Inject(OTP_PROVIDER) private readonly otp: OtpProvider,
     private readonly firebase: FirebaseTokenVerifier,
   ) {}
 
@@ -126,143 +118,6 @@ export class AuthService {
     };
   }
 
-  async requestOtp(phone: string): Promise<{ sent: true; expiresInSeconds: number }> {
-    const now = new Date();
-    const record = await this.prisma.otpAttempt.findUnique({ where: { phone } });
-
-    if (record?.blockedUntil != null && record.blockedUntil > now) {
-      const retryAfterSeconds = Math.ceil(
-        (record.blockedUntil.getTime() - now.getTime()) / 1000,
-      );
-      throw new AppError(
-        'OTP_RATE_LIMITED',
-        429,
-        'Too many attempts',
-        'Try again a little later.',
-        { retryAfterSeconds },
-      );
-    }
-
-    const windowExpired =
-      record === null || now.getTime() - record.windowStartedAt.getTime() > 60 * 60 * 1000;
-    const attempts = windowExpired ? 1 : record.attempts + 1;
-
-    const blockedUntil =
-      attempts > OTP_MAX_ATTEMPTS_PER_HOUR
-        ? new Date(now.getTime() + OTP_BLOCK_MINUTES * 60 * 1000)
-        : null;
-
-    await this.prisma.otpAttempt.upsert({
-      where: { phone },
-      create: { phone, attempts: 1, windowStartedAt: now },
-      update: {
-        attempts,
-        ...(windowExpired ? { windowStartedAt: now } : {}),
-        blockedUntil,
-      },
-    });
-
-    if (blockedUntil !== null) {
-      throw new AppError(
-        'OTP_RATE_LIMITED',
-        429,
-        'Too many attempts',
-        'Try again in an hour.',
-        { retryAfterSeconds: OTP_BLOCK_MINUTES * 60 },
-      );
-    }
-
-    const code = generateOtpCode();
-
-    // Only the hash is stored. A leaked database must not hand over live login codes.
-    await this.prisma.$executeRaw`
-      INSERT INTO otp_codes (phone, code_hash, expires_at)
-      VALUES (${phone}, ${hashOtp(phone, code)}, ${new Date(now.getTime() + OTP_TTL_MINUTES * 60_000)})
-      ON CONFLICT (phone) DO UPDATE
-        SET code_hash = EXCLUDED.code_hash, expires_at = EXCLUDED.expires_at, consumed_at = NULL
-    `;
-
-    await this.otp.send(phone, code);
-
-    return { sent: true, expiresInSeconds: OTP_TTL_MINUTES * 60 };
-  }
-
-  async verifyOtp(params: {
-    phone: string;
-    code: string;
-    deviceToken?: string;
-    platform?: 'ANDROID' | 'IOS' | 'WEB';
-  }) {
-    const rows = await this.prisma.$queryRaw<
-      { code_hash: string; expires_at: Date; consumed_at: Date | null }[]
-    >`SELECT code_hash, expires_at, consumed_at FROM otp_codes WHERE phone = ${params.phone}`;
-
-    const record = rows[0];
-    if (record === undefined || record.consumed_at !== null) {
-      throw new AppError('UNAUTHENTICATED', 401, 'Invalid code');
-    }
-    if (record.expires_at < new Date()) {
-      throw new AppError('UNAUTHENTICATED', 401, 'Code expired', 'Request a new one.');
-    }
-
-    const expected = Buffer.from(record.code_hash, 'hex');
-    const supplied = Buffer.from(hashOtp(params.phone, params.code), 'hex');
-    if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) {
-      throw new AppError('UNAUTHENTICATED', 401, 'Invalid code');
-    }
-
-    // Single use — a code that still works after login is a replayable credential.
-    await this.prisma
-      .$executeRaw`UPDATE otp_codes SET consumed_at = now() WHERE phone = ${params.phone}`;
-    await this.prisma.otpAttempt.deleteMany({ where: { phone: params.phone } });
-
-    const existing = await this.prisma.user.findUnique({ where: { phone: params.phone } });
-    const isNewUser = existing === null;
-
-    const user =
-      existing ??
-      (await this.prisma.user.create({
-        data: { phone: params.phone, consentAt: new Date() },
-      }));
-
-    if (user.isBlocked) {
-      throw new AppError('FORBIDDEN', 403, 'Account blocked', user.blockedReason ?? undefined);
-    }
-
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
-
-    if (params.deviceToken !== undefined) {
-      await this.prisma.deviceToken.upsert({
-        where: { token: params.deviceToken },
-        create: {
-          userId: user.id,
-          token: params.deviceToken,
-          platform: params.platform ?? 'ANDROID',
-        },
-        update: { userId: user.id, lastSeenAt: new Date() },
-      });
-    }
-
-    const claims = { sub: user.id, aud: 'customer' as const };
-
-    return {
-      accessToken: this.tokens.issueAccess(claims),
-      refreshToken: this.tokens.issueRefresh(claims),
-      isNewUser,
-      user: {
-        id: user.id,
-        phone: user.phone,
-        name: user.name,
-        gender: user.gender,
-        email: user.email,
-        preferredSegmentId: user.preferredSegmentId,
-      },
-    };
-  }
-
   async refresh(refreshToken: string) {
     const claims = this.tokens.verifyRefresh(refreshToken);
 
@@ -327,6 +182,9 @@ export class AuthService {
       name: user.name,
       gender: user.gender,
       email: user.email,
+      // `YYYY-MM-DD`, not an instant. A birthday has no time of day, and serialising it as
+      // one shifts it a day either side of midnight depending on the reader's timezone.
+      dateOfBirth: user.dateOfBirth?.toISOString().slice(0, 10) ?? null,
       preferredSegmentId: user.preferredSegmentId,
     };
   }
@@ -395,11 +253,6 @@ export class AuthService {
     });
     return { scheduledFor: purgeAt.toISOString() };
   }
-}
-
-/** OTP hashes are salted with the phone number, so identical codes hash differently. */
-function hashOtp(phone: string, code: string): string {
-  return createHash('sha256').update(`${phone}:${code}`).digest('hex');
 }
 
 export async function hashPassword(password: string): Promise<string> {

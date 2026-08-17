@@ -1007,36 +1007,6 @@ model NotificationLog {
   @@map("notification_log")
 }
 
-/// The live OTP for a phone number.
-///
-/// Only a salted hash is stored, and it is consumed on first successful use — a code that
-/// still works after login is a replayable credential, and a leaked database must not hand
-/// over working login codes.
-model OtpCode {
-  phone      String    @id
-  codeHash   String    @map("code_hash")
-  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3)
-  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(3)
-  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
-
-  @@index([expiresAt])
-  @@map("otp_codes")
-}
-
-/// OTP endpoints get abused within days of launch, so the rate limit is a table, not a hope.
-model OtpAttempt {
-  id              String    @id @default(uuid()) @db.Uuid
-  phone           String
-  attempts        Int       @default(0)
-  windowStartedAt DateTime  @default(now()) @db.Timestamptz(3)
-  blockedUntil    DateTime? @db.Timestamptz(3)
-
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
-
-  @@unique([phone])
-  @@map("otp_attempts")
-}
-
 model MediaAsset {
   id      String @id @default(uuid()) @db.Uuid
   storeId String @db.Uuid

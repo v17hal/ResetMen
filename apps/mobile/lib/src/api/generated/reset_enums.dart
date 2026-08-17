@@ -7,7 +7,7 @@
 // the server disagree about a status or an error code, and the symptom shows up as a blank
 // screen rather than as a compile error.
 //
-// 19 enums, 100 values.
+// 19 enums, 99 values.
 
 enum AdminRole {
   owner('OWNER'),
@@ -161,7 +161,6 @@ enum ErrorCode {
   forbidden('FORBIDDEN'),
   notFound('NOT_FOUND'),
   validationFailed('VALIDATION_FAILED'),
-  otpRateLimited('OTP_RATE_LIMITED'),
   slotTaken('SLOT_TAKEN'),
   slotUnavailable('SLOT_UNAVAILABLE'),
   holdExpired('HOLD_EXPIRED'),

@@ -7,6 +7,7 @@ import '../providers.dart';
 import '../theme/app_theme.dart';
 import '../theme/reset_tokens.dart';
 import '../widgets/common.dart';
+import '../widgets/complete_profile_banner.dart';
 import 'service_screen.dart';
 
 /// Home.
@@ -63,6 +64,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           'Pick a service, choose a time, walk straight in.',
                           style: ResetTokens.body.copyWith(color: theme.mutedColor),
                         ),
+                        const SizedBox(height: ResetTokens.spaceBase),
+                        const CompleteProfileBanner(),
                       ],
                     ),
                   ),

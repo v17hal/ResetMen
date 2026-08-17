@@ -14,39 +14,6 @@ class ResetRepository {
 
   // ── Auth ────────────────────────────────────────────────────────────────
 
-  Future<int> requestOtp(String phone) async {
-    final json = await _api.post<Map<String, dynamic>>(
-      '/auth/otp/request',
-      body: {'phone': phone},
-      anonymous: true,
-    );
-    return (json['expiresInSeconds'] as num?)?.toInt() ?? 300;
-  }
-
-  Future<UserProfile> verifyOtp({
-    required String phone,
-    required String code,
-    String? deviceToken,
-  }) async {
-    final json = await _api.post<Map<String, dynamic>>(
-      '/auth/otp/verify',
-      body: {
-        'phone': phone,
-        'code': code,
-        'platform': 'ANDROID',
-        if (deviceToken != null) 'deviceToken': deviceToken,
-      },
-      anonymous: true,
-    );
-
-    await _api.tokens.save(
-      access: json['accessToken'] as String,
-      refresh: json['refreshToken'] as String,
-    );
-
-    return UserProfile.fromJson(json['user'] as Map<String, dynamic>);
-  }
-
   /// Exchanges a Firebase ID token for a RESET session.
   ///
   /// Provider-agnostic by design: Google produces the token today, and a phone-auth token
@@ -82,6 +49,8 @@ class ResetRepository {
     String? email,
     String? gender,
     String? phone,
+    /// `YYYY-MM-DD`.
+    String? dateOfBirth,
   }) async =>
       UserProfile.fromJson(await _api.patch<Map<String, dynamic>>(
         '/auth/me',
@@ -90,6 +59,7 @@ class ResetRepository {
           if (email != null) 'email': email,
           if (gender != null) 'gender': gender,
           if (phone != null) 'phone': phone,
+          if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
         },
       ));
 

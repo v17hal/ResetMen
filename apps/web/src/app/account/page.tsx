@@ -26,12 +26,17 @@ export default function AccountPage() {
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER' | 'UNDISCLOSED'>('UNDISCLOSED');
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {
     setName(user?.name ?? '');
     setEmail(user?.email ?? '');
+    // Shown without the +91 the API stores, so the prefix in the field is not doubled.
+    setPhone(user?.phone?.replace(/^\+91/, '') ?? '');
+    setDateOfBirth(user?.dateOfBirth ?? '');
     setGender(user?.gender ?? 'UNDISCLOSED');
   }, [user]);
 
@@ -42,12 +47,18 @@ export default function AccountPage() {
   });
 
   const save = useMutation({
-    mutationFn: () =>
-      api().auth.updateProfile({
+    mutationFn: () => {
+      const digits = phone.replace(/\D/g, '');
+      return api().auth.updateProfile({
         ...(name.trim() === '' ? {} : { name: name.trim() }),
         ...(email.trim() === '' ? {} : { email: email.trim() }),
+        // Only sent when filled — an empty string fails the E.164 check and would turn
+        // "I'd rather not give my number" into a validation error.
+        ...(digits.length === 0 ? {} : { phone: `+91${digits.slice(-10)}` }),
+        ...(dateOfBirth === '' ? {} : { dateOfBirth }),
         gender,
-      }),
+      });
+    },
     onSuccess: () => {
       toast.success('Saved.');
       refresh();
@@ -106,7 +117,34 @@ export default function AccountPage() {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           autoComplete="email"
-          hint="Optional. Only used for booking receipts."
+          hint="From your Google account."
+        />
+
+        {/* Asked for, never required. Google sign-in gives no phone number, and the counter
+            needs one to link a walk-in or ring someone who is running late. */}
+        <Input
+          label="Mobile number"
+          type="tel"
+          inputMode="numeric"
+          value={phone}
+          onChange={(event) => setPhone(event.target.value)}
+          autoComplete="tel"
+          placeholder="94044 91801"
+          hint="Optional — lets the store reach you about your booking."
+        />
+
+        <Input
+          label="Date of birth"
+          type="date"
+          value={dateOfBirth}
+          onChange={(event) => setDateOfBirth(event.target.value)}
+          autoComplete="bday"
+          // No future birthdays, and nobody under 13 — the age below which consent is a
+          // parent's to give under the DPDP Act.
+          max={new Date(new Date().setFullYear(new Date().getFullYear() - 13))
+            .toISOString()
+            .slice(0, 10)}
+          hint="Optional — the store sends a birthday treat."
         />
 
         <Select

@@ -69,14 +69,6 @@ export class PrivacyJobs {
       await tx.userReward.deleteMany({ where: { userId, status: { in: ['ACTIVE', 'EXPIRED'] } } });
       await tx.userStreak.deleteMany({ where: { userId } });
 
-      const user = await tx.user.findUniqueOrThrow({
-        where: { id: userId },
-        select: { phone: true },
-      });
-      // Only accounts that ever used phone sign-in have OTP rows to clear.
-      if (user.phone !== null) {
-        await tx.otpCode.deleteMany({ where: { phone: user.phone } });
-      }
 
       // `phone` and `email` are unique, so a placeholder has to stay unique too. The id is
       // already unique and is not personal data once the name and number are gone.

@@ -87,7 +87,7 @@ describe('HttpClient', () => {
     await http.get('/auth/me');
     expect(headersOf(fetchMock, 0)['Authorization']).toBe('Bearer a');
 
-    await http.post('/auth/otp/request', { body: { phone: '+91' }, anonymous: true });
+    await http.post('/auth/firebase', { body: { idToken: 'x' }, anonymous: true });
     expect(headersOf(fetchMock, 1)['Authorization']).toBeUndefined();
   });
 
@@ -289,7 +289,7 @@ describe('HttpClient', () => {
 
       await expect(
         client({ tokens: memoryTokenStore({ accessToken: 'a', refreshToken: 'r' }) }).post(
-          '/auth/otp/request',
+          '/auth/firebase',
           { body: {}, anonymous: true },
         ),
       ).rejects.toBeInstanceOf(ResetApiError);

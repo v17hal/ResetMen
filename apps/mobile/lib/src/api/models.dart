@@ -511,6 +511,7 @@ class UserProfile {
     required this.name,
     required this.email,
     required this.gender,
+    required this.dateOfBirth,
   });
 
   final String id;
@@ -522,12 +523,22 @@ class UserProfile {
   final String? email;
   final Gender? gender;
 
+  /// `YYYY-MM-DD`. Kept as a string, not a DateTime: a birthday has no time of day, and
+  /// parsing it into one shifts it a day either side of midnight in some timezones.
+  final String? dateOfBirth;
+
+  /// What the profile prompt is trying to fill in. Name and phone are what the counter
+  /// actually needs — the rest is nice to have.
+  bool get isComplete =>
+      (name?.trim().isNotEmpty ?? false) && (phone?.trim().isNotEmpty ?? false);
+
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
         id: _str(json['id']),
         phone: json['phone'] as String?,
         name: json['name'] as String?,
         email: json['email'] as String?,
         gender: Gender.tryParse(json['gender'] as String?),
+        dateOfBirth: json['dateOfBirth'] as String?,
       );
 }
 

@@ -95,7 +95,6 @@ export function errorMessage(error: unknown, fallback = 'Something went wrong.')
         return error.detail ?? 'That reward cannot be used on this booking.';
       case 'OUT_OF_STOCK':
         return 'That has just sold out.';
-      case 'OTP_RATE_LIMITED':
       case 'RATE_LIMITED':
         return 'Too many attempts. Wait a minute and try again.';
       case 'STORE_CLOSED':

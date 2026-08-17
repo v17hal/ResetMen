@@ -276,7 +276,7 @@ String friendlyMessage(Object error, [String fallback = 'Something went wrong.']
         error.detail ?? 'That reward cannot be used on this booking.',
       ErrorCode.scratchAlreadyUsed => 'That card has already been scratched.',
       ErrorCode.outOfStock => 'That has just sold out.',
-      ErrorCode.otpRateLimited || ErrorCode.rateLimited =>
+      ErrorCode.rateLimited =>
         'Too many attempts. Wait a minute and try again.',
       ErrorCode.storeClosed => 'The store is closed then. Try another day.',
       ErrorCode.checkinAlreadyUsed => 'This booking has already been checked in.',

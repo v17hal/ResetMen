@@ -1,31 +1,26 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../format.dart';
 import '../providers.dart';
+import '../services/google_sign_in_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/reset_tokens.dart';
 import '../widgets/common.dart';
 
-/// Phone + OTP, as a bottom sheet.
+/// Sign in with Google, as a bottom sheet.
 ///
-/// A sheet rather than a route so an in-progress checkout keeps its hold and its countdown
-/// while the customer signs in. Returns true when they did.
+/// A sheet rather than a route so an in-progress checkout keeps its place — on the payment
+/// screen a hold may be counting down, and pushing a full-screen route to sign in would
+/// make it look like the booking was lost.
+///
+/// Returns true when the customer signed in.
 Future<bool> showSignInSheet(BuildContext context, {String? reason}) async {
   final result = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     showDragHandle: true,
-    builder: (_) => Padding(
-      // Lifts the sheet above the keyboard, which otherwise covers the code field on a
-      // short phone — the single most common way an OTP screen becomes unusable.
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: _SignInSheet(reason: reason),
-    ),
+    builder: (_) => _SignInSheet(reason: reason),
   );
   return result ?? false;
 }
@@ -40,79 +35,31 @@ class _SignInSheet extends ConsumerStatefulWidget {
 }
 
 class _SignInSheetState extends ConsumerState<_SignInSheet> {
-  final _phone = TextEditingController();
-  final _code = TextEditingController();
-  final _codeFocus = FocusNode();
-
-  bool _codeStep = false;
   bool _busy = false;
   String? _error;
-  int _resendIn = 0;
-  Timer? _resendTimer;
 
-  @override
-  void dispose() {
-    _phone.dispose();
-    _code.dispose();
-    _codeFocus.dispose();
-    _resendTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startResendCountdown(int seconds) {
-    _resendTimer?.cancel();
-    setState(() => _resendIn = seconds.clamp(0, 60));
-    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return timer.cancel();
-      setState(() => _resendIn = (_resendIn - 1).clamp(0, 60));
-      if (_resendIn == 0) timer.cancel();
-    });
-  }
-
-  Future<void> _requestOtp() async {
+  Future<void> _signIn() async {
     setState(() {
       _busy = true;
       _error = null;
     });
 
     try {
-      final expiresIn =
-          await ref.read(repositoryProvider).requestOtp(toE164(_phone.text));
-      if (!mounted) return;
-      setState(() {
-        _codeStep = true;
-        _busy = false;
-      });
-      _startResendCountdown(expiresIn);
-      _codeFocus.requestFocus();
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = friendlyMessage(error, 'Could not send the code.');
-      });
-    }
-  }
+      final idToken = await ref.read(googleSignInProvider).signIn();
+      await ref.read(repositoryProvider).signInWithFirebase(idToken: idToken);
 
-  Future<void> _verify() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-
-    try {
-      await ref.read(repositoryProvider).verifyOtp(
-            phone: toE164(_phone.text),
-            code: _code.text.trim(),
-          );
-      // The session provider re-reads /auth/me, which is what every other screen watches.
+      // Everything else in the app watches this.
       ref.invalidate(sessionProvider);
+
       if (mounted) Navigator.of(context).pop(true);
+    } on SignInCancelled {
+      // Backing out is a decision, not a failure. Close quietly.
+      if (mounted) setState(() => _busy = false);
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = friendlyMessage(error, 'That code did not work.');
+        _error = friendlyMessage(error, 'Could not sign in. Please try again.');
       });
     }
   }
@@ -120,7 +67,6 @@ class _SignInSheetState extends ConsumerState<_SignInSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final phoneValid = _phone.text.replaceAll(RegExp(r'\D'), '').length >= 10;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -133,7 +79,7 @@ class _SignInSheetState extends ConsumerState<_SignInSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(_codeStep ? 'Enter the code' : 'Sign in', style: ResetTokens.h1),
+          Text('Sign in', style: ResetTokens.h1),
           if (widget.reason != null) ...[
             const SizedBox(height: ResetTokens.spaceXs),
             Text(
@@ -143,78 +89,83 @@ class _SignInSheetState extends ConsumerState<_SignInSheet> {
           ],
           const SizedBox(height: ResetTokens.spaceLg),
 
-          if (!_codeStep) ...[
-            TextField(
-              controller: _phone,
-              autofocus: true,
-              keyboardType: TextInputType.phone,
-              textInputAction: TextInputAction.done,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              onChanged: (_) => setState(() {}),
-              onSubmitted: (_) => phoneValid ? _requestOtp() : null,
-              decoration: InputDecoration(
-                labelText: 'Mobile number',
-                prefixText: '+91 ',
-                errorText: _error,
-                helperText: 'We will text you a code.',
-              ),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _busy ? null : _signIn,
+              icon: _busy
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    )
+                  : const _GoogleMark(),
+              label: const Text('Continue with Google'),
             ),
-            const SizedBox(height: ResetTokens.spaceBase),
-            PrimaryButton(
-              label: 'Send code',
-              loading: _busy,
-              onPressed: phoneValid ? _requestOtp : null,
-            ),
-          ] else ...[
-            TextField(
-              controller: _code,
-              focusNode: _codeFocus,
-              keyboardType: TextInputType.number,
-              textInputAction: TextInputAction.done,
-              // Lets Android offer the code straight from the SMS.
-              autofillHints: const [AutofillHints.oneTimeCode],
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(8),
-              ],
-              style: ResetTokens.mono.copyWith(fontSize: 22, letterSpacing: 8),
-              onChanged: (_) => setState(() {}),
-              onSubmitted: (_) => _code.text.length >= 4 ? _verify() : null,
-              decoration: InputDecoration(
-                labelText: 'Code',
-                errorText: _error,
-                helperText: 'Sent to +91 ${_phone.text}',
-              ),
-            ),
-            const SizedBox(height: ResetTokens.spaceBase),
-            PrimaryButton(
-              label: 'Verify and continue',
-              loading: _busy,
-              onPressed: _code.text.trim().length >= 4 ? _verify : null,
-            ),
+          ),
+
+          if (_error != null) ...[
             const SizedBox(height: ResetTokens.spaceSm),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(
-                  onPressed: () => setState(() {
-                    _codeStep = false;
-                    _code.clear();
-                    _error = null;
-                  }),
-                  child: const Text('Change number'),
-                ),
-                TextButton(
-                  onPressed: _resendIn > 0 || _busy ? null : _requestOtp,
-                  child: Text(
-                    _resendIn > 0 ? 'Resend in ${_resendIn}s' : 'Resend code',
-                  ),
-                ),
-              ],
+            Text(
+              _error!,
+              style: ResetTokens.bodySm.copyWith(color: theme.colorScheme.error),
             ),
           ],
+
+          const SizedBox(height: ResetTokens.spaceBase),
+          Text(
+            'We only use your name and email to hold your booking. You can delete your '
+            'account at any time from the You tab.',
+            style: ResetTokens.caption.copyWith(color: theme.mutedColor),
+          ),
         ],
       ),
     );
   }
+}
+
+/// Google's mark at its brand colours — recolouring it breaks their branding guidelines.
+class _GoogleMark extends StatelessWidget {
+  const _GoogleMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 18,
+      height: 18,
+      child: CustomPaint(painter: _GooglePainter()),
+    );
+  }
+}
+
+class _GooglePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 18;
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    void path(String _, Color color, List<Offset> points) {
+      paint.color = color;
+      final p = Path()..addPolygon(points.map((o) => o * s).toList(), true);
+      canvas.drawPath(p, paint);
+    }
+
+    // A simplified four-quadrant mark: the real logo is a licensed asset, and an
+    // approximation drawn in code is the honest compromise for a button glyph.
+    path('blue', const Color(0xFF4285F4), const [
+      Offset(9, 7.36), Offset(17.64, 7.36), Offset(17.64, 10.84), Offset(9, 10.84),
+    ]);
+    path('green', const Color(0xFF34A853), const [
+      Offset(3, 13.5), Offset(15, 13.5), Offset(15, 18), Offset(3, 18),
+    ]);
+    path('yellow', const Color(0xFFFBBC05), const [
+      Offset(0, 5), Offset(4, 5), Offset(4, 13), Offset(0, 13),
+    ]);
+    path('red', const Color(0xFFEA4335), const [
+      Offset(3, 0), Offset(15, 0), Offset(15, 4.5), Offset(3, 4.5),
+    ]);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

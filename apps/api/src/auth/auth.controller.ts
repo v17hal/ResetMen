@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Patch, Post, UseGuards } from '@nestjs/c
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
   adminLogin,
+  firebaseSignIn,
   otpRequest,
   otpVerify,
   refreshRequest,
@@ -35,6 +36,21 @@ export class AuthController {
   @RateLimited({ limit: 20, windowSeconds: 3600 })
   async verifyOtp(@Body(new ZodValidationPipe(otpVerify)) body: z.infer<typeof otpVerify>) {
     return this.auth.verifyOtp(body);
+  }
+
+  /**
+   * The customer sign-in path.
+   *
+   * Rate limited despite the token being cryptographically verified: verification costs an
+   * RSA check and, on a cold cert cache, a call out to Google. Without a cap that is a free
+   * amplifier for anyone with a script.
+   */
+  @Post('firebase')
+  @RateLimited({ limit: 30, windowSeconds: 3600 })
+  async firebase(
+    @Body(new ZodValidationPipe(firebaseSignIn)) body: z.infer<typeof firebaseSignIn>,
+  ) {
+    return this.auth.signInWithFirebase(body);
   }
 
   @Post('refresh')

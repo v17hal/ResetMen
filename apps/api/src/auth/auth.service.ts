@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 
 import { AppError } from '../common/errors.js';
 import { PrismaService } from '../database/prisma.service.js';
+import { FirebaseTokenVerifier } from './firebase-token.verifier.js';
 import { OTP_PROVIDER, generateOtpCode } from './otp.provider.js';
 import type { OtpProvider } from './otp.provider.js';
 import { TokenService } from './token.service.js';
@@ -26,7 +27,104 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
     @Inject(OTP_PROVIDER) private readonly otp: OtpProvider,
+    private readonly firebase: FirebaseTokenVerifier,
   ) {}
+
+  /**
+   * Sign in with a Firebase ID token.
+   *
+   * Provider-agnostic on purpose. Google is what the store uses today; a phone-auth token
+   * arrives in the same shape and lands in the same branch below, so enabling it later is a
+   * console change rather than a release.
+   *
+   * Matching is by Firebase uid first, then by verified email, then by phone. That order
+   * matters: it is what stops one person ending up with two accounts — and two streaks —
+   * because they signed in a different way the second time.
+   */
+  async signInWithFirebase(params: {
+    idToken: string;
+    deviceToken?: string;
+    platform?: 'ANDROID' | 'IOS' | 'WEB';
+  }) {
+    const identity = await this.firebase.verify(params.idToken);
+
+    let user = await this.prisma.user.findUnique({
+      where: { firebaseUid: identity.uid },
+    });
+    let isNewUser = false;
+
+    if (user === null && identity.email !== null && identity.emailVerified) {
+      // An existing account being claimed by a first Firebase sign-in. Only trusted when
+      // Google says the address is verified — an unverified email is an assertion by
+      // whoever typed it, and honouring it would be account takeover by typing.
+      user = await this.prisma.user.findUnique({ where: { email: identity.email } });
+    }
+
+    if (user === null && identity.phone !== null) {
+      user = await this.prisma.user.findUnique({ where: { phone: identity.phone } });
+    }
+
+    if (user === null) {
+      isNewUser = true;
+      user = await this.prisma.user.create({
+        data: {
+          firebaseUid: identity.uid,
+          email: identity.email,
+          phone: identity.phone,
+          name: identity.name,
+          // DPDP Act 2023 — signing in is the consent event, and it is recorded here
+          // rather than inferred later from createdAt.
+          consentAt: new Date(),
+        },
+      });
+    } else {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          firebaseUid: identity.uid,
+          // Only ever fill blanks. Overwriting a name the customer set in this app with
+          // whatever their Google profile says would undo their own edit on every login.
+          email: user.email ?? identity.email,
+          phone: user.phone ?? identity.phone,
+          name: user.name ?? identity.name,
+          consentAt: user.consentAt ?? new Date(),
+          lastLoginAt: new Date(),
+        },
+      });
+    }
+
+    if (user.isBlocked) {
+      throw new AppError('CUSTOMER_BLOCKED', 403, 'Account blocked', user.blockedReason ?? undefined);
+    }
+
+    if (params.deviceToken !== undefined) {
+      await this.prisma.deviceToken.upsert({
+        where: { token: params.deviceToken },
+        create: {
+          userId: user.id,
+          token: params.deviceToken,
+          platform: params.platform ?? 'ANDROID',
+        },
+        update: { userId: user.id, lastSeenAt: new Date() },
+      });
+    }
+
+    const claims = { sub: user.id, aud: 'customer' as const };
+
+    return {
+      accessToken: this.tokens.issueAccess(claims),
+      refreshToken: this.tokens.issueRefresh(claims),
+      isNewUser,
+      user: {
+        id: user.id,
+        phone: user.phone,
+        name: user.name,
+        gender: user.gender,
+        email: user.email,
+        preferredSegmentId: user.preferredSegmentId,
+      },
+    };
+  }
 
   async requestOtp(phone: string): Promise<{ sent: true; expiresInSeconds: number }> {
     const now = new Date();
@@ -234,22 +332,51 @@ export class AuthService {
   }
 
   async updateProfile(userId: string, data: Record<string, unknown>) {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...(typeof data.name === 'string' ? { name: data.name } : {}),
-        ...(typeof data.email === 'string' ? { email: data.email } : {}),
-        ...(typeof data.gender === 'string'
-          ? { gender: data.gender as 'MALE' | 'FEMALE' | 'OTHER' | 'UNDISCLOSED' }
-          : {}),
-        ...(typeof data.dateOfBirth === 'string'
-          ? { dateOfBirth: new Date(data.dateOfBirth) }
-          : {}),
-        ...(typeof data.preferredSegmentId === 'string'
-          ? { preferredSegmentId: data.preferredSegmentId }
-          : {}),
-      },
-    });
+    try {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          ...(typeof data.name === 'string' ? { name: data.name } : {}),
+          ...(typeof data.email === 'string' ? { email: data.email } : {}),
+          ...(typeof data.phone === 'string' ? { phone: data.phone } : {}),
+          ...(typeof data.gender === 'string'
+            ? { gender: data.gender as 'MALE' | 'FEMALE' | 'OTHER' | 'UNDISCLOSED' }
+            : {}),
+          ...(typeof data.dateOfBirth === 'string'
+            ? { dateOfBirth: new Date(data.dateOfBirth) }
+            : {}),
+          ...(typeof data.preferredSegmentId === 'string'
+            ? { preferredSegmentId: data.preferredSegmentId }
+            : {}),
+        },
+      });
+    } catch (error) {
+      /**
+       * Phone and email are unique, so this is somebody typing a number that already
+       * belongs to another account — usually their own older one from before Google
+       * sign-in existed.
+       *
+       * Deliberately not merged automatically. An unverified phone number is a claim, and
+       * honouring it would let anyone absorb another customer's bookings and rewards by
+       * typing their number. The counter can merge after checking ID.
+       */
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        (error as { code?: string }).code === 'P2002'
+      ) {
+        const field = (error as { meta?: { target?: string[] } }).meta?.target?.[0] ?? 'detail';
+        throw new AppError(
+          'VALIDATION_FAILED',
+          409,
+          'Already in use',
+          field.includes('phone')
+            ? 'That number is already on another account. Ask at the counter and we will merge them.'
+            : 'That email is already on another account.',
+        );
+      }
+      throw error;
+    }
 
     return this.getProfile(userId);
   }

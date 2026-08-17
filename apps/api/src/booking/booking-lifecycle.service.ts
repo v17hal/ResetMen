@@ -333,7 +333,13 @@ export class BookingLifecycleService {
             // saved. A signed-in customer who never filled in their name is a guest, not a
             // walk-in, and labelling them "Walk-in" misleads whoever is at the counter.
             customerName:
-              b.user === null ? 'Walk-in' : (b.user.name ?? `Guest ${b.user.phone.slice(-4)}`),
+              b.user === null
+                ? 'Walk-in'
+                : (b.user.name ??
+                  // Google sign-in gives an email and no phone, so the last-four fallback
+                  // is no longer always available. A bare "Guest" is fine — the counter has
+                  // the booking code and the service beside it.
+                  (b.user.phone === null ? 'Guest' : `Guest ${b.user.phone.slice(-4)}`)),
             customerPhone: b.user?.phone ?? null,
             serviceName: b.serviceNameSnapshot,
             startsAt: toIso(b.startsAt.getTime(), zone),

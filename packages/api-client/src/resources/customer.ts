@@ -65,6 +65,29 @@ export class AuthResource {
     return tokens;
   }
 
+  /**
+   * Exchanges a Firebase ID token for a RESET session.
+   *
+   * Deliberately not "signInWithGoogle": the server verifies a *Firebase* token, so this
+   * same call works unchanged if phone or email sign-in is enabled later. Which provider
+   * produced the token is Firebase's business.
+   */
+  async signInWithFirebase(input: {
+    idToken: string;
+    deviceToken?: string;
+    platform?: 'ANDROID' | 'IOS' | 'WEB';
+  }): Promise<AuthTokens> {
+    const tokens = await this.http.post<AuthTokens>('/auth/firebase', {
+      body: input,
+      anonymous: true,
+    });
+    this.http.setTokens({
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    });
+    return tokens;
+  }
+
   me(): Promise<UserProfile> {
     return this.http.get('/auth/me');
   }

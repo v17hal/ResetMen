@@ -503,11 +503,24 @@ model AddonOption {
 
 model User {
   id    String  @id @default(uuid()) @db.Uuid
-  /// E.164, e.g. +919404491801
-  phone String  @unique
+
+  /// Firebase's stable user id — the identity anchor since customers sign in through
+  /// Firebase. Deliberately not the email: people change those, and Google reuses a
+  /// deleted Workspace address for a different human.
+  firebaseUid String? @unique
+
+  /// E.164, e.g. +919404491801.
+  ///
+  /// Optional since sign-in moved to Google, which yields an email and no phone. Asked for
+  /// afterwards and never required to book. Its absence costs two things at the counter:
+  /// a walk-in cannot be linked to an existing customer, and nobody can be rung when they
+  /// are late.
+  phone String? @unique
   name  String?
   gender Gender @default(UNDISCLOSED)
-  email  String?
+  /// Unique where present. Postgres permits many NULLs under a unique index, so customers
+  /// without an email do not collide with each other.
+  email  String? @unique
   dateOfBirth DateTime? @db.Date
 
   preferredSegmentId String?  @db.Uuid

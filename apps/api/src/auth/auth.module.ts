@@ -3,6 +3,7 @@ import { Global, Module } from '@nestjs/common';
 import { AdminAuthController, AuthController } from './auth.controller.js';
 import { AdminGuard, CustomerGuard, OptionalCustomerGuard, RolesGuard } from './auth.guards.js';
 import { AuthService } from './auth.service.js';
+import { FirebaseTokenVerifier } from './firebase-token.verifier.js';
 import { OTP_PROVIDER, createOtpProvider } from './otp.provider.js';
 import { TokenService } from './token.service.js';
 
@@ -18,6 +19,7 @@ import { TokenService } from './token.service.js';
   providers: [
     AuthService,
     TokenService,
+    FirebaseTokenVerifier,
     CustomerGuard,
     AdminGuard,
     OptionalCustomerGuard,
@@ -29,6 +31,7 @@ import { TokenService } from './token.service.js';
   exports: [
     AuthService,
     TokenService,
+    FirebaseTokenVerifier,
     CustomerGuard,
     AdminGuard,
     OptionalCustomerGuard,

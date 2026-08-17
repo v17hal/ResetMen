@@ -581,7 +581,10 @@ export class PaymentService {
     paymentId: string,
     gatewayOrderId: string,
     payment: { amountPaise: number; currency: string },
-    user: { name: string | null; phone: string; email: string | null } | null,
+    // `phone` is nullable since sign-in moved to Google. Razorpay treats prefill fields as
+    // hints, so a missing contact means one more field for the customer to type — not a
+    // failed checkout.
+    user: { name: string | null; phone: string | null; email: string | null } | null,
   ): OrderResponse {
     return {
       paymentId,

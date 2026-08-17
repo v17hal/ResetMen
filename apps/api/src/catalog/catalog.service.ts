@@ -1,10 +1,20 @@
 import { Injectable } from '@nestjs/common';
 
 import { AppError } from '../common/errors.js';
+import { loadEnv } from '../config/env.js';
 import { PrismaService } from '../database/prisma.service.js';
 
 @Injectable()
 export class CatalogService {
+  /**
+   * Whether checkout collects money.
+   *
+   * Served from the store endpoint so the web app and the Flutter app render the right
+   * thing without being rebuilt when the store's mind changes — one config flag on the
+   * server rather than three release cycles.
+   */
+  private readonly paymentsEnabled = loadEnv().PAYMENTS_ENABLED;
+
   constructor(private readonly prisma: PrismaService) {}
 
   async getStore(storeId: string) {
@@ -26,6 +36,7 @@ export class CatalogService {
       lng: store.lng,
       bookingHorizonDays: store.settings?.bookingHorizonDays ?? 7,
       cancellationWindowMinutes: store.settings?.cancellationWindowMinutes ?? 120,
+      paymentsEnabled: this.paymentsEnabled,
       hours: store.storeHours.map((h) => ({
         dayOfWeek: h.dayOfWeek,
         opensAt: formatTime(h.opensAt),

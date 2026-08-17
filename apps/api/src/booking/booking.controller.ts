@@ -25,7 +25,9 @@ import {
   OptionalUser,
 } from '../auth/auth.guards.js';
 import type { TokenClaims } from '../auth/token.service.js';
+import { AppError } from '../common/errors.js';
 import { RateLimitGuard, RateLimited } from '../common/rate-limit.guard.js';
+import { loadEnv } from '../config/env.js';
 import { StoreIdHeader, StoreScopeService } from '../common/store-scope.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { BookingLifecycleService } from './booking-lifecycle.service.js';
@@ -34,6 +36,9 @@ import { BookingService } from './booking.service.js';
 @ApiTags('bookings')
 @Controller('bookings')
 export class BookingController {
+  /** Read once at construction — it cannot change without a restart. */
+  private readonly paymentsEnabled = loadEnv().PAYMENTS_ENABLED;
+
   constructor(
     private readonly bookings: BookingService,
     private readonly lifecycle: BookingLifecycleService,
@@ -70,7 +75,7 @@ export class BookingController {
     @Headers('idempotency-key') idempotencyKey?: string,
     @StoreIdHeader() header?: string,
   ) {
-    return this.bookings.hold({
+    const hold = await this.bookings.hold({
       storeId: await this.scope.resolve(header),
       serviceId: body.serviceId,
       addonOptionIds: body.addonOptionIds,
@@ -80,6 +85,36 @@ export class BookingController {
       source: 'WEB',
       idempotencyKey,
     });
+
+    /**
+     * With online payment off, there is nothing for a hold to wait for.
+     *
+     * A hold exists to keep a slot while someone pays. When the store takes money at the
+     * counter, leaving the booking HELD means the expiry job quietly cancels a real
+     * booking ten minutes later and the customer arrives to nothing.
+     *
+     * Confirmed here rather than inside BookingService so the hold path stays one thing —
+     * this is the same two-step the walk-in endpoint already uses, and it goes through the
+     * identical lifecycle, notifications and QR issuance.
+     *
+     * Signing in is still required, but only because an anonymous booking has nobody to
+     * notify and no QR to show.
+     */
+    if (!this.paymentsEnabled) {
+      if (userId === null) {
+        throw new AppError(
+          'UNAUTHENTICATED',
+          401,
+          'Sign in to book',
+          'Sign in so we can send you your booking and your QR code.',
+        );
+      }
+
+      await this.lifecycle.confirm(hold.bookingId, userId);
+      return { ...hold, status: 'CONFIRMED', paymentRequired: false };
+    }
+
+    return { ...hold, paymentRequired: true };
   }
 
   @Get()

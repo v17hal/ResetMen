@@ -260,8 +260,14 @@ export class NotificationService {
     });
     if (user === null || user.deletedAt !== null) return;
 
+    // No phone number, nothing to fall back to. Customers who signed in with Google have
+    // only an email until they choose to add one, and that is not an error — push and
+    // email still carry the message.
+    const phone = user.phone;
+    if (phone === null) return;
+
     const smsLog = await this.log(params, 'SMS', rendered);
-    const sms = await this.sms.send(user.phone, {
+    const sms = await this.sms.send(phone, {
       name: params.variables.serviceName ?? 'your session',
       time: params.variables.when ?? params.variables.time ?? '',
       ref: params.variables.publicId ?? '',
@@ -271,7 +277,7 @@ export class NotificationService {
     if (!this.whatsapp.configured) return;
 
     const waLog = await this.log(params, 'WHATSAPP', rendered);
-    const wa = await this.whatsapp.send(user.phone, params.template, [
+    const wa = await this.whatsapp.send(phone, params.template, [
       params.variables.serviceName ?? '',
       params.variables.when ?? params.variables.time ?? '',
       params.variables.publicId ?? '',

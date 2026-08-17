@@ -34,13 +34,38 @@ const envSchema = z.object({
   CHECKIN_HMAC_SECRET: z.string().min(32).optional(),
 
   /**
-   * Absent in development, where the payment module runs in simulated mode. It refuses to
-   * start in production without them — a live deployment silently accepting fake payments
-   * is the worst failure this config could permit.
+   * Online payment, off by default.
+   *
+   * The store takes payment at the counter (client decision, Aug 2026), so a booking is
+   * confirmed the moment it is made and there is nothing to capture. Turning this on
+   * re-enables the whole Razorpay path — which is kept intact and tested rather than
+   * deleted, because "we'll add payments later" is the most common thing a shop asks for
+   * six months in.
+   *
+   * When on, the keys below become mandatory in production.
+   */
+  PAYMENTS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+
+  /**
+   * Absent while payments are off. When PAYMENTS_ENABLED is true these are required in
+   * production — a live deployment silently accepting fake payments is the worst failure
+   * this config could permit.
    */
   RAZORPAY_KEY_ID: optionalSecret,
   RAZORPAY_KEY_SECRET: optionalSecret,
   RAZORPAY_WEBHOOK_SECRET: optionalSecret,
+
+  /**
+   * Firebase project id, e.g. `reset-booking-52ee0`.
+   *
+   * Customers sign in through Firebase, and this is what an incoming ID token is checked
+   * against — both `aud` and the issuer. Without it the API cannot authenticate anyone, so
+   * unlike the secrets above it is required in production.
+   */
+  FIREBASE_PROJECT_ID: optionalSecret,
 
   /** Firebase service-account JSON, raw or base64. Absent → push is logged, not sent. */
   FCM_SERVICE_ACCOUNT_JSON: optionalSecret,
@@ -86,5 +111,41 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
 
-  return parsed.data;
+  const env = parsed.data;
+
+  /**
+   * Production-only requirements.
+   *
+   * Refusing to boot is deliberate. The alternative is a deployment that looks healthy and
+   * fails on the first customer — the failure surfaces at the worst possible moment, to the
+   * person least able to report it usefully.
+   */
+  if (env.NODE_ENV === 'production') {
+    const missing: string[] = [];
+
+    if (env.FIREBASE_PROJECT_ID === undefined) {
+      missing.push('FIREBASE_PROJECT_ID — customers sign in through Firebase; without it nobody can sign in');
+    }
+
+    if (
+      env.PAYMENTS_ENABLED &&
+      (env.RAZORPAY_KEY_ID === undefined || env.RAZORPAY_KEY_SECRET === undefined)
+    ) {
+      missing.push('RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET — PAYMENTS_ENABLED is true');
+    }
+
+    if (env.PAYMENTS_ENABLED && env.RAZORPAY_WEBHOOK_SECRET === undefined) {
+      missing.push('RAZORPAY_WEBHOOK_SECRET — without it no payment can ever be confirmed');
+    }
+
+    if (missing.length > 0) {
+      throw new Error(
+        `Refusing to start in production. Missing configuration:\n${missing
+          .map((line) => `  • ${line}`)
+          .join('\n')}`,
+      );
+    }
+  }
+
+  return env;
 }

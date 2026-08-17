@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,17 @@ import 'src/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Reads the values the google-services plugin generated from google-services.json.
+  //
+  // Failing softly is deliberate: a misconfigured Firebase should cost sign-in, not the
+  // whole app. Someone who is already signed in still has a valid JWT and can open their
+  // booking and show the QR — which is the one thing that has to work at the counter.
+  try {
+    await Firebase.initializeApp();
+  } catch (error) {
+    debugPrint('Firebase unavailable — sign-in will not work: $error');
+  }
 
   // Both of these are read before the first frame, and only these two. The keystore
   // decides whether the app opens signed in, and the booking cache is what makes the QR

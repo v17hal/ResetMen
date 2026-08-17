@@ -59,14 +59,21 @@ export class RazorpayClient {
     this.simulated = this.keyId === undefined || this.keySecret === undefined;
 
     if (this.simulated) {
-      if (env.NODE_ENV === 'production') {
+      // Only a problem when payments are actually switched on. With PAYMENTS_ENABLED off
+      // the store takes money at the counter and nothing here is ever reached, so
+      // refusing to boot would be refusing to run the product the client asked for.
+      if (env.NODE_ENV === 'production' && env.PAYMENTS_ENABLED) {
         throw new Error(
-          'RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are required in production. ' +
-            'Refusing to start in simulated payment mode.',
+          'PAYMENTS_ENABLED is true but RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are missing. ' +
+            'Refusing to start in simulated payment mode — a live deployment must never ' +
+            'silently accept a fake payment.',
         );
       }
+
       this.logger.warn(
-        'No Razorpay credentials — payments run in SIMULATED mode. Orders are fabricated locally.',
+        env.PAYMENTS_ENABLED
+          ? 'No Razorpay credentials — payments run in SIMULATED mode. Orders are fabricated locally.'
+          : 'Online payment is disabled (PAYMENTS_ENABLED=false). Bookings confirm on creation and are paid at the counter.',
       );
     }
   }

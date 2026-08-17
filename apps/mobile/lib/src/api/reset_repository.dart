@@ -47,6 +47,33 @@ class ResetRepository {
     return UserProfile.fromJson(json['user'] as Map<String, dynamic>);
   }
 
+  /// Exchanges a Firebase ID token for a RESET session.
+  ///
+  /// Provider-agnostic by design: Google produces the token today, and a phone-auth token
+  /// would arrive in exactly the same shape. Enabling another provider is a Firebase
+  /// console change, not a release.
+  Future<UserProfile> signInWithFirebase({
+    required String idToken,
+    String? deviceToken,
+  }) async {
+    final json = await _api.post<Map<String, dynamic>>(
+      '/auth/firebase',
+      body: {
+        'idToken': idToken,
+        'platform': 'ANDROID',
+        if (deviceToken != null) 'deviceToken': deviceToken,
+      },
+      anonymous: true,
+    );
+
+    await _api.tokens.save(
+      access: json['accessToken'] as String,
+      refresh: json['refreshToken'] as String,
+    );
+
+    return UserProfile.fromJson(json['user'] as Map<String, dynamic>);
+  }
+
   Future<UserProfile> me() async =>
       UserProfile.fromJson(await _api.get<Map<String, dynamic>>('/auth/me'));
 
@@ -54,6 +81,7 @@ class ResetRepository {
     String? name,
     String? email,
     String? gender,
+    String? phone,
   }) async =>
       UserProfile.fromJson(await _api.patch<Map<String, dynamic>>(
         '/auth/me',
@@ -61,6 +89,7 @@ class ResetRepository {
           if (name != null) 'name': name,
           if (email != null) 'email': email,
           if (gender != null) 'gender': gender,
+          if (phone != null) 'phone': phone,
         },
       ));
 

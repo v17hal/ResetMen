@@ -1,156 +1,113 @@
 'use client';
 
-import { Button, Input } from '@reset/ui';
+import { Button } from '@reset/ui';
 import { useMutation } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useState } from 'react';
 
 import { errorMessage, useAuth } from '@/lib/auth';
 import { api } from '@/lib/client';
 
 export interface SignInProps {
-  /** Shown above the phone field, so the reason for asking is always visible. */
+  /** Shown above the button, so the reason for asking is always visible. */
   reason?: string;
   onSignedIn?: () => void;
 }
 
 /**
- * Phone + OTP.
+ * Sign in with Google.
  *
- * Two steps in one component rather than two routes, so an in-progress checkout keeps its
- * hold and its countdown while the customer signs in.
+ * One button, no password, no OTP wait. The store has no SMS provider, so this is the
+ * whole of authentication — and it is also the fastest of the options, which matters most
+ * on the checkout screen where a hold is already counting down.
+ *
+ * The Firebase SDK is imported dynamically: it is ~200 kB and most visits never sign in.
  */
 export function SignIn({ reason, onSignedIn }: SignInProps) {
   const { refresh } = useAuth();
-  const [step, setStep] = useState<'phone' | 'code'>('phone');
-  const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [resendIn, setResendIn] = useState(0);
-  const codeRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (resendIn <= 0) return;
-    const timer = setInterval(() => setResendIn((current) => Math.max(0, current - 1)), 1000);
-    return () => clearInterval(timer);
-  }, [resendIn]);
-
-  const request = useMutation({
-    mutationFn: () => api().auth.requestOtp(toE164(phone)),
-    onSuccess: (result) => {
-      setStep('code');
-      setError(null);
-      setResendIn(result.expiresInSeconds > 0 ? Math.min(result.expiresInSeconds, 60) : 60);
-      // Focus after the render that swaps the step, or the ref is still null.
-      setTimeout(() => codeRef.current?.focus(), 0);
+  const signIn = useMutation({
+    mutationFn: async () => {
+      const { signInWithGoogle } = await import('@/lib/firebase');
+      const idToken = await signInWithGoogle();
+      return api().auth.signInWithFirebase({ idToken, platform: 'WEB' });
     },
-    onError: (caught) => setError(errorMessage(caught, 'Could not send the code.')),
-  });
-
-  const verify = useMutation({
-    mutationFn: () =>
-      api().auth.verifyOtp({ phone: toE164(phone), code: code.trim(), platform: 'WEB' }),
     onSuccess: () => {
       refresh();
       onSignedIn?.();
     },
-    onError: (caught) => setError(errorMessage(caught, 'That code did not work.')),
+    onError: (caught) => {
+      // Closing the popup is a decision, not a failure — saying "sign-in failed" to
+      // someone who changed their mind is both wrong and alarming.
+      const code = (caught as { code?: string }).code;
+      if (
+        code === 'auth/popup-closed-by-user' ||
+        code === 'auth/cancelled-popup-request' ||
+        code === 'auth/user-cancelled'
+      ) {
+        return;
+      }
+
+      setError(
+        code === 'auth/popup-blocked'
+          ? 'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.'
+          : errorMessage(caught, 'Could not sign in. Please try again.'),
+      );
+    },
   });
 
-  function onSubmit(event: FormEvent): void {
-    event.preventDefault();
-    setError(null);
-    if (step === 'phone') request.mutate();
-    else verify.mutate();
-  }
-
-  const phoneValid = /^\d{10}$/.test(phone.replace(/\D/g, ''));
-
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-base">
+    <div className="flex flex-col gap-base">
       {reason !== undefined && <p className="text-body-sm text-text-muted">{reason}</p>}
 
-      {step === 'phone' ? (
-        <>
-          <Input
-            label="Mobile number"
-            type="tel"
-            inputMode="numeric"
-            autoComplete="tel"
-            required
-            autoFocus
-            placeholder="94044 91801"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            error={error}
-            hint="We will text you a code. Indian numbers only for now."
-          />
-          <Button type="submit" size="lg" loading={request.isPending} disabled={!phoneValid}>
-            Send code
-          </Button>
-        </>
-      ) : (
-        <>
-          <Input
-            ref={codeRef}
-            label="Code"
-            type="text"
-            inputMode="numeric"
-            // Lets Android and iOS offer the code straight from the SMS.
-            autoComplete="one-time-code"
-            pattern="\d*"
-            maxLength={8}
-            required
-            value={code}
-            onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))}
-            error={error}
-            hint={`Sent to +91 ${phone.replace(/\D/g, '')}`}
-            className="font-mono text-h2 tracking-[0.3em]"
-          />
+      <Button
+        size="lg"
+        variant="secondary"
+        fullWidth
+        loading={signIn.isPending}
+        onClick={() => {
+          setError(null);
+          signIn.mutate();
+        }}
+        leadingIcon={<GoogleMark />}
+      >
+        Continue with Google
+      </Button>
 
-          <Button
-            type="submit"
-            size="lg"
-            loading={verify.isPending}
-            disabled={code.trim().length < 4}
-          >
-            Verify and continue
-          </Button>
-
-          <div className="flex items-center justify-between text-body-sm">
-            <button
-              type="button"
-              className="text-primary underline underline-offset-4"
-              onClick={() => {
-                setStep('phone');
-                setCode('');
-                setError(null);
-              }}
-            >
-              Change number
-            </button>
-
-            <button
-              type="button"
-              disabled={resendIn > 0 || request.isPending}
-              className="text-primary underline underline-offset-4 disabled:text-text-muted disabled:no-underline"
-              onClick={() => request.mutate()}
-            >
-              {resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend code'}
-            </button>
-          </div>
-        </>
+      {error !== null && (
+        <p role="alert" className="text-body-sm text-danger">
+          {error}
+        </p>
       )}
-    </form>
+
+      <p className="text-caption text-text-muted">
+        We only use your name and email to hold your booking. You can delete your account at
+        any time from the You tab.
+      </p>
+    </div>
   );
 }
 
-/**
- * Accepts what people actually type — `9404491801`, `+91 94044 91801`, `094044 91801` —
- * and produces the E.164 the API requires.
- */
-function toE164(input: string): string {
-  const digits = input.replace(/\D/g, '');
-  const national = digits.length > 10 ? digits.slice(-10) : digits;
-  return `+91${national}`;
+/** Google's mark, kept at its brand colours — a recoloured one breaks their guidelines. */
+function GoogleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
+      <path
+        fill="#4285F4"
+        d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"
+      />
+      <path
+        fill="#34A853"
+        d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.02-2.34Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58C13.46.9 11.42 0 9 0A9 9 0 0 0 .96 4.94l3.02 2.34C4.68 5.16 6.66 3.58 9 3.58Z"
+      />
+    </svg>
+  );
 }

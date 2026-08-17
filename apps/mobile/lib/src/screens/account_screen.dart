@@ -19,6 +19,7 @@ class AccountScreen extends ConsumerStatefulWidget {
 class _AccountScreenState extends ConsumerState<AccountScreen> {
   final _name = TextEditingController();
   final _email = TextEditingController();
+  final _phone = TextEditingController();
   Gender _gender = Gender.undisclosed;
   bool _saving = false;
   bool _seeded = false;
@@ -27,16 +28,22 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   void dispose() {
     _name.dispose();
     _email.dispose();
+    _phone.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
+      final phone = _phone.text.trim();
       await ref.read(repositoryProvider).updateProfile(
             name: _name.text.trim().isEmpty ? null : _name.text.trim(),
             email: _email.text.trim().isEmpty ? null : _email.text.trim(),
             gender: _gender.wire,
+            // Only sent when it is actually filled in — an empty string would fail the
+            // E.164 check on the server and turn "I didn't want to give my number" into
+            // a validation error.
+            phone: phone.isEmpty ? null : toE164(phone),
           );
       ref.invalidate(sessionProvider);
       if (mounted) {
@@ -56,6 +63,9 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   Future<void> _signOut() async {
     final repository = ref.read(repositoryProvider);
     await repository.signOut();
+    // Also clear Google and Firebase. Leaving them signed in means the next "Sign in"
+    // reuses the same account with no picker, which looks broken to anyone switching.
+    await ref.read(googleSignInProvider).signOut();
     // The cached QR belongs to the person who just left. Leaving it on the device would
     // show the next user someone else's booking.
     await ref.read(bookingCacheProvider).clear();
@@ -113,6 +123,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     if (user != null && !_seeded) {
       _name.text = user.name ?? '';
       _email.text = user.email ?? '';
+      _phone.text = user.phone ?? '';
       _gender = user.gender ?? Gender.undisclosed;
       _seeded = true;
     }
@@ -143,8 +154,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       body: ListView(
         padding: const EdgeInsets.all(ResetTokens.gutter),
         children: [
+          // Identity line: the phone number when they have given one, otherwise the Google
+          // address they signed in with.
           Text(
-            formatPhone(user.phone),
+            user.phone != null
+                ? formatPhone(user.phone!)
+                : (user.email ?? 'Signed in'),
             style: ResetTokens.bodySm.copyWith(color: theme.mutedColor),
           ),
           const SizedBox(height: ResetTokens.spaceLg),
@@ -171,7 +186,21 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
                     labelText: 'Email',
-                    helperText: 'Optional. Only used for booking receipts.',
+                    helperText: 'From your Google account.',
+                  ),
+                ),
+                const SizedBox(height: ResetTokens.spaceBase),
+
+                // Asked for, never required. Google sign-in gives no phone number, and the
+                // counter needs one for two things: linking a walk-in to an existing
+                // customer, and ringing someone who is running late.
+                TextField(
+                  controller: _phone,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Mobile number',
+                    prefixText: '+91 ',
+                    helperText: 'Optional — lets the store reach you about your booking.',
                   ),
                 ),
                 const SizedBox(height: ResetTokens.spaceBase),

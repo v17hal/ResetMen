@@ -1,13 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { Logger } from '@nestjs/common';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createOtpProvider, generateOtpCode } from '../../src/auth/otp.provider.js';
 
 /**
  * Provider selection.
  *
- * The case that matters is the last one: a production deployment with no SMS provider
- * configured must fail at boot, not at the first customer's first sign-in attempt. Getting
- * that wrong produces a launch that looks fine until nobody can log in.
+ * Ordered by preference rather than by what happens to be set: MSG91 first, because the
+ * launch market is India and a DLT-registered template delivers where an international
+ * long code does not.
+ *
+ * SMS is no longer the front door — customers sign in through Firebase — so an absent
+ * provider degrades to logging instead of refusing to boot. What must still hold is that
+ * the choice is made from configuration and never silently sends nothing while claiming
+ * to have sent something.
  */
 describe('createOtpProvider', () => {
   const saved = { ...process.env };
@@ -24,6 +30,10 @@ describe('createOtpProvider', () => {
     }
     process.env.NODE_ENV = 'development';
     process.env.DATABASE_URL ??= 'postgresql://reset:reset@localhost:5432/reset';
+    // loadEnv() enforces the production requirements, and sign-in is now the one thing it
+    // refuses to boot without. Set here so the production case below exercises provider
+    // selection rather than tripping over unrelated config.
+    process.env.FIREBASE_PROJECT_ID ??= 'reset-test-project';
   });
 
   afterEach(() => {
@@ -68,10 +78,31 @@ describe('createOtpProvider', () => {
     expect(createOtpProvider().constructor.name).toBe('ConsoleOtpProvider');
   });
 
-  it('refuses to start in production with no SMS provider', () => {
+  /**
+   * This used to throw.
+   *
+   * When phone + OTP was the only way in, an unconfigured production deployment looked
+   * healthy right up until the first customer tried to sign in — so refusing to boot was
+   * the safer failure. Customers now sign in through Firebase, so SMS is off the critical
+   * path: its absence costs a reminder channel, not the front door. The guard that matters
+   * moved to FIREBASE_PROJECT_ID in config/env.ts, which is tested there.
+   */
+  it('disables phone sign-in in production rather than logging codes', async () => {
     process.env.NODE_ENV = 'production';
 
-    expect(() => createOtpProvider()).toThrow(/No SMS provider configured/);
+    const warn = vi.fn();
+    const logger = { log: vi.fn(), warn } as unknown as Logger;
+    const provider = createOtpProvider(logger);
+
+    expect(provider.constructor.name).toBe('DisabledOtpProvider');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('No SMS provider configured'));
+
+    // The point of the class: it fails loudly at send instead of printing a working
+    // credential to the log, which is what the console provider would do.
+    await expect(provider.send('+919404491801', '123456')).rejects.toMatchObject({
+      title: 'Phone sign-in is unavailable',
+      code: 'VALIDATION_FAILED',
+    });
   });
 });
 

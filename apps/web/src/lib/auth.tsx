@@ -48,6 +48,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => {
     api().auth.signOut();
+    // Also clear the Firebase session. Leaving it behind means the next "Sign in" silently
+    // reuses the same Google account, which looks broken to anyone trying to switch.
+    void import('./firebase').then(({ signOutOfFirebase }) => signOutOfFirebase());
     queryClient.clear();
     router.push('/');
   }, [queryClient, router]);

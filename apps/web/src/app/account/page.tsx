@@ -82,7 +82,11 @@ export default function AccountPage() {
     <div className="flex flex-col gap-lg p-base">
       <header className="flex flex-col gap-xs">
         <h1 className="font-display text-h1">{user.name ?? 'Your account'}</h1>
-        <p className="text-body-sm text-text-muted">{formatPhone(user.phone)}</p>
+        {/* Google sign-in gives an email and no phone, so this is the account's identity
+            line only when they have actually given us a number. */}
+        <p className="text-body-sm text-text-muted">
+          {user.phone !== null ? formatPhone(user.phone) : (user.email ?? 'Signed in')}
+        </p>
       </header>
 
       <Card className="flex flex-col gap-base">

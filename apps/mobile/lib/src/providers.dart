@@ -5,6 +5,8 @@ import 'api/models.dart';
 import 'api/reset_repository.dart';
 import 'api/token_store.dart';
 import 'services/booking_cache.dart';
+import 'services/google_sign_in_service.dart';
+import 'services/push.dart';
 
 /// Overridden in `main()` once the keystore has been read. Reading tokens is the one thing
 /// that must finish before the first frame, because the app decides which screen to show
@@ -45,6 +47,10 @@ final Provider<ResetApiClient> apiClientProvider = Provider<ResetApiClient>((ref
 final Provider<ResetRepository> repositoryProvider = Provider<ResetRepository>(
   (ref) => ResetRepository(ref.watch(apiClientProvider)),
 );
+
+final googleSignInProvider = Provider<GoogleSignInService>((ref) => GoogleSignInService());
+
+final pushProvider = Provider<PushService>((ref) => PushService());
 
 /// The signed-in customer, or null.
 ///

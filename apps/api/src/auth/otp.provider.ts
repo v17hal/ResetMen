@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomInt } from 'node:crypto';
 
+import { AppError } from '../common/errors.js';
+
 import { loadEnv } from '../config/env.js';
 
 /**
@@ -43,6 +45,32 @@ export class ConsoleOtpProvider implements OtpProvider {
   send(phone: string, code: string): Promise<void> {
     this.logger.warn(`[dev] OTP for ${phone} is ${code}`);
     return Promise.resolve();
+  }
+}
+
+/**
+ * Production with no SMS provider: phone sign-in is simply switched off.
+ *
+ * The alternative — falling back to the console provider — would print a working
+ * credential to the log for anyone who can read it. That guard stays exactly where it is;
+ * this class is what makes it unnecessary to weaken.
+ *
+ * Fails at *send* rather than at construction, because the app must still boot: customers
+ * sign in through Firebase, and the OTP endpoints are a dormant second door rather than the
+ * front one. Anyone who does reach them gets a clear answer instead of a code that never
+ * arrives.
+ */
+@Injectable()
+export class DisabledOtpProvider implements OtpProvider {
+  send(): Promise<void> {
+    return Promise.reject(
+      new AppError(
+        'VALIDATION_FAILED',
+        503,
+        'Phone sign-in is unavailable',
+        'This store has no SMS provider configured. Sign in with Google instead.',
+      ),
+    );
   }
 }
 
@@ -170,11 +198,24 @@ export function createOtpProvider(logger = new Logger('OTP')): OtpProvider {
     );
   }
 
+  /**
+   * No SMS provider, and that is now the expected state.
+   *
+   * This used to refuse to start in production, because when phone + OTP was the only way
+   * in, an unconfigured deployment looked healthy right up until the first customer tried
+   * to sign in. Customers now sign in through Firebase, so SMS is no longer on the critical
+   * path and its absence is a missing convenience rather than a locked door — the guard
+   * that matters moved to FIREBASE_PROJECT_ID in config/env.ts.
+   *
+   * The OTP endpoints stay wired and working. If the client ever registers DLT templates,
+   * setting the MSG91 vars turns phone sign-in back on with no code change.
+   */
   if (env.NODE_ENV === 'production') {
-    throw new Error(
-      'No SMS provider configured. Set MSG91_AUTH_KEY + MSG91_OTP_TEMPLATE_ID, or the ' +
-        'TWILIO_* trio. Refusing to start in production without a way to deliver OTPs.',
+    logger.warn(
+      'No SMS provider configured. Phone/OTP sign-in is unavailable; customers sign in ' +
+        'through Firebase. Set MSG91_AUTH_KEY + MSG91_OTP_TEMPLATE_ID to enable it.',
     );
+    return new DisabledOtpProvider();
   }
 
   logger.warn('OTP delivery: console (development only) — codes are printed, not sent.');

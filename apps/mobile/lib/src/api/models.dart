@@ -514,14 +514,17 @@ class UserProfile {
   });
 
   final String id;
-  final String phone;
+
+  /// Null for anyone who signed in with Google and has not added one. Asked for on the
+  /// account screen, never required to book.
+  final String? phone;
   final String? name;
   final String? email;
   final Gender? gender;
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
         id: _str(json['id']),
-        phone: _str(json['phone']),
+        phone: json['phone'] as String?,
         name: json['name'] as String?,
         email: json['email'] as String?,
         gender: Gender.tryParse(json['gender'] as String?),

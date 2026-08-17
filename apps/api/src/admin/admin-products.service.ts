@@ -106,7 +106,9 @@ export class AdminProductsService {
       status: order.status,
       totalPaise: order.totalPaise,
       paymentStatus: order.payment?.status ?? null,
-      customerName: order.user.name ?? `Guest ${order.user.phone.slice(-4)}`,
+      customerName:
+        order.user.name ??
+        (order.user.phone === null ? 'Guest' : `Guest ${order.user.phone.slice(-4)}`),
       customerPhone: order.user.phone,
       createdAt: order.createdAt.toISOString(),
       items: order.items.map((i) => ({

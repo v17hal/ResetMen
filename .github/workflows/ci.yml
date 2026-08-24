@@ -50,7 +50,7 @@ jobs:
         run: pnpm build
         env:
           # Inlined at build time. The real origin is set per environment at deploy.
-          NEXT_PUBLIC_API_URL: https://api.reset.app
+          NEXT_PUBLIC_API_URL: https://api.resetmen.in
 
       # Proves the contract the Flutter app is generated from still emits, and that the
       # generator still runs. A drift here means the app is built against a stale enum.
@@ -177,7 +177,7 @@ jobs:
       # shippable.
       - name: Build release APK
         working-directory: apps/mobile
-        run: flutter build apk --release --dart-define=API_URL=https://api.reset.app
+        run: flutter build apk --release --dart-define=API_URL=https://api.resetmen.in
 
       - uses: actions/upload-artifact@v4
         with:

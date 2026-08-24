@@ -121,7 +121,7 @@ jobs:
         working-directory: apps/mobile
         run: |
           flutter build appbundle --release \
-            --dart-define=API_URL=${{ vars.API_URL || 'https://api.reset.app' }}
+            --dart-define=API_URL=${{ vars.API_URL || 'https://api.resetmen.in' }}
 
       - uses: actions/upload-artifact@v4
         with:

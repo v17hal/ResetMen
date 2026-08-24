@@ -39,7 +39,6 @@ services:
     env_file: [.env.prod]
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://reset:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/reset?schema=public
       REDIS_URL: redis://redis:6379
     volumes:
       # Uploaded media. Belongs in the backup set, not in the image.

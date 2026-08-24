@@ -26,7 +26,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_PORT: z.coerce.number().int().positive().default(4000),
 
-  DATABASE_URL: z.string().url(),
+  DATABASE_URL: z.string().min(1, 'DATABASE_URL must not be empty'),
   REDIS_URL: z.string().url().optional(),
 
   JWT_ACCESS_SECRET: z.string().min(32).optional(),

@@ -57,7 +57,7 @@ services:
 
             if (!prismaEntry) throw new Error('Prisma not found');
 
-            const prismaPath = path.join(pnpmDir, prismaEntry, 'node_modules/prisma/dist/cli/index.js');
+            const prismaPath = path.join(pnpmDir, prismaEntry, 'node_modules/prisma/build/index.js');
             if (!fs.existsSync(prismaPath)) throw new Error('CLI not found at ' + prismaPath);
 
             console.log('Initializing database schema...');

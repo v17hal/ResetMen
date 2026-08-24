@@ -51,11 +51,12 @@ RUN addgroup -S reset && adduser -S reset -G reset
 # without it, shutdown hooks never run and in-flight requests are cut off.
 RUN apk add --no-cache openssl tini
 
-# Copy the entire node_modules with Prisma engines intact
-COPY --from=build --chown=reset:reset /app/node_modules ./node_modules
-COPY --from=build --chown=reset:reset /app/dist ./dist
-COPY --from=build --chown=reset:reset /app/apps/api/prisma ./prisma
-COPY --from=build --chown=reset:reset /app/apps/api/package.json ./package.json
+# Copy everything needed from build stage - keep node_modules with Prisma engines
+COPY --from=build /app/node_modules /app/node_modules
+COPY --from=build /app/apps/api/dist /app/dist
+COPY --from=build /app/apps/api/prisma /app/prisma
+
+RUN chown -R reset:reset /app
 
 RUN mkdir -p /app/var/media && chown -R reset:reset /app/var
 

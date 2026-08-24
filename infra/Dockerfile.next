@@ -40,6 +40,24 @@ ARG NEXT_PUBLIC_API_URL=https://api.reset.app
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Firebase, for customer sign-in. Inlined at build time like the API origin above.
+#
+# None of these are secret — they ship in every client that talks to Firebase. The real
+# control is the authorised-domain list in the Firebase console and the API key's
+# HTTP-referrer restriction in Google Cloud. They are left empty by default so a build that
+# forgets them fails loudly at sign-in rather than silently authenticating against the
+# wrong project.
+ARG NEXT_PUBLIC_FIREBASE_API_KEY=
+ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+ARG NEXT_PUBLIC_FIREBASE_APP_ID=
+ARG NEXT_PUBLIC_FIREBASE_SENDER_ID=
+ENV NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY}
+ENV NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+ENV NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+ENV NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID}
+ENV NEXT_PUBLIC_FIREBASE_SENDER_ID=${NEXT_PUBLIC_FIREBASE_SENDER_ID}
+
 COPY tsconfig.base.json turbo.json ./
 COPY packages ./packages
 COPY apps/${APP} ./apps/${APP}

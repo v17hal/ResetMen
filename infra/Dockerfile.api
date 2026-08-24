@@ -39,6 +39,9 @@ RUN pnpm --filter @reset/types build && \
     pnpm --filter @reset/api db:generate && \
     pnpm --filter @reset/api build
 
+# Copy the complete build including schema to runtime layer, then init DB on first start
+# This is moved to runtime startup via entrypoint wrapper instead of build-time db push
+
 # ── Runtime ────────────────────────────────────────────────────────────────────
 FROM node:22-alpine AS runtime
 WORKDIR /app

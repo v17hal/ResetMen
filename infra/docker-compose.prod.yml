@@ -33,6 +33,32 @@ services:
     depends_on: [api, web, admin]
     networks: [edge, internal]
 
+  db-init:
+    image: ${API_IMAGE:-ghcr.io/reset/api:latest}
+    env_file: [.env.prod]
+    environment:
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    entrypoint: ['sh', '-c']
+    command:
+      - |
+        for PRISMA_DIR in /app/node_modules/.pnpm/prisma@*/node_modules/prisma; do
+          if [ -f "$$PRISMA_DIR/dist/cli/index.js" ]; then
+            echo "Initializing database schema..."
+            node "$$PRISMA_DIR/dist/cli/index.js" db push \
+              --schema /app/apps/api/prisma/schema.prisma \
+              --skip-generate \
+              --accept-data-loss
+            echo "Database initialization complete"
+            exit 0
+          fi
+        done
+        echo "Prisma CLI not found"
+        exit 1
+
   api:
     image: ${API_IMAGE:-ghcr.io/reset/api:latest}
     restart: unless-stopped
@@ -48,6 +74,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     networks: [internal]
     # A runaway request loop should degrade this container, not take the database with it.
     deploy:

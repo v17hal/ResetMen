@@ -26,9 +26,7 @@ COPY packages/ui/package.json ./packages/ui/
 COPY packages/config/package.json ./packages/config/
 COPY apps/${APP}/package.json ./apps/${APP}/
 
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm config set store-dir /pnpm/store && \
-    pnpm install --frozen-lockfile --filter @reset/${APP}...
+RUN pnpm install --frozen-lockfile --filter @reset/${APP}...
 
 # ── Build ──────────────────────────────────────────────────────────────────────
 FROM deps AS build

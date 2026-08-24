@@ -20,9 +20,7 @@ COPY packages/slot-engine-core/package.json ./packages/slot-engine-core/
 COPY packages/config/package.json ./packages/config/
 COPY apps/api/package.json ./apps/api/
 
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm config set store-dir /pnpm/store && \
-    pnpm install --frozen-lockfile --filter @reset/api...
+RUN pnpm install --frozen-lockfile --filter @reset/api...
 
 # ── Build ──────────────────────────────────────────────────────────────────────
 FROM deps AS build

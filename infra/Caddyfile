@@ -90,5 +90,5 @@
 	# @office not remote_ip {$OFFICE_IP}
 	# respond @office 403
 
-	reverse_proxy admin:3001
+	reverse_proxy admin:3000
 }

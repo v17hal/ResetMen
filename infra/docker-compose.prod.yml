@@ -88,8 +88,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      db-init:
-        condition: service_completed_successfully
     networks: [internal]
     # A runaway request loop should degrade this container, not take the database with it.
     deploy:

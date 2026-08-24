@@ -352,8 +352,9 @@ export class AdminCustomersResource {
 export class AdminStaffResource {
   constructor(private readonly http: HttpClient) {}
 
-  list(): Promise<StaffSummary[]> {
-    return this.http.get('/admin/staff');
+  async list(): Promise<StaffSummary[]> {
+    const { data } = await this.http.get<{ data: StaffSummary[] }>('/admin/staff');
+    return data;
   }
   create(input: StaffInput & { password: string }): Promise<StaffSummary> {
     return this.http.post('/admin/staff', { body: input });
@@ -374,8 +375,9 @@ export class AdminStaffResource {
 export class AdminRewardsResource {
   constructor(private readonly http: HttpClient) {}
 
-  streakRules(): Promise<unknown[]> {
-    return this.http.get('/admin/rewards/streak-rules');
+  async streakRules(): Promise<unknown[]> {
+    const { data } = await this.http.get<{ data: unknown[] }>('/admin/rewards/streak-rules');
+    return data;
   }
   createStreakRule(input: StreakRuleInput): Promise<unknown> {
     return this.http.post('/admin/rewards/streak-rules', { body: input });
@@ -387,8 +389,9 @@ export class AdminRewardsResource {
     return this.http.delete(`/admin/rewards/streak-rules/${encodeURIComponent(id)}`);
   }
 
-  campaigns(): Promise<unknown[]> {
-    return this.http.get('/admin/rewards/campaigns');
+  async campaigns(): Promise<unknown[]> {
+    const { data } = await this.http.get<{ data: unknown[] }>('/admin/rewards/campaigns');
+    return data;
   }
   /** Issued, scratched, cost per card — the numbers that decide whether to keep running it. */
   campaignStats(id: string): Promise<unknown> {
@@ -441,16 +444,20 @@ export class AdminPaymentsResource {
   }
 
   /** Webhooks that arrived but could not be processed. Should normally be empty. */
-  webhookFailures(): Promise<unknown[]> {
-    return this.http.get('/admin/payments/webhook-failures');
+  async webhookFailures(): Promise<unknown[]> {
+    const { data } = await this.http.get<{ data: unknown[] }>(
+      '/admin/payments/webhook-failures',
+    );
+    return data;
   }
 }
 
 export class AdminProductsResource {
   constructor(private readonly http: HttpClient) {}
 
-  list(): Promise<unknown[]> {
-    return this.http.get('/admin/products');
+  async list(): Promise<unknown[]> {
+    const { data } = await this.http.get<{ data: unknown[] }>('/admin/products');
+    return data;
   }
   create(input: ProductInput): Promise<unknown> {
     return this.http.post('/admin/products', { body: input });

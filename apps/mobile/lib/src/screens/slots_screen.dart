@@ -108,7 +108,27 @@ class _SlotsScreenState extends ConsumerState<SlotsScreen> {
 
           Expanded(
             child: slots.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              // Shaped like the chip grid it replaces, so the times land where the
+              // placeholders were rather than after a jump.
+              loading: () => GridView.count(
+                padding: const EdgeInsets.fromLTRB(
+                  ResetTokens.gutter,
+                  ResetTokens.space2xl,
+                  ResetTokens.gutter,
+                  0,
+                ),
+                crossAxisCount: 3,
+                mainAxisSpacing: ResetTokens.spaceSm,
+                crossAxisSpacing: ResetTokens.spaceSm,
+                childAspectRatio: 2.2,
+                children: List<Widget>.generate(
+                  12,
+                  (_) => const Skeleton(
+                    height: double.infinity,
+                    radius: ResetTokens.radiusMd,
+                  ),
+                ),
+              ),
               error: (error, _) => ErrorView(
                 error: error,
                 onRetry: () => ref.invalidate(slotsProvider(_query)),

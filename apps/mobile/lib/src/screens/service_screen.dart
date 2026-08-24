@@ -34,7 +34,7 @@ class _ServiceScreenState extends ConsumerState<ServiceScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('')),
       body: service.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const SkeletonPage(rows: 3),
         error: (error, _) => ErrorView(
           error: error,
           onRetry: () => ref.invalidate(serviceProvider(widget.idOrSlug)),

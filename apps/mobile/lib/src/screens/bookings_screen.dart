@@ -70,7 +70,10 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
             child: RefreshIndicator(
               onRefresh: () async => ref.invalidate(bookingsProvider(_filter)),
               child: bookings.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () => ListView(
+                  padding: const EdgeInsets.only(top: ResetTokens.spaceSm),
+                  children: const <Widget>[SkeletonList(rows: 4, height: 112)],
+                ),
                 error: (error, _) {
                   // Offline: fall back to the cached copy rather than an error screen. The
                   // QR is the whole reason this screen exists, and it is already on the

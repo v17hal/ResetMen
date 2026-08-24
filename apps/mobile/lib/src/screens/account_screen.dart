@@ -148,7 +148,15 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     if (user == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('You')),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const SkeletonList(
+          rows: 4,
+          padding: EdgeInsets.fromLTRB(
+            ResetTokens.gutter,
+            ResetTokens.spaceLg,
+            ResetTokens.gutter,
+            0,
+          ),
+        ),
       );
     }
 

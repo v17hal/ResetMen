@@ -35,7 +35,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: RefreshIndicator(
           onRefresh: () async => ref.invalidate(homeProvider(_segmentId)),
           child: home.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const SkeletonPage(rows: 5),
             error: (error, _) => ListView(
               children: [
                 SizedBox(height: MediaQuery.sizeOf(context).height * 0.3),

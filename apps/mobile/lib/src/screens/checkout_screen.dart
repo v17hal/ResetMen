@@ -236,7 +236,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Confirm and pay')),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const SkeletonList(
+              rows: 4,
+              height: 96,
+              padding: EdgeInsets.all(ResetTokens.gutter),
+            )
           : ListView(
               padding: const EdgeInsets.all(ResetTokens.gutter),
               children: [

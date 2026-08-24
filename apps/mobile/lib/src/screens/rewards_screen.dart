@@ -48,7 +48,10 @@ class RewardsScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(ResetTokens.gutter),
           children: [
             streak.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const Skeleton(
+                height: 220,
+                radius: ResetTokens.radiusLg,
+              ),
               error: (error, _) => ErrorView(
                 error: error,
                 onRetry: () => ref.invalidate(streakProvider),
@@ -61,9 +64,9 @@ class RewardsScreen extends ConsumerWidget {
             const SizedBox(height: ResetTokens.spaceSm),
 
             cards.when(
-              loading: () => const SizedBox(
+              loading: () => const Skeleton(
                 height: 80,
-                child: Center(child: CircularProgressIndicator()),
+                radius: ResetTokens.radiusLg,
               ),
               error: (_, __) => Text(
                 'Could not load your cards.',
@@ -94,9 +97,9 @@ class RewardsScreen extends ConsumerWidget {
             const SizedBox(height: ResetTokens.spaceSm),
 
             wallet.when(
-              loading: () => const SizedBox(
+              loading: () => const Skeleton(
                 height: 60,
-                child: Center(child: CircularProgressIndicator()),
+                radius: ResetTokens.radiusLg,
               ),
               error: (_, __) => Text(
                 'Could not load your wallet.',

@@ -92,7 +92,11 @@ class _ConfirmationScreenState extends ConsumerState<ConfirmationScreen> {
       body: booking == null
           ? (_error != null
               ? ErrorView(error: _error!, onRetry: _load)
-              : const Center(child: CircularProgressIndicator()))
+              : const SkeletonList(
+                  rows: 3,
+                  height: 104,
+                  padding: EdgeInsets.all(ResetTokens.gutter),
+                ))
           : ListView(
               padding: const EdgeInsets.all(ResetTokens.gutter),
               children: [

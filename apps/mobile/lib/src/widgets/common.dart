@@ -74,6 +74,131 @@ class _StaggeredEntryState extends State<StaggeredEntry>
   }
 }
 
+/// A loading placeholder shaped like the content that will replace it.
+///
+/// Ported from the web `Skeleton`, down to the pulse: a spinner says "something is
+/// happening", a skeleton says "a list of cards is about to be here", and the second is
+/// what stops the screen jumping when the data lands.
+///
+/// Hidden from screen readers — announcing six grey rectangles is worse than silence.
+/// Falls back to a static block under reduced motion, matching [StaggeredEntry].
+class Skeleton extends StatefulWidget {
+  const Skeleton({
+    super.key,
+    this.width = double.infinity,
+    this.height = 80,
+    this.radius = ResetTokens.radiusMd,
+  });
+
+  final double width;
+  final double height;
+  final double radius;
+
+  @override
+  State<Skeleton> createState() => _SkeletonState();
+}
+
+class _SkeletonState extends State<Skeleton> with SingleTickerProviderStateMixin {
+  // 1000ms each way, matching Tailwind's animate-pulse on the web side.
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1000),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final block = Container(
+      width: widget.width,
+      height: widget.height,
+      decoration: BoxDecoration(
+        color: theme.surface2Color,
+        borderRadius: BorderRadius.circular(widget.radius),
+      ),
+    );
+
+    if (MediaQuery.disableAnimationsOf(context)) {
+      return ExcludeSemantics(child: block);
+    }
+
+    return ExcludeSemantics(
+      child: FadeTransition(
+        opacity: Tween<double>(begin: 1, end: 0.5).animate(
+          CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+        ),
+        child: block,
+      ),
+    );
+  }
+}
+
+/// A stack of skeleton rows sized like list items. The default shape for a loading list.
+class SkeletonList extends StatelessWidget {
+  const SkeletonList({
+    super.key,
+    this.rows = 3,
+    this.height = 80,
+    this.padding = const EdgeInsets.symmetric(horizontal: ResetTokens.gutter),
+  });
+
+  final int rows;
+  final double height;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: padding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          for (int i = 0; i < rows; i++) ...<Widget>[
+            if (i > 0) const SizedBox(height: ResetTokens.spaceSm),
+            Skeleton(height: height),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The home and list screens share a shape: a heading, a line of body text, then rows.
+/// Reproducing it while loading is what keeps the page from lurching when data arrives.
+class SkeletonPage extends StatelessWidget {
+  const SkeletonPage({super.key, this.rows = 4});
+
+  final int rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.only(top: ResetTokens.spaceLg),
+      children: <Widget>[
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: ResetTokens.gutter),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Skeleton(width: 220, height: 34, radius: ResetTokens.radiusSm),
+              SizedBox(height: ResetTokens.spaceSm),
+              Skeleton(width: 280, height: 18, radius: ResetTokens.radiusSm),
+            ],
+          ),
+        ),
+        const SizedBox(height: ResetTokens.spaceXl),
+        SkeletonList(rows: rows),
+      ],
+    );
+  }
+}
+
 /// Soft elevated card with the token radius. The default container for everything.
 class ResetCard extends StatelessWidget {
   const ResetCard({

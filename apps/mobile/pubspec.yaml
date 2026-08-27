@@ -52,6 +52,10 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  # Drives the real app on a real device against the real API. Unit tests cover the pure
+  # functions; nothing else proves the screens survive contact with live data.
+  integration_test:
+    sdk: flutter
 
 flutter:
   uses-material-design: true

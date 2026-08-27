@@ -58,9 +58,14 @@ class ResetApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      // Follows the OS. The dark scheme is the one the brand was designed around — see the
-      // note on ResetColorsDark in the generated tokens.
-      themeMode: ThemeMode.system,
+      // Light, regardless of the OS.
+      //
+      // The tokens call dark the brand default, and for a men's-grooming identity that is
+      // the right instinct. It is the wrong instinct for a catalogue: every app this one is
+      // measured against — Swiggy, Zomato, Zepto, Urban Company — is light, because a menu
+      // is a wall of small type and photographs and both read better on white. Dark is kept
+      // whole in AppTheme.dark() and is one line away if the brand wins the argument.
+      themeMode: ThemeMode.light,
       builder: (context, child) {
         // Caps text scaling. Someone at 200% is a real user and the layout must hold, but
         // Android allows far more than that and the slot grid stops being usable well

@@ -31,6 +31,23 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   String? _segmentId;
   String? _categoryId;
+  final _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  /// Matches the name and the description, so "back" finds the treatment that mentions it
+  /// in prose as well as the one with it in the title.
+  bool _matches(ServiceSummary service) {
+    if (_query.isEmpty) return true;
+    final q = _query.toLowerCase();
+    return service.name.toLowerCase().contains(q) ||
+        (service.description?.toLowerCase().contains(q) ?? false);
+  }
 
   void _open(ServiceSummary service) {
     Navigator.of(context).push(
@@ -73,11 +90,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         .where((c) => data.servicesIn(c.id).isNotEmpty)
         .toList(growable: false);
 
-    final selected =
-        live.any((c) => c.id == _categoryId) ? _categoryId : null;
-    final shown = selected == null
+    final selected = live.any((c) => c.id == _categoryId) ? _categoryId : null;
+
+    // A search spans the whole catalogue: someone typing "back" wants the treatment, not
+    // to be told the category they happen to have selected does not contain it.
+    final scoped = _query.isNotEmpty || selected == null
         ? live
         : live.where((c) => c.id == selected).toList(growable: false);
+
+    final shown = scoped
+        .where((c) => data.servicesIn(c.id).any(_matches))
+        .toList(growable: false);
 
     return CustomScrollView(
       slivers: [
@@ -100,7 +123,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 const SizedBox(height: ResetTokens.spaceBase),
                 SearchField(
-                  onTap: live.isEmpty ? null : () => _open(data.servicesIn(live.first.id).first),
+                  controller: _search,
+                  onChanged: (value) => setState(() => _query = value.trim()),
                 ),
                 const CompleteProfileBanner(),
               ],
@@ -170,13 +194,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         for (final category in shown)
           ..._categorySlivers(context, theme, data, category),
 
-        if (live.isEmpty)
-          const SliverFillRemaining(
+        if (shown.isEmpty)
+          SliverFillRemaining(
             hasScrollBody: false,
-            child: EmptyState(
-              title: 'Nothing bookable yet',
-              message: 'Please call the store to make a booking.',
-            ),
+            child: _query.isEmpty
+                ? const EmptyState(
+                    title: 'Nothing bookable yet',
+                    message: 'Please call the store to make a booking.',
+                  )
+                : EmptyState(
+                    title: 'No match for "$_query"',
+                    message: 'Try a shorter word — "head", "back", "full body".',
+                  ),
           ),
 
         const SliverToBoxAdapter(child: SizedBox(height: ResetTokens.space3xl)),
@@ -190,7 +219,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     HomeData data,
     Category category,
   ) {
-    final services = data.servicesIn(category.id);
+    final services = data.servicesIn(category.id).where(_matches).toList(growable: false);
+    if (services.isEmpty) return const [];
 
     return [
       SliverPadding(

@@ -68,7 +68,9 @@ export class BookingController {
    */
   @Post('hold')
   @UseGuards(OptionalCustomerGuard, RateLimitGuard)
-  @RateLimited({ limit: 20, windowSeconds: 3600 })
+  // Per customer where there is one, falling back to per-IP for a guest hold. Keyed only
+  // by address, one person's twenty holds were the whole store's twenty.
+  @RateLimited({ limit: 20, windowSeconds: 3600, by: 'user' })
   async hold(
     @Body(new ZodValidationPipe(holdRequest)) body: z.infer<typeof holdRequest>,
     @OptionalUser() userId: string | null,

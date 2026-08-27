@@ -198,39 +198,61 @@ class CategoryBubble extends StatelessWidget {
   }
 }
 
-/// Search entry point. Not wired to a query yet — it opens the catalogue it would filter,
-/// which is better than a control that looks live and does nothing.
+/// Filters the catalogue as you type.
+///
+/// A real field rather than something that navigates: a control shaped like a search box
+/// that opens a page instead of taking a query is worse than no search box, because the
+/// person has already decided what it does before they touch it.
 class SearchField extends StatelessWidget {
-  const SearchField({super.key, this.onTap});
+  const SearchField({
+    super.key,
+    required this.controller,
+    required this.onChanged,
+  });
 
-  final VoidCallback? onTap;
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(ResetTokens.radiusMd),
-      child: Container(
-        height: 50,
-        padding: const EdgeInsets.symmetric(horizontal: ResetTokens.spaceBase),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(ResetTokens.radiusMd),
-          border: Border.all(color: theme.borderColor),
-          boxShadow: ResetTokens.cardShadow(Colors.black),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.search, size: 22, color: theme.colorScheme.primary),
-            const SizedBox(width: ResetTokens.spaceSm),
-            Text(
-              'Search for a service',
-              style: ResetTokens.body.copyWith(color: theme.mutedColor),
+    return Container(
+      height: 50,
+      padding: const EdgeInsets.only(left: ResetTokens.spaceBase, right: ResetTokens.spaceSm),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(ResetTokens.radiusMd),
+        border: Border.all(color: theme.borderColor),
+        boxShadow: ResetTokens.cardShadow(Colors.black),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.search, size: 22, color: theme.colorScheme.primary),
+          const SizedBox(width: ResetTokens.spaceSm),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              textInputAction: TextInputAction.search,
+              style: ResetTokens.body.copyWith(color: theme.colorScheme.onSurface),
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: 'Search for a service',
+                hintStyle: ResetTokens.body.copyWith(color: theme.mutedColor),
+              ),
             ),
-          ],
-        ),
+          ),
+          if (controller.text.isNotEmpty)
+            IconButton(
+              icon: Icon(Icons.close, size: 20, color: theme.mutedColor),
+              onPressed: () {
+                controller.clear();
+                onChanged('');
+              },
+            ),
+        ],
       ),
     );
   }

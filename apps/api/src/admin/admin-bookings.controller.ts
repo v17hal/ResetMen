@@ -9,6 +9,13 @@ import { BookingLifecycleService } from '../booking/booking-lifecycle.service.js
 import { BookingService } from '../booking/booking.service.js';
 import { StoreIdHeader, StoreScopeService } from '../common/store-scope.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import { PaymentService } from '../payments/payment.service.js';
+
+/** How the counter took the money. Free text would make the takings unreportable. */
+const markPaidRequest = z.object({
+  method: z.enum(['CASH', 'UPI', 'CARD', 'OTHER']).default('CASH'),
+  note: z.string().trim().max(200).optional(),
+});
 
 const timelineQuery = z.object({ date: localDate });
 
@@ -21,6 +28,7 @@ export class AdminBookingsController {
     private readonly bookings: BookingService,
     private readonly lifecycle: BookingLifecycleService,
     private readonly scope: StoreScopeService,
+    private readonly payments: PaymentService,
   ) {}
 
   private async storeFor(auth: TokenClaims, header?: string): Promise<string> {
@@ -79,6 +87,31 @@ export class AdminBookingsController {
     @Body(new ZodValidationPipe(adminStatusChange)) body: z.infer<typeof adminStatusChange>,
   ) {
     return this.lifecycle.transition(id, body.status, 'ADMIN', auth.sub, body.reason);
+  }
+
+  /**
+   * Records money taken at the counter.
+   *
+   * There is no gateway, so every booking arrives unpaid and staff settle it in person —
+   * either when the customer walks in, or by ringing the number on the booking. This writes
+   * the Payment row that says so, which is what moves the booking off the unpaid list and
+   * into revenue.
+   *
+   * Idempotent: pressing it twice is a double-tap at a busy counter, not a second payment.
+   */
+  @Post(':id/mark-paid')
+  @Roles('OWNER', 'MANAGER')
+  async markPaid(
+    @CurrentAuth() auth: TokenClaims,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(markPaidRequest)) body: z.infer<typeof markPaidRequest>,
+  ) {
+    return this.payments.recordCounterPayment({
+      bookingId: id,
+      adminUserId: auth.sub,
+      method: body.method,
+      note: body.note,
+    });
   }
 
   @Post(':id/reassign-station')

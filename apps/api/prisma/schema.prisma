@@ -76,6 +76,13 @@ enum ActorType {
 
 enum PaymentGateway {
   RAZORPAY
+  /// Taken at the counter and recorded by staff, with no gateway involved.
+  ///
+  /// A booking with no payment row is unpaid; one with a CAPTURED COUNTER row was settled
+  /// in person. Keeping it as a Payment rather than a flag on the booking means revenue
+  /// reporting, refunds and the payments screen all count counter money without knowing it
+  /// is different — and the day a gateway is switched on, nothing has to be reconciled.
+  COUNTER
 }
 
 enum PaymentStatus {

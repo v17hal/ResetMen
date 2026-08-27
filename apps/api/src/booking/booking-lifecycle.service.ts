@@ -303,7 +303,12 @@ export class BookingLifecycleService {
           startsAt: { gte: dayStart.toJSDate(), lt: dayEnd.toJSDate() },
         },
         orderBy: { startsAt: 'asc' },
-        include: { user: { select: { name: true, phone: true } } },
+        include: {
+          user: { select: { name: true, phone: true } },
+          // With no gateway every booking arrives unpaid, so whether one has been settled
+          // is what the counter is scanning the timeline for.
+          payments: { where: { status: 'CAPTURED' }, select: { id: true, method: true } },
+        },
       }),
       this.prisma.blackout.findMany({
         where: {
@@ -347,6 +352,8 @@ export class BookingLifecycleService {
             // Rendered as its own visual band in the admin timeline.
             bufferEndsAt: toIso(b.blockedUntil.getTime(), zone),
             payablePaise: b.payablePaise,
+            isPaid: b.payments.length > 0,
+            paidMethod: b.payments[0]?.method ?? null,
           })),
         blackouts: blackouts
           .filter((x) => x.stationId === null || x.stationId === station.id)

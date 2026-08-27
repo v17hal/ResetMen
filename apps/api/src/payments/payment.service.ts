@@ -33,6 +33,74 @@ export class PaymentService {
   ) {}
 
   /**
+   * Records money taken at the counter for a booking.
+   *
+   * Written as a Payment rather than a flag so counter takings flow through revenue
+   * reporting, the payments screen and refunds without any of them needing to know the
+   * money never touched a gateway.
+   *
+   * Idempotent by design: a second press at a busy counter returns the first payment
+   * instead of doubling the day's takings. `gatewayOrderId` carries the booking id because
+   * the column is required and there is no order to point at.
+   */
+  async recordCounterPayment(params: {
+    bookingId: string;
+    adminUserId: string;
+    method: 'CASH' | 'UPI' | 'CARD' | 'OTHER';
+    note?: string;
+  }): Promise<{ paymentId: string; amountPaise: number; alreadyRecorded: boolean }> {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: params.bookingId },
+      include: { store: { include: { settings: { select: { currency: true } } } } },
+    });
+    if (booking === null) throw AppError.notFound('Booking');
+
+    if (booking.status === 'CANCELLED' || booking.status === 'EXPIRED') {
+      throw AppError.validation(
+        `A booking that is ${booking.status} cannot be marked paid.`,
+      );
+    }
+
+    const existing = await this.prisma.payment.findFirst({
+      where: { bookingId: booking.id, status: 'CAPTURED' },
+    });
+    if (existing !== null) {
+      return {
+        paymentId: existing.id,
+        amountPaise: existing.amountPaise,
+        alreadyRecorded: true,
+      };
+    }
+
+    const payment = await this.prisma.payment.create({
+      data: {
+        storeId: booking.storeId,
+        bookingId: booking.id,
+        gateway: 'COUNTER',
+        gatewayOrderId: `counter:${booking.publicId}`,
+        amountPaise: booking.payablePaise,
+        currency: booking.store.settings?.currency ?? 'INR',
+        status: 'CAPTURED',
+        method: params.method,
+        rawPayload: {
+          recordedBy: params.adminUserId,
+          ...(params.note === undefined ? {} : { note: params.note }),
+        },
+      },
+    });
+
+    this.logger.log(
+      `Counter payment ${payment.id} recorded for ${booking.publicId} by ${params.adminUserId}`,
+    );
+
+    return {
+      paymentId: payment.id,
+      amountPaise: payment.amountPaise,
+      alreadyRecorded: false,
+    };
+  }
+
+  /**
    * Opens a checkout for a held booking or a pending product order.
    *
    * The amount is read from the row the server already wrote — never from the request.

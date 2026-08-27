@@ -168,6 +168,11 @@ export class BookingService {
     // slot — which is the exact scenario blocking exists for.
     await this.assertNotBlocked(request.userId);
 
+    // Staff take the number in person; the app must have it before it takes the slot.
+    if (request.source !== 'ADMIN_WALKIN') {
+      await this.assertReachable(request.userId);
+    }
+
     const localDate = startsAt.setZone(store.timezone).toISODate();
     if (localDate === null) throw AppError.validation('Could not resolve the booking date.');
 
@@ -535,6 +540,37 @@ export class BookingService {
         403,
         'Booking not available',
         user.blockedReason ?? 'Please contact the store.',
+      );
+    }
+  }
+
+  /**
+   * A booking nobody can be called about is not much of a booking.
+   *
+   * With no gateway, every booking is settled at the counter, and the only way staff can
+   * chase one that never turns up — or take payment for one made this morning — is to ring
+   * the customer. Google sign-in yields an email and no phone, so without this the store
+   * fills up with confirmed slots attached to nobody reachable.
+   *
+   * Anonymous holds pass: there is no profile to complete yet, and the number is collected
+   * before the hold is claimed. Walk-ins pass because staff are standing in front of the
+   * person.
+   */
+  private async assertReachable(userId: string | null): Promise<void> {
+    if (userId === null) return;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { phone: true },
+    });
+
+    if (user === null || user.phone === null || user.phone.trim().length === 0) {
+      throw new AppError(
+        'VALIDATION_FAILED',
+        422,
+        'Add your phone number',
+        'The store needs a number to confirm your booking and take payment.',
+        { field: 'phone' },
       );
     }
   }

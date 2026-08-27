@@ -169,8 +169,47 @@ class SkeletonList extends StatelessWidget {
   }
 }
 
-/// The home and list screens share a shape: a heading, a line of body text, then rows.
-/// Reproducing it while loading is what keeps the page from lurching when data arrives.
+/// One service row, before it has a service.
+///
+/// Shaped like the real thing — text block left, square tile right — so the catalogue does
+/// not jump when it lands. A stack of plain bars would settle and then reflow.
+class SkeletonServiceRow extends StatelessWidget {
+  const SkeletonServiceRow({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: ResetTokens.spaceMd),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Skeleton(width: 180, height: 20, radius: ResetTokens.radiusSm),
+                SizedBox(height: ResetTokens.spaceSm),
+                Skeleton(width: 110, height: 16, radius: ResetTokens.radiusSm),
+                SizedBox(height: ResetTokens.spaceSm),
+                Skeleton(height: 14, radius: ResetTokens.radiusSm),
+                SizedBox(height: ResetTokens.spaceXs),
+                Skeleton(width: 200, height: 14, radius: ResetTokens.radiusSm),
+              ],
+            ),
+          ),
+          const SizedBox(width: ResetTokens.spaceBase),
+          Skeleton(
+            width: 112,
+            height: 112,
+            radius: ResetTokens.radiusLg,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The catalogue mid-load: header, search, category circles, then service rows.
 class SkeletonPage extends StatelessWidget {
   const SkeletonPage({super.key, this.rows = 4});
 
@@ -179,21 +218,49 @@ class SkeletonPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.only(top: ResetTokens.spaceLg),
+      padding: const EdgeInsets.only(top: ResetTokens.spaceBase),
       children: <Widget>[
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: ResetTokens.gutter),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Skeleton(width: 220, height: 34, radius: ResetTokens.radiusSm),
+              Skeleton(width: 220, height: 28, radius: ResetTokens.radiusSm),
               SizedBox(height: ResetTokens.spaceSm),
-              Skeleton(width: 280, height: 18, radius: ResetTokens.radiusSm),
+              Skeleton(width: 280, height: 16, radius: ResetTokens.radiusSm),
+              SizedBox(height: ResetTokens.spaceBase),
+              Skeleton(height: 50, radius: ResetTokens.radiusMd),
             ],
           ),
         ),
-        const SizedBox(height: ResetTokens.spaceXl),
-        SkeletonList(rows: rows),
+        const SizedBox(height: ResetTokens.spaceBase),
+        SizedBox(
+          height: 100,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: ResetTokens.gutter),
+            itemCount: 4,
+            separatorBuilder: (_, __) => const SizedBox(width: ResetTokens.spaceMd),
+            itemBuilder: (_, __) => const Column(
+              children: <Widget>[
+                Skeleton(width: 62, height: 62, radius: ResetTokens.radiusFull),
+                SizedBox(height: ResetTokens.spaceXs),
+                Skeleton(width: 60, height: 12, radius: ResetTokens.radiusSm),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: ResetTokens.spaceLg),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: ResetTokens.gutter),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Skeleton(width: 170, height: 22, radius: ResetTokens.radiusSm),
+              for (int i = 0; i < rows; i++) const SkeletonServiceRow(),
+            ],
+          ),
+        ),
       ],
     );
   }

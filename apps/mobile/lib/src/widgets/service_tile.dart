@@ -81,17 +81,22 @@ class ServiceImage extends StatelessWidget {
     required this.label,
     this.imageUrl,
     this.size = 112,
+    this.height,
     this.radius,
   });
 
   final String label;
   final String? imageUrl;
   final double size;
+
+  /// Square to [size] unless given, so the same widget serves a row tile and a page header.
+  final double? height;
   final double? radius;
 
   @override
   Widget build(BuildContext context) {
     final r = BorderRadius.circular(radius ?? ResetTokens.radiusLg);
+    final h = height ?? size;
 
     if (imageUrl != null) {
       return ClipRRect(
@@ -99,22 +104,24 @@ class ServiceImage extends StatelessWidget {
         child: Image.network(
           imageUrl!,
           width: size,
-          height: size,
+          height: h,
           fit: BoxFit.cover,
-          errorBuilder: (context, _, __) => _icon(r),
+          errorBuilder: (context, _, __) => _icon(r, h),
         ),
       );
     }
 
-    return _icon(r);
+    return _icon(r, h);
   }
 
-  Widget _icon(BorderRadius r) {
+  Widget _icon(BorderRadius r, double h) {
     final look = ServiceLook.of(label);
+    // Scales off whichever edge is real — `size` is infinity on a full-width header.
+    final glyph = (size.isFinite ? (size < h ? size : h) : h) * 0.44;
 
     return Container(
       width: size,
-      height: size,
+      height: h,
       decoration: BoxDecoration(
         borderRadius: r,
         gradient: LinearGradient(
@@ -124,7 +131,7 @@ class ServiceImage extends StatelessWidget {
         ),
       ),
       alignment: Alignment.center,
-      child: Icon(look.icon, size: size * 0.44, color: Colors.white),
+      child: Icon(look.icon, size: glyph, color: Colors.white),
     );
   }
 }

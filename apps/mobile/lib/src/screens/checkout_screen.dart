@@ -145,6 +145,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     try {
       final repository = ref.read(repositoryProvider);
+
+      // Nothing to charge: the store takes money at the counter, so the hold came back
+      // already CONFIRMED. Asking for a payment order here is what produced "this booking
+      // is already paid for" on a booking that had just been made successfully.
+      if (!hold.paymentRequired) {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => ConfirmationScreen(bookingId: hold.bookingId),
+          ),
+        );
+        return;
+      }
+
       final order = await repository.createOrder(
         bookingId: hold.bookingId,
         idempotencyKey: _orderKey,
@@ -280,18 +294,27 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
                 const SizedBox(height: ResetTokens.spaceXl),
                 PrimaryButton(
-                  label: quote == null
-                      ? 'Pay'
-                      : 'Pay ${formatMoney(quote.payablePaise)}',
+                  // "Pay" is a promise the screen cannot keep while payment happens at the
+                  // counter — the button confirms a booking and takes no money.
+                  label: switch ((_hold?.paymentRequired ?? true, quote)) {
+                    (false, _) => 'Confirm booking',
+                    (true, null) => 'Pay',
+                    (true, final q?) => 'Pay ${formatMoney(q.payablePaise)}',
+                  },
                   loading: _paying,
                   onPressed: _hold == null ? null : _pay,
                 ),
 
                 const SizedBox(height: ResetTokens.spaceSm),
                 Text(
-                  'Free cancellation up to '
-                  '${((ref.watch(storeProvider).valueOrNull?.cancellationWindowMinutes ?? 120) / 60).round()} '
-                  'hours before your slot.',
+                  [
+                    // Said before confirming, not after. Someone expecting to pay in the
+                    // app should learn otherwise while they can still change their mind.
+                    if (!(_hold?.paymentRequired ?? true)) 'Pay at the counter.',
+                    'Free cancellation up to '
+                        '${((ref.watch(storeProvider).valueOrNull?.cancellationWindowMinutes ?? 120) / 60).round()} '
+                        'hours before your slot.',
+                  ].join(' '),
                   style: ResetTokens.caption.copyWith(color: theme.mutedColor),
                   textAlign: TextAlign.center,
                 ),

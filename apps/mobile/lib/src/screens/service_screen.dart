@@ -7,6 +7,7 @@ import '../providers.dart';
 import '../theme/app_theme.dart';
 import '../theme/reset_tokens.dart';
 import '../widgets/common.dart';
+import '../widgets/service_tile.dart';
 import 'slots_screen.dart';
 
 /// Service detail and add-on selection.
@@ -70,28 +71,35 @@ class _ServiceScreenState extends ConsumerState<ServiceScreen> {
                     ResetTokens.spaceXl,
                   ),
                   children: [
-                    if (data.imageUrl != null)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(ResetTokens.radiusLg),
-                        child: AspectRatio(
-                          aspectRatio: 16 / 9,
-                          child: Image.network(
-                            data.imageUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                Container(color: theme.surface2Color),
-                          ),
-                        ),
+                    // Continues the tile the row was tapped on, so the screen grows out of
+                    // it. Without a photo the icon fills the same frame rather than the
+                    // page opening on bare text.
+                    Hero(
+                      tag: 'service-${data.id}',
+                      child: ServiceImage(
+                        label: data.name,
+                        imageUrl: data.imageUrl,
+                        size: double.infinity,
+                        height: 180,
                       ),
+                    ),
                     const SizedBox(height: ResetTokens.spaceBase),
 
-                    Text(data.name, style: ResetTokens.display),
+                    Text(data.name, style: ResetTokens.h1),
                     const SizedBox(height: ResetTokens.spaceSm),
                     Row(
                       children: [
-                        Text(formatMoney(data.pricePaise), style: ResetTokens.h2),
-                        const SizedBox(width: ResetTokens.spaceSm),
-                        ResetBadge(formatDuration(data.durationMinutes)),
+                        Text(
+                          formatMoney(data.pricePaise),
+                          style: ResetTokens.display.copyWith(fontSize: 26),
+                        ),
+                        const SizedBox(width: ResetTokens.spaceMd),
+                        Icon(Icons.schedule, size: 16, color: theme.mutedColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          formatDuration(data.durationMinutes),
+                          style: ResetTokens.bodySm.copyWith(color: theme.mutedColor),
+                        ),
                       ],
                     ),
 
@@ -99,7 +107,10 @@ class _ServiceScreenState extends ConsumerState<ServiceScreen> {
                       const SizedBox(height: ResetTokens.spaceSm),
                       Text(
                         data.description!,
-                        style: ResetTokens.body.copyWith(color: theme.mutedColor),
+                        style: ResetTokens.body.copyWith(
+                          color: theme.mutedColor,
+                          height: 1.5,
+                        ),
                       ),
                     ],
 

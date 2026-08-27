@@ -380,6 +380,7 @@ class Hold {
     required this.startsAt,
     required this.holdExpiresAt,
     required this.payablePaise,
+    required this.paymentRequired,
   });
 
   final String bookingId;
@@ -387,6 +388,14 @@ class Hold {
   final DateTime startsAt;
   final DateTime holdExpiresAt;
   final int payablePaise;
+
+  /// False while the store takes payment at the counter.
+  ///
+  /// The hold then comes back already CONFIRMED and there is nothing to charge. Dropping
+  /// this field meant checkout asked for a payment order anyway and the API answered "this
+  /// booking is already paid for" — the customer could not finish a booking that had, in
+  /// fact, already succeeded.
+  final bool paymentRequired;
 
   factory Hold.fromJson(Map<String, dynamic> json) {
     final pricing = (json['pricing'] as Map<String, dynamic>?) ?? const {};
@@ -396,6 +405,8 @@ class Hold {
       startsAt: _instant(json['startsAt']),
       holdExpiresAt: _instant(json['holdExpiresAt']),
       payablePaise: _int(pricing['payablePaise']),
+      // Absent means the old behaviour: charge for it.
+      paymentRequired: json['paymentRequired'] as bool? ?? true,
     );
   }
 }

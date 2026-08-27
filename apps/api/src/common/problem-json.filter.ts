@@ -17,6 +17,31 @@ function codeToSlug(code: ErrorCode): string {
   return code.toLowerCase().replace(/_/g, '-');
 }
 
+/**
+ * Prisma error codes that are caused by the request, not by the server.
+ *
+ * `P2023` is the one that matters in practice: any path parameter that is not a UUID —
+ * `/bookings/not-a-uuid` — reaches Prisma as a `where` clause, and Prisma throws while
+ * parsing it. Left unmapped that surfaces as a 500, which is wrong twice over. The caller
+ * cannot tell a bad request from a broken server, and every scan of the API writes an
+ * ERROR line, burying the real incident the log is there to reveal.
+ *
+ * Duck-typed rather than imported: matching on the code keeps the filter free of a
+ * dependency on the Prisma runtime, which it otherwise has no reason to load.
+ */
+const PRISMA_REQUEST_ERRORS: Record<string, { status: HttpStatus; code: ErrorCode }> = {
+  // Inconsistent column data — a malformed UUID or enum value in the query.
+  P2023: { status: HttpStatus.BAD_REQUEST, code: 'VALIDATION_FAILED' },
+  // An operation depended on a record that does not exist.
+  P2025: { status: HttpStatus.NOT_FOUND, code: 'NOT_FOUND' },
+};
+
+function prismaErrorCode(exception: unknown): string | undefined {
+  if (typeof exception !== 'object' || exception === null) return undefined;
+  const code = (exception as { code?: unknown }).code;
+  return typeof code === 'string' && code in PRISMA_REQUEST_ERRORS ? code : undefined;
+}
+
 /** Every error leaves the API as RFC 9457 problem+json with a stable `code`. */
 @Catch()
 export class ProblemJsonFilter implements ExceptionFilter {
@@ -74,6 +99,18 @@ export class ProblemJsonFilter implements ExceptionFilter {
       return {
         type: `${ERROR_BASE}/${codeToSlug(code)}`,
         title: exception.message,
+        status,
+        code,
+        instance,
+      };
+    }
+
+    const prismaCode = prismaErrorCode(exception);
+    if (prismaCode !== undefined) {
+      const { status, code } = PRISMA_REQUEST_ERRORS[prismaCode]!;
+      return {
+        type: `${ERROR_BASE}/${codeToSlug(code)}`,
+        title: status === HttpStatus.NOT_FOUND ? 'Not found' : 'Invalid request',
         status,
         code,
         instance,

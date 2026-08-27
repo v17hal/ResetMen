@@ -198,6 +198,39 @@ export class BookingService {
           tx,
         });
 
+        // A customer may only take a time the engine actually offered.
+        //
+        // `assignStation` answers "can a station take this instant", which is not the same
+        // question. It says yes to instants availability would never list: a time in the
+        // past, one off the granularity grid, one months beyond the booking horizon. The
+        // app never sends those, but the endpoint is reachable directly, and a booking at
+        // 09:03:27 last Tuesday still consumes a station through the exclusion constraint.
+        //
+        // Staff are exempt on purpose. A walk-in is entered *after* the person has sat
+        // down, at whatever ragged time that was, and refusing it would leave the engine
+        // believing an occupied station is free — the exact failure walk-in entry exists to
+        // prevent. See admin-bookings.controller.ts#walkIn.
+        if (request.source !== 'ADMIN_WALKIN') {
+          const horizonEnd = DateTime.now()
+            .setZone(store.timezone)
+            .startOf('day')
+            .plus({ days: store.settings!.bookingHorizonDays });
+
+          const offered = computeAvailability(input).slots;
+          const requestedMs = startsAt.toMillis();
+          const onOffer = offered.some((slot) => slot.startsAt === requestedMs);
+
+          if (!onOffer || startsAt >= horizonEnd) {
+            throw AppError.slotUnavailable(
+              'That time is not available for this service.',
+              { refreshedSlots: offered.map((s) => ({
+                  startsAt: toIso(s.startsAt, store.timezone),
+                  stationsAvailable: s.stationsAvailable,
+                })) },
+            );
+          }
+        }
+
         const assignment = assignStation(input, startsAt.toMillis());
         if (assignment === null) {
           throw AppError.slotUnavailable(

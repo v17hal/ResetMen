@@ -265,6 +265,15 @@ export interface TimelineBooking {
   /** Cleaning time runs to here. Its own visual band — occupied, but not the session. */
   bufferEndsAt: string;
   payablePaise: number;
+  /**
+   * Whether the money has been taken.
+   *
+   * With no gateway configured every booking arrives unpaid and is settled in person, so
+   * this is what the counter is scanning the day for.
+   */
+  isPaid: boolean;
+  /** How it was settled — CASH, UPI, CARD, OTHER — or null while unpaid. */
+  paidMethod: string | null;
 }
 
 export interface TimelineBlackout {

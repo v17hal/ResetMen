@@ -113,6 +113,19 @@ export class AdminBookingsResource {
     return this.http.post(`/admin/bookings/${encodeURIComponent(id)}/status`, { body: input });
   }
 
+  /**
+   * Records money taken at the counter. Idempotent — a second press returns the first
+   * payment rather than doubling the day's takings.
+   */
+  markPaid(
+    id: string,
+    input: { method: 'CASH' | 'UPI' | 'CARD' | 'OTHER'; note?: string },
+  ): Promise<{ paymentId: string; amountPaise: number; alreadyRecorded: boolean }> {
+    return this.http.post(`/admin/bookings/${encodeURIComponent(id)}/mark-paid`, {
+      body: input,
+    });
+  }
+
   /** Moves a booking to a different station at the same time — the engine still validates it. */
   reassignStation(id: string, stationId: string): Promise<BookingDetail> {
     return this.http.post(`/admin/bookings/${encodeURIComponent(id)}/reassign-station`, {

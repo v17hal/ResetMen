@@ -71,10 +71,23 @@ export class BookingLifecycleService {
       throw AppError.validation(`Cannot confirm a booking that is ${booking.status}.`);
     }
 
+    /**
+     * Claim an unowned hold for whoever is confirming it.
+     *
+     * A hold made before signing in belongs to nobody — that is the point of the anonymous
+     * hold, so a slot is not lost while someone goes to find their phone. Confirming it
+     * without assigning an owner left a CONFIRMED booking with no account behind it: no
+     * name, no number, nothing in the customer's own list, and nobody the counter could
+     * ring about it. The payment path already claims the hold this way; this one did not,
+     * and with no gateway this is now the only path there is.
+     */
+    const claim =
+      booking.userId === null && actorId !== null ? { userId: actorId } : {};
+
     await this.prisma.$transaction([
       this.prisma.booking.update({
         where: { id: bookingId },
-        data: { status: 'CONFIRMED', holdExpiresAt: null },
+        data: { status: 'CONFIRMED', holdExpiresAt: null, ...claim },
       }),
       this.prisma.bookingStatusHistory.create({
         data: {

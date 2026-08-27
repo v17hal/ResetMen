@@ -297,7 +297,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   // "Pay" is a promise the screen cannot keep while payment happens at the
                   // counter — the button confirms a booking and takes no money.
                   label: switch ((_hold?.paymentRequired ?? true, quote)) {
-                    (false, _) => 'Confirm booking',
+                    (false, _) => 'Book',
                     (true, null) => 'Pay',
                     (true, final q?) => 'Pay ${formatMoney(q.payablePaise)}',
                   },

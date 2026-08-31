@@ -246,7 +246,9 @@ class _BookingList extends ConsumerWidget {
         title: const Text('Cancel this booking?'),
         content: Text(
           '${booking.serviceName}, ${formatDateTime(booking.startsAt)}. '
-          'Your refund goes back to the card you paid with.',
+          // No card was charged — the store takes payment at the counter — so promising
+          // a refund to one tells the customer something that cannot happen.
+          'The slot goes back for someone else to book.',
         ),
         actions: [
           TextButton(
@@ -269,7 +271,7 @@ class _BookingList extends ConsumerWidget {
       ref.invalidate(bookingsProvider('cancelled'));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cancelled. Any refund is on its way.')),
+          const SnackBar(content: Text('Cancelled. The slot is free again.')),
         );
       }
     } catch (error) {

@@ -24,6 +24,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 import { SignIn } from '@/components/sign-in';
+import { ServiceImage } from '@/components/service-look';
 import { errorMessage, useAuth } from '@/lib/auth';
 import { api } from '@/lib/client';
 
@@ -48,7 +49,7 @@ export default function BookingsPage() {
   const cancel = useMutation({
     mutationFn: (id: string) => api().bookings.cancel(id),
     onSuccess: () => {
-      toast.success('Cancelled. Any refund is on its way.');
+      toast.success('Cancelled. The slot is free again.');
       void queryClient.invalidateQueries({ queryKey: ['bookings'] });
       setCancelling(null);
     },
@@ -112,24 +113,40 @@ export default function BookingsPage() {
           {bookings.data.data.map((booking, index) => (
             <li key={booking.id} {...stagger(index, reduced)}>
               <Card elevated className="flex flex-col gap-sm">
-                <div className="flex items-start justify-between gap-sm">
-                  <div className="min-w-0">
-                    <p className="truncate font-display text-h2">{booking.serviceName}</p>
+                <div className="flex items-start gap-base">
+                  {/* Same tile as the catalogue, so a visit is recognisably the thing that
+                      was booked. */}
+                  <ServiceImage
+                    name={booking.serviceName}
+                    className="h-16 w-16 shrink-0"
+                    rounded="rounded-md"
+                  />
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-sm">
+                      <p className="truncate font-display text-h2 text-[17px]">
+                        {booking.serviceName}
+                      </p>
+                      <BookingStatusBadge status={booking.status} />
+                    </div>
+
                     <p className="text-body-sm text-text-muted">
                       {formatRelativeDay(booking.startsAt, zone)} ·{' '}
                       {formatTime(booking.startsAt, zone)}
                     </p>
-                  </div>
-                  <BookingStatusBadge status={booking.status} />
-                </div>
 
-                <div className="flex flex-wrap items-center gap-xs text-body-sm text-text-muted">
-                  <span>{formatDuration(booking.durationMinutes)}</span>
-                  <span aria-hidden>·</span>
-                  <span className="font-mono">{formatMoney(booking.payablePaise)}</span>
-                  {booking.addons.map((addon) => (
-                    <Badge key={addon.name}>{addon.name}</Badge>
-                  ))}
+                    <p className="mt-xs flex flex-wrap items-center gap-sm">
+                      <span className="font-display text-[17px]">
+                        {formatMoney(booking.payablePaise)}
+                      </span>
+                      <span className="text-caption text-text-muted">
+                        {formatDuration(booking.durationMinutes)}
+                      </span>
+                      {booking.addons.map((addon) => (
+                        <Badge key={addon.name}>{addon.name}</Badge>
+                      ))}
+                    </p>
+                  </div>
                 </div>
 
                 {filter === 'upcoming' && (
@@ -175,7 +192,9 @@ export default function BookingsPage() {
         description={
           cancelling === null
             ? undefined
-            : `${cancelling.serviceName}, ${formatDateTime(cancelling.startsAt, zone)}. Your refund goes back to the card you paid with.`
+            : // No card was charged — the store takes payment at the counter — so promising
+              // a refund to one is telling the customer something that cannot happen.
+              `${cancelling.serviceName}, ${formatDateTime(cancelling.startsAt, zone)}. The slot goes back for someone else to book.`
         }
         confirmLabel="Yes, cancel"
         cancelLabel="Keep it"

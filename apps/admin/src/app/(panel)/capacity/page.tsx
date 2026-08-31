@@ -519,7 +519,7 @@ const SETTINGS: ReadonlyArray<{
   {
     key: 'cancellationWindowMinutes',
     label: 'Free cancellation window (min)',
-    hint: 'How long before the slot a customer can still cancel for a full refund.',
+    hint: 'How long before the slot a customer can still cancel it themselves.',
     min: 0,
     max: 10080,
   },

@@ -217,7 +217,7 @@ export default function AccountPage() {
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="Delete your account?"
-        description="This cannot be undone. Any upcoming bookings should be cancelled first if you want a refund."
+        description="This cannot be undone. Cancel any upcoming bookings first so the store knows not to expect you."
         confirmLabel="Delete my account"
         cancelLabel="Keep my account"
         destructive

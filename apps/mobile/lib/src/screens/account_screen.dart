@@ -81,7 +81,8 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Delete your account?'),
         content: const Text(
-          'This cannot be undone. Cancel any upcoming bookings first if you want a refund.',
+          'This cannot be undone. Cancel any upcoming bookings first so the store knows '
+          'not to expect you.',
         ),
         actions: [
           TextButton(

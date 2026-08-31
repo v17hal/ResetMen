@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
+import { ServiceImage } from '@/components/service-look';
 import { errorMessage } from '@/lib/auth';
 import { api } from '@/lib/client';
 
@@ -38,6 +39,15 @@ function Slots() {
   const addonOptionIds = search.getAll('addon');
 
   const store = useQuery({ queryKey: ['store'], queryFn: () => api().catalog.store() });
+
+  // Which service this is. The screen previously said only "Choose a time", so anyone who
+  // arrived from a link, or paused halfway, had no way to check what they were booking
+  // before committing to a slot. `/catalog/services/:idOrSlug` takes the id directly.
+  const service = useQuery({
+    queryKey: ['service', serviceId],
+    queryFn: () => api().catalog.service(serviceId),
+    enabled: serviceId !== '',
+  });
   const zone = store.data?.timezone;
 
   const today = todayLocal(zone);
@@ -96,13 +106,31 @@ function Slots() {
           ← Back
         </Link>
         <h1 className="font-display text-h1">Choose a time</h1>
-        {slots.data !== undefined && (
-          <p className="text-body-sm text-text-muted">
-            {formatDuration(slots.data.totalDurationMinutes)} ·{' '}
-            {formatMoney(slots.data.payablePaise)}
-          </p>
-        )}
       </header>
+
+      {service.data !== undefined && (
+        <div className="flex items-center gap-base rounded-lg border border-border bg-surface p-sm">
+          <ServiceImage
+            name={service.data.name}
+            imageUrl={service.data.imageUrl}
+            className="h-14 w-14 shrink-0"
+            rounded="rounded-md"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-display text-h2 text-[16px]">{service.data.name}</p>
+            {slots.data !== undefined && (
+              <p className="flex items-center gap-sm">
+                <span className="font-display text-[17px]">
+                  {formatMoney(slots.data.payablePaise)}
+                </span>
+                <span className="text-caption text-text-muted">
+                  {formatDuration(slots.data.totalDurationMinutes)}
+                </span>
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Date strip. Scrolls horizontally inside itself; the page never does. */}
       <div className="-mx-base overflow-x-auto px-base">

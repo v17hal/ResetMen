@@ -3,7 +3,7 @@
 import { isResetApiError, type UserProfile } from '@reset/api-client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { createContext, useCallback, useContext, useEffect, useMemo } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { api, setSessionLostHandler } from './client.js';
@@ -30,10 +30,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * on the web without signing out — and a token the server has stopped accepting is
    * discovered on load rather than during checkout.
    */
+  /**
+   * Bumped whenever the token changes, purely to force a render.
+   *
+   * `api().isAuthenticated` reads the token store directly. It is not React state, so
+   * storing a token during sign-in changed nothing React could see: the profile query
+   * stayed `enabled: false`, and invalidating a disabled query does not fetch it. Sign-in
+   * appeared to do nothing until some other navigation happened to re-render the provider
+   * and the flag was read again — which is exactly how it looked, signed out on the
+   * checkout screen and signed in once you went back.
+   */
+  const [authTick, setAuthTick] = useState(0);
+  const authenticated = useMemo(() => api().isAuthenticated, [authTick]);
+
   const profile = useQuery({
     queryKey: ['me'],
     queryFn: () => api().auth.me(),
-    enabled: api().isAuthenticated,
+    enabled: authenticated,
     retry: false,
     staleTime: 5 * 60_000,
   });
@@ -48,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => {
     api().auth.signOut();
+    setAuthTick((tick) => tick + 1);
     // Also clear the Firebase session. Leaving it behind means the next "Sign in" silently
     // reuses the same Google account, which looks broken to anyone trying to switch.
     void import('./firebase').then(({ signOutOfFirebase }) => signOutOfFirebase());
@@ -59,11 +73,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user: profile.data ?? null,
       loading: profile.isLoading,
-      hasToken: api().isAuthenticated,
+      hasToken: authenticated,
       signOut,
-      refresh: () => void queryClient.invalidateQueries({ queryKey: ['me'] }),
+      // The bump is what matters: it re-enables the query. The invalidate then refetches a
+      // profile the previous user may have left behind.
+      refresh: () => {
+        setAuthTick((tick) => tick + 1);
+        void queryClient.invalidateQueries({ queryKey: ['me'] });
+      },
     }),
-    [profile.data, profile.isLoading, signOut, queryClient],
+    [profile.data, profile.isLoading, signOut, queryClient, authenticated],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

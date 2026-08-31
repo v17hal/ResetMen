@@ -63,12 +63,18 @@ export default function ConfirmationPage() {
   const zone = store.data?.timezone;
   const pending = booking.data.status === 'HELD';
 
+  // No gateway: the booking is real, the money is not collected yet, and saying otherwise
+  // sends someone to the counter believing they have already paid.
+  const payAtCounter = store.data?.paymentsEnabled === false;
+
   return (
     <div className="flex flex-col items-center gap-lg p-base text-center">
       <header className="flex flex-col items-center gap-xs pt-lg">
         {pending ? (
           <>
-            <h1 className="font-display text-h1">Confirming your payment…</h1>
+            <h1 className="font-display text-h1">
+              {payAtCounter ? 'Finishing your booking…' : 'Confirming your payment…'}
+            </h1>
             <p className="text-body text-text-muted">
               This usually takes a second or two. You can stay on this screen.
             </p>
@@ -91,7 +97,9 @@ export default function ConfirmationPage() {
             </span>
             <h1 className="font-display text-display">You&rsquo;re booked</h1>
             <p className="text-body text-text-muted">
-              Show this at the counter when you arrive.
+              {payAtCounter
+                ? 'Your slot is held. Someone from the team will call you to confirm and take payment.'
+                : 'Show this at the counter when you arrive.'}
             </p>
           </>
         )}
@@ -108,8 +116,15 @@ export default function ConfirmationPage() {
         <p className="text-body">{formatDateTime(booking.data.startsAt, zone)}</p>
         <p className="text-body-sm text-text-muted">
           {formatDuration(booking.data.durationMinutes)} ·{' '}
-          {formatMoney(booking.data.payablePaise)} paid
+          {/* "paid" was a plain untruth while payment happens at the counter. */}
+          {formatMoney(booking.data.payablePaise)} {payAtCounter ? 'to pay' : 'paid'}
         </p>
+
+        {payAtCounter && (
+          <p className="rounded-md bg-warning/10 px-sm py-xs text-caption text-warning">
+            Payment pending — pay at the counter when you arrive.
+          </p>
+        )}
 
         {booking.data.addons.length > 0 && (
           <div className="flex flex-wrap gap-xs">

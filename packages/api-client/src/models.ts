@@ -62,6 +62,14 @@ export interface StoreDto {
   bookingHorizonDays: number;
   cancellationWindowMinutes: number;
   hours: StoreHours[];
+  /**
+   * Whether the store charges online.
+   *
+   * False today: there is no gateway and every booking is settled at the counter. The API
+   * has always sent this; it simply was not declared, so the clients could not tell the
+   * customer whether money had changed hands and defaulted to saying it had.
+   */
+  paymentsEnabled: boolean;
 }
 
 export interface SegmentDto {

@@ -20,6 +20,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
+import { PhoneRequired } from '@/components/phone-required';
 import { SignIn } from '@/components/sign-in';
 import { errorMessage, useAuth } from '@/lib/auth';
 import { api } from '@/lib/client';
@@ -226,9 +227,16 @@ function Checkout() {
 
       {!hasToken || user === null ? (
         <Card className="flex flex-col gap-base">
-          <h2 className="font-display text-h2">Sign in to pay</h2>
+          <h2 className="font-display text-h2">
+            {store.data?.paymentsEnabled === false ? 'Sign in to book' : 'Sign in to pay'}
+          </h2>
           <SignIn reason="Your slot is held while you do this." />
         </Card>
+      ) : (user.phone ?? '').trim() === '' ? (
+        // The API refuses a hold without one, so asking here — rather than sending them to
+        // /account and losing the slot they just picked — is the difference between a
+        // booking and an abandoned one.
+        <PhoneRequired onSaved={() => createHold.mutate()} />
       ) : (
         <div className="sticky bottom-base z-20">
           <Button

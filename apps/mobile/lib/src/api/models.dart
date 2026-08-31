@@ -41,6 +41,7 @@ class StoreInfo {
     required this.phone,
     required this.bookingHorizonDays,
     required this.cancellationWindowMinutes,
+    required this.paymentsEnabled,
   });
 
   final String id;
@@ -50,6 +51,12 @@ class StoreInfo {
   final String? phone;
   final int bookingHorizonDays;
   final int cancellationWindowMinutes;
+
+  /// Whether the store charges online.
+  ///
+  /// False today: there is no gateway and every booking is settled at the counter. The API
+  /// has always sent this; it simply was not read, so the app told people they had paid.
+  final bool paymentsEnabled;
 
   factory StoreInfo.fromJson(Map<String, dynamic> json) => StoreInfo(
         id: _str(json['id']),
@@ -61,6 +68,8 @@ class StoreInfo {
         phone: json['phone'] as String?,
         bookingHorizonDays: _int(json['bookingHorizonDays']),
         cancellationWindowMinutes: _int(json['cancellationWindowMinutes']),
+        // Absent means the old behaviour: assume a gateway.
+        paymentsEnabled: json['paymentsEnabled'] as bool? ?? true,
       );
 }
 

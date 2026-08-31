@@ -104,7 +104,10 @@ class _ConfirmationScreenState extends ConsumerState<ConfirmationScreen> {
                   const Center(child: CircularProgressIndicator()),
                   const SizedBox(height: ResetTokens.spaceBase),
                   Text(
-                    'Confirming your payment…',
+                    // No gateway: nothing is being confirmed by a payment.
+                    (store?.paymentsEnabled ?? true)
+                        ? 'Confirming your payment…'
+                        : 'Finishing your booking…',
                     style: ResetTokens.h1,
                     textAlign: TextAlign.center,
                   ),
@@ -134,7 +137,10 @@ class _ConfirmationScreenState extends ConsumerState<ConfirmationScreen> {
                   ),
                   const SizedBox(height: ResetTokens.spaceXs),
                   Text(
-                    'Show this at the counter when you arrive.',
+                    (store?.paymentsEnabled ?? true)
+                        ? 'Show this at the counter when you arrive.'
+                        : 'Your slot is held. Someone from the team will call you to '
+                            'confirm and take payment.',
                     style: ResetTokens.body.copyWith(color: theme.mutedColor),
                     textAlign: TextAlign.center,
                   ),
@@ -162,7 +168,10 @@ class _ConfirmationScreenState extends ConsumerState<ConfirmationScreen> {
                       const SizedBox(height: ResetTokens.spaceXs),
                       Text(formatDateTime(booking.startsAt), style: ResetTokens.body),
                       Text(
-                        '${formatDuration(booking.durationMinutes)} · ${formatMoney(booking.payablePaise)} paid',
+                        // "paid" was a plain untruth while payment happens at the counter.
+                        '${formatDuration(booking.durationMinutes)} · '
+                        '${formatMoney(booking.payablePaise)}'
+                        '${(store?.paymentsEnabled ?? true) ? ' paid' : ' to pay'}',
                         style: ResetTokens.bodySm.copyWith(color: theme.mutedColor),
                       ),
                       if (booking.addonNames.isNotEmpty) ...[

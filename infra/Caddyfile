@@ -67,8 +67,18 @@
 
 	header {
 		# The customer app loads Razorpay's checkout script and posts to their API. Framing
-		# is allowed only for their sheet.
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' {$API_ORIGIN} https://*.razorpay.com; frame-src https://*.razorpay.com; font-src 'self' data:; base-uri 'self'; form-action 'self'"
+		# is allowed only for their sheet and for Firebase's auth handler.
+		#
+		# Firebase Auth needs three of these entries, and without them Google sign-in fails
+		# as `auth/internal-error` with nothing in the message to say why:
+		#
+		#   connect-src  identitytoolkit — every Auth call; securetoken — the refresh
+		#   frame-src    the SDK opens a hidden iframe on the project's authDomain, which is
+		#                where the OAuth handshake actually happens, not on this origin
+		#   script-src   apis.google.com, the gapi loader the popup flow pulls in
+		#
+		# The Android app has no CSP, which is why sign-in worked there and only there.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://apis.google.com https://*.firebaseapp.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' {$API_ORIGIN} https://*.razorpay.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com; frame-src https://*.razorpay.com https://*.firebaseapp.com https://accounts.google.com; font-src 'self' data:; base-uri 'self'; form-action 'self'"
 	}
 
 	reverse_proxy web:3000

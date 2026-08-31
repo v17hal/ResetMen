@@ -70,8 +70,12 @@ export function SignIn({ reason, onSignedIn }: SignInProps) {
           'The Firebase API key is wrong for this project. Check NEXT_PUBLIC_FIREBASE_API_KEY is the web key, not the Android one.',
         'auth/api-key-not-valid':
           'The Firebase API key is wrong or restricted. Check its HTTP-referrer restrictions in Google Cloud console include this domain.',
+        // Nearly always the Content-Security-Policy on this site rather than anything in
+        // the Firebase console. The SDK calls identitytoolkit and opens an iframe on the
+        // project's authDomain; a CSP that lists neither blocks both, and the SDK reports
+        // only this. See the web block in infra/Caddyfile.
         'auth/internal-error':
-          'Firebase rejected the sign-in. This is usually a missing OAuth client: Google Cloud console → Credentials → the Web client needs this site under Authorised JavaScript origins.',
+          'Sign-in was blocked by this site, not by Google. The content-security-policy needs to allow identitytoolkit.googleapis.com and the Firebase auth domain.',
         'auth/network-request-failed':
           'Could not reach Firebase. Check the connection and try again.',
       };

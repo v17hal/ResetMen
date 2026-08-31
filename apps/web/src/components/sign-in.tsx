@@ -48,10 +48,42 @@ export function SignIn({ reason, onSignedIn }: SignInProps) {
         return;
       }
 
+      /**
+       * Name the cause.
+       *
+       * "Could not sign in. Please try again." is true of every failure here and useful
+       * for none of them: retrying does not add a missing OAuth origin or enable a
+       * provider. Each of these is a specific piece of configuration, and saying which one
+       * is the difference between a five-minute fix and an afternoon.
+       *
+       * The raw code is appended for anything unrecognised, because the alternative is
+       * asking someone to open the browser console to find out what went wrong.
+       */
+      const known: Record<string, string> = {
+        'auth/popup-blocked':
+          'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.',
+        'auth/unauthorized-domain':
+          'This site is not on the Firebase authorised-domain list. Add it in Firebase console → Authentication → Settings → Authorised domains.',
+        'auth/operation-not-allowed':
+          'Google sign-in is switched off for this project. Enable it in Firebase console → Authentication → Sign-in method.',
+        'auth/invalid-api-key':
+          'The Firebase API key is wrong for this project. Check NEXT_PUBLIC_FIREBASE_API_KEY is the web key, not the Android one.',
+        'auth/api-key-not-valid':
+          'The Firebase API key is wrong or restricted. Check its HTTP-referrer restrictions in Google Cloud console include this domain.',
+        'auth/internal-error':
+          'Firebase rejected the sign-in. This is usually a missing OAuth client: Google Cloud console → Credentials → the Web client needs this site under Authorised JavaScript origins.',
+        'auth/network-request-failed':
+          'Could not reach Firebase. Check the connection and try again.',
+      };
+
       setError(
-        code === 'auth/popup-blocked'
-          ? 'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.'
-          : errorMessage(caught, 'Could not sign in. Please try again.'),
+        known[code ?? ''] ??
+          errorMessage(
+            caught,
+            code === undefined
+              ? 'Could not sign in. Please try again.'
+              : `Could not sign in (${code}).`,
+          ),
       );
     },
   });

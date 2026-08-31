@@ -274,8 +274,9 @@ export class RewardsResource {
     return this.http.get('/rewards/streak');
   }
 
-  scratchCards(): Promise<ScratchCardDto[]> {
-    return this.http.get('/rewards/scratch-cards');
+  async scratchCards(): Promise<ScratchCardDto[]> {
+    const { data } = await this.http.get<{ data: ScratchCardDto[] }>('/rewards/scratch-cards');
+    return data;
   }
 
   /**
@@ -290,8 +291,17 @@ export class RewardsResource {
 export class ProductsResource {
   constructor(private readonly http: HttpClient) {}
 
-  list(): Promise<ProductDto[]> {
-    return this.http.get('/products');
+  /**
+   * The API wraps these in `{ data }`; the caller wants the list.
+   *
+   * The declared type said the bare array while the endpoint returned the envelope, and
+   * nothing caught it: `http.get` returns whatever the signature claims, so TypeScript
+   * agreed with a lie. At runtime `.length` was undefined, the empty check never fired, and
+   * the page ran `.map` on an object — which is what the Shop tab was showing.
+   */
+  async list(): Promise<ProductDto[]> {
+    const { data } = await this.http.get<{ data: ProductDto[] }>('/products');
+    return data;
   }
 
   get(slug: string): Promise<ProductDto> {
@@ -306,8 +316,9 @@ export class ProductsResource {
     return this.http.post('/orders', { body: input, idempotencyKey });
   }
 
-  orders(): Promise<ProductOrderDto[]> {
-    return this.http.get('/orders');
+  async orders(): Promise<ProductOrderDto[]> {
+    const { data } = await this.http.get<{ data: ProductOrderDto[] }>('/orders');
+    return data;
   }
 
   order(id: string): Promise<ProductOrderDto> {
@@ -327,7 +338,8 @@ export class NotificationsResource {
     return this.http.delete('/notifications/devices', { body: { token } });
   }
 
-  list(): Promise<NotificationDto[]> {
-    return this.http.get('/notifications');
+  async list(): Promise<NotificationDto[]> {
+    const { data } = await this.http.get<{ data: NotificationDto[] }>('/notifications');
+    return data;
   }
 }

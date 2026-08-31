@@ -92,6 +92,11 @@ function Checkout() {
 
   const pay = useMutation({
     mutationFn: async () => {
+      // Nothing to charge: the store takes money at the counter, so the hold came back
+      // already CONFIRMED. Asking for a payment order here is what produced "this booking
+      // is already paid for" on a booking that had just been made successfully.
+      if (hold?.paymentRequired === false) return;
+
       const order = await api().payments.createOrder(
         { bookingId: hold!.bookingId },
         orderKey.current,
@@ -233,14 +238,21 @@ function Checkout() {
             disabled={hold === null}
             onClick={() => pay.mutate()}
           >
-            {quote.data === undefined
-              ? 'Pay'
-              : `Pay ${formatMoney(quote.data.payablePaise)}`}
+            {/* "Pay" is a promise the screen cannot keep while payment happens at the
+                counter — the button confirms a booking and takes no money. */}
+            {hold?.paymentRequired === false
+              ? 'Book'
+              : quote.data === undefined
+                ? 'Pay'
+                : `Pay ${formatMoney(quote.data.payablePaise)}`}
           </Button>
         </div>
       )}
 
       <p className="text-caption text-text-muted">
+        {/* Said before booking, not after. Someone expecting to pay online should learn
+            otherwise while they can still change their mind. */}
+        {hold?.paymentRequired === false && 'Pay at the counter. '}
         Free cancellation up to {Math.round((store.data?.cancellationWindowMinutes ?? 120) / 60)}{' '}
         hours before your slot.
       </p>

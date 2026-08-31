@@ -2,7 +2,6 @@
 
 import type { AddonGroupDto } from '@reset/api-client';
 import {
-  Badge,
   Button,
   ErrorState,
   Skeleton,
@@ -14,6 +13,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
+import { ServiceImage } from '@/components/service-look';
 import { errorMessage } from '@/lib/auth';
 import { api } from '@/lib/client';
 
@@ -85,24 +85,28 @@ export default function ServicePage() {
 
   return (
     <div className="flex flex-col">
-      {service.data.imageUrl !== null && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={service.data.imageUrl}
-          alt=""
-          className="aspect-[16/9] w-full object-cover sm:rounded-b-lg"
-        />
-      )}
+      {/* Always shown. Without a photo the icon fills the same frame, so the page opens on
+          the thing being sold rather than on bare text. */}
+      <ServiceImage
+        name={service.data.name}
+        imageUrl={service.data.imageUrl}
+        className="h-[200px] w-full"
+        rounded="sm:rounded-b-lg"
+      />
 
       <div className="flex flex-col gap-lg p-base">
         <header className="flex flex-col gap-sm">
           <Link href="/" className="text-body-sm text-primary underline underline-offset-4">
             ← All services
           </Link>
-          <h1 className="font-display text-display">{service.data.name}</h1>
-          <div className="flex flex-wrap items-center gap-sm">
-            <span className="font-mono text-h2">{formatMoney(service.data.pricePaise)}</span>
-            <Badge>{formatDuration(service.data.durationMinutes)}</Badge>
+          <h1 className="font-display text-h1">{service.data.name}</h1>
+          <div className="flex flex-wrap items-center gap-md">
+            <span className="font-display text-[26px]">
+              {formatMoney(service.data.pricePaise)}
+            </span>
+            <span className="text-body-sm text-text-muted">
+              {formatDuration(service.data.durationMinutes)}
+            </span>
           </div>
           {service.data.description !== null && (
             <p className="text-body text-text-muted">{service.data.description}</p>

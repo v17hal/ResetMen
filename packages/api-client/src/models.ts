@@ -247,6 +247,14 @@ export interface HoldResponse {
     discountPaise: number;
     payablePaise: number;
   };
+  /**
+   * False while the store takes payment at the counter.
+   *
+   * The hold then comes back already CONFIRMED and there is nothing to charge. A client
+   * that asks for a payment order anyway is told the booking is already paid for — on a
+   * booking that has, in fact, just succeeded.
+   */
+  paymentRequired?: boolean;
 }
 
 // ── Admin timeline — apps/api/src/booking/booking-lifecycle.service.ts ───────

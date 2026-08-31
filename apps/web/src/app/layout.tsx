@@ -23,15 +23,20 @@ export const viewport: Viewport = {
   initialScale: 1,
   // Never lock zoom. Pinching to read a price is not a bug to prevent.
   maximumScale: 5,
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#F8F6F2' },
-    { media: '(prefers-color-scheme: dark)', color: '#0B0F14' },
-  ],
+  // Light regardless of the OS, matching the app — see the note on the html element.
+  themeColor: '#F8F6F2',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  // `data-theme` pins the palette light, regardless of the OS.
+  //
+  // The tokens call dark the brand default, and for a men's-grooming identity that is the
+  // right instinct. It is the wrong instinct for a catalogue: a menu is small type and
+  // pictures, and both read better on white. The app made the same call, and a customer
+  // moving between the two should not meet a different product. The dark palette is still
+  // generated and one attribute away.
   return (
-    <html lang="en" className={fontVariables}>
+    <html lang="en" data-theme="light" className={fontVariables}>
       <body className="min-h-dvh bg-bg text-text antialiased">
         <a
           href="#main"

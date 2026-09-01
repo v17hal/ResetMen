@@ -149,6 +149,9 @@ export default function AccountPage() {
           type="tel"
           inputMode="numeric"
           value={phone}
+          // Ten digits is the whole of an Indian mobile; the extra room is for spaces
+          // someone pastes in. Stops fifty digits reaching the server to be rejected.
+          maxLength={14}
           onChange={(event) => setPhone(event.target.value)}
           autoComplete="tel"
           placeholder="94044 91801"

@@ -25,6 +25,10 @@ export function PhoneRequired({ onSaved }: { onSaved?: () => void }) {
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  // The field holds digits and nothing else. Pasting "+91 99202 61793" keeps the last ten,
+  // which is what someone means by it.
+  const digits = phone.replace(/\D/g, '').slice(-10);
+
   const save = useMutation({
     mutationFn: (value: string) => api().auth.updateProfile({ phone: value }),
     onSuccess: () => {
@@ -38,17 +42,24 @@ export function PhoneRequired({ onSaved }: { onSaved?: () => void }) {
   if (user === null || (user.phone ?? '').trim() !== '') return null;
 
   function submit(): void {
-    const trimmed = phone.trim();
-
-    // Checked here as well as by the server so a typo costs a keystroke, not a round trip
-    // and a rejected booking.
-    if (trimmed.replace(/\D/g, '').length < 10) {
-      setError('Enter a 10-digit mobile number.');
+    /**
+     * Ten digits, starting 6 to 9 — every Indian mobile.
+     *
+     * This only checked a *minimum*, so fifty digits passed, went to the server, and came
+     * back rejected: "failed to save", then success on the retry. The field now refuses to
+     * hold more than ten in the first place, and this is the second line of defence.
+     */
+    if (!/^[6-9]\d{9}$/.test(digits)) {
+      setError(
+        digits.length === 10
+          ? 'An Indian mobile number starts with 6, 7, 8 or 9.'
+          : 'Enter a 10-digit mobile number.',
+      );
       return;
     }
 
     setError(null);
-    save.mutate(trimmed.startsWith('+') ? trimmed : `+91${trimmed.replace(/\D/g, '')}`);
+    save.mutate(`+91${digits}`);
   }
 
   return (
@@ -66,7 +77,13 @@ export function PhoneRequired({ onSaved }: { onSaved?: () => void }) {
           inputMode="numeric"
           autoComplete="tel"
           value={phone}
-          onChange={(event) => setPhone(event.target.value)}
+          maxLength={14}
+          onChange={(event) => {
+            setPhone(event.target.value);
+            // Clears the moment they start correcting it, rather than leaving a stale
+            // failure sitting under a field they have already fixed.
+            if (error !== null) setError(null);
+          }}
           onKeyDown={(event) => {
             if (event.key === 'Enter') submit();
           }}

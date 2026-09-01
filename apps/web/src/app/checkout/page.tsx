@@ -79,7 +79,12 @@ function Checkout() {
         { serviceId, startsAt, addonOptionIds, rewardId },
         holdKey.current,
       ),
-    onSuccess: setHold,
+    onSuccess: (created) => {
+      setHold(created);
+      // The "sign in to book" refusal from before they signed in was still sitting above
+      // the form, in red, after the thing it complained about had been dealt with.
+      setError(null);
+    },
     onError: (caught) => {
       setError(errorMessage(caught));
       if (isResetApiError(caught) && caught.isSlotGone) {

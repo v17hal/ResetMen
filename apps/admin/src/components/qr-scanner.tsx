@@ -49,9 +49,18 @@ export function QrScanner({ onDetect, onError, busy = false }: QrScannerProps) {
     const Detector = (globalThis as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
 
     if (Detector === undefined) {
+      /**
+       * Name the actual requirement.
+       *
+       * `BarcodeDetector` ships in Chrome on Android and ChromeOS and not on desktop, so
+       * this fires on every laptop. The old wording — "open the panel in Chrome" — was read
+       * by someone already in Chrome, which makes the panel look broken rather than the
+       * feature unavailable. Manual entry is right there and works everywhere, so say that
+       * first and explain second.
+       */
       onError(
-        'This browser cannot scan QR codes. Use the booking code on the right, or open the ' +
-          'panel in Chrome.',
+        'Type the booking code on the right — it works on any device. Camera scanning ' +
+          'needs Chrome on a phone or tablet; desktop browsers cannot do it.',
       );
       return;
     }

@@ -13,7 +13,7 @@ import {
   useToast,
 } from '@reset/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 
 import { QrScanner } from '@/components/qr-scanner';
@@ -36,6 +36,18 @@ export default function CheckinPage() {
   const [error, setError] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [scanning, setScanning] = useState(false);
+
+  /**
+   * Whether this device can scan at all.
+   *
+   * `BarcodeDetector` ships in Chrome on Android and ChromeOS, not on desktop, so the
+   * counter tablet can scan and a laptop cannot. Checked in an effect rather than during
+   * render because the server has no such global and the two renders must agree.
+   */
+  const [canScan, setCanScan] = useState<boolean | undefined>(undefined);
+  useEffect(() => {
+    setCanScan('BarcodeDetector' in globalThis);
+  }, []);
 
   const onSuccess = (checkin: CheckinResult): void => {
     setResult(checkin);
@@ -92,6 +104,13 @@ export default function CheckinPage() {
               }}
               busy={scan.isPending}
             />
+          ) : canScan === false ? (
+            /* Offering a button whose only outcome is an error wastes the one interaction
+               someone has while a customer waits at the counter. */
+            <p className="text-body-sm text-text-muted">
+              This device cannot scan QR codes — camera scanning needs Chrome on a phone or
+              tablet. Type the booking code on the right instead.
+            </p>
           ) : (
             <Button size="lg" onClick={() => setScanning(true)}>
               Open camera

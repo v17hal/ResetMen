@@ -40,13 +40,25 @@ export default function HomePage() {
     queryFn: () => api().catalog.home(segmentId),
   });
 
+  /**
+   * Names first, descriptions only as a fallback.
+   *
+   * Searching both at once is surprising: "head" matched a full-body service because its
+   * description reads "twenty minutes, head to toe", and the result looked like the filter
+   * was broken. Names are what people type; a description match is a rescue for when
+   * nothing is named that way, not a peer of it.
+   */
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
+    if (q === '') return () => true;
+
+    const named = (home.data?.services ?? []).some((s) => s.name.toLowerCase().includes(q));
+
     return (name: string, description: string | null) =>
-      q === '' ||
-      name.toLowerCase().includes(q) ||
-      (description ?? '').toLowerCase().includes(q);
-  }, [query]);
+      named
+        ? name.toLowerCase().includes(q)
+        : name.toLowerCase().includes(q) || (description ?? '').toLowerCase().includes(q);
+  }, [query, home.data]);
 
   if (home.isError) {
     return (

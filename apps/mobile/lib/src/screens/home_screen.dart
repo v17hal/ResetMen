@@ -40,13 +40,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.dispose();
   }
 
-  /// Matches the name and the description, so "back" finds the treatment that mentions it
-  /// in prose as well as the one with it in the title.
-  bool _matches(ServiceSummary service) {
+  /// Whether any service is named for the current query.
+  ///
+  /// Decides between the two modes in [_matches]. Computed once per build from the loaded
+  /// catalogue rather than per row.
+  bool _anyNamed(HomeData data) {
+    final q = _query.toLowerCase();
+    return data.services.any((s) => s.name.toLowerCase().contains(q));
+  }
+
+  /// Names first, descriptions only as a fallback.
+  ///
+  /// Searching both at once is surprising: "head" matched a full-body service because its
+  /// description reads "twenty minutes, head to toe", and the result looked like the filter
+  /// was broken. Names are what people type; a description match is a rescue for when
+  /// nothing is named that way, not a peer of it.
+  bool _matches(ServiceSummary service, {required bool namedHits}) {
     if (_query.isEmpty) return true;
     final q = _query.toLowerCase();
-    return service.name.toLowerCase().contains(q) ||
-        (service.description?.toLowerCase().contains(q) ?? false);
+    if (service.name.toLowerCase().contains(q)) return true;
+    return !namedHits && (service.description?.toLowerCase().contains(q) ?? false);
   }
 
   void _open(ServiceSummary service) {
@@ -98,8 +111,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? live
         : live.where((c) => c.id == selected).toList(growable: false);
 
+    final namedHits = _anyNamed(data);
     final shown = scoped
-        .where((c) => data.servicesIn(c.id).any(_matches))
+        .where((c) =>
+            data.servicesIn(c.id).any((s) => _matches(s, namedHits: namedHits)))
         .toList(growable: false);
 
     return CustomScrollView(
@@ -192,7 +207,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
 
         for (final category in shown)
-          ..._categorySlivers(context, theme, data, category),
+          ..._categorySlivers(context, theme, data, category, namedHits),
 
         if (shown.isEmpty)
           SliverFillRemaining(
@@ -218,8 +233,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ThemeData theme,
     HomeData data,
     Category category,
+    bool namedHits,
   ) {
-    final services = data.servicesIn(category.id).where(_matches).toList(growable: false);
+    final services = data
+        .servicesIn(category.id)
+        .where((s) => _matches(s, namedHits: namedHits))
+        .toList(growable: false);
     if (services.isEmpty) return const [];
 
     return [

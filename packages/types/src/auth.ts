@@ -2,10 +2,24 @@ import { z } from 'zod';
 
 import { uuid } from './common.js';
 
-/** E.164. India is the launch market, but the format is not India-specific. */
+/**
+ * An Indian mobile number, in E.164.
+ *
+ * Was plain E.164, which permits eight to fifteen digits anywhere in the world and so
+ * accepted `+911234567890123` as a customer's number. The store rings these to confirm
+ * bookings and take payment, so a number that cannot be dialled is the same as no number —
+ * and the customer only finds out when nobody calls.
+ *
+ * Narrow on purpose. One store, one country, and every mobile here is `+91` followed by ten
+ * digits starting 6 to 9. When a second market opens, this is the line that changes, and a
+ * failing test is a better way to discover that than a customer nobody can reach.
+ */
 export const phone = z
   .string()
-  .regex(/^\+[1-9]\d{7,14}$/, 'Expected an E.164 phone number, e.g. +919404491801');
+  .regex(
+    /^\+91[6-9]\d{9}$/,
+    'Expected an Indian mobile number, e.g. +919404491801',
+  );
 
 /**
  * Sign in with a Firebase ID token.

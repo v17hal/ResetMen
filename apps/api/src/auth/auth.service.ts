@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { AdminRole } from '@prisma/client';
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
@@ -16,6 +16,8 @@ const scrypt = promisify(scryptCb) as (
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
@@ -70,6 +72,23 @@ export class AuthService {
         },
       });
     } else {
+      /**
+       * Signing in again withdraws a deletion request.
+       *
+       * Deletion is a soft-delete with a thirty-day purge, and sign-in never filtered on
+       * it — so a returning customer was found, updated and issued a perfectly good token,
+       * and then `getProfile` threw `notFound` because the row was still marked deleted.
+       * From the outside that is simply "I cannot log in any more", with no way out: the
+       * account cannot be deleted again, and a new one cannot be made because the email and
+       * the Firebase uid are both taken.
+       *
+       * Coming back inside the grace period is the clearest possible statement that they no
+       * longer want the account gone, so it is restored. After the purge there is no row
+       * left to find and this branch never runs — they arrive as a new customer, which is
+       * the honest outcome once the data is actually gone.
+       */
+      const reviving = user.deletedAt !== null;
+
       user = await this.prisma.user.update({
         where: { id: user.id },
         data: {
@@ -81,8 +100,13 @@ export class AuthService {
           name: user.name ?? identity.name,
           consentAt: user.consentAt ?? new Date(),
           lastLoginAt: new Date(),
+          ...(reviving ? { deletedAt: null } : {}),
         },
       });
+
+      if (reviving) {
+        this.logger.log(`Restored deleted account ${user.id} on sign-in`);
+      }
     }
 
     if (user.isBlocked) {

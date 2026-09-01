@@ -49,11 +49,33 @@ export default function AccountPage() {
   const save = useMutation({
     mutationFn: () => {
       const digits = phone.replace(/\D/g, '');
+
+      /**
+       * A cleared number used to be dropped from the request.
+       *
+       * The comment said it was so "I'd rather not give my number" did not become a
+       * validation error — but a booking cannot be made without one, so the number is no
+       * longer optional. Dropping it meant the field emptied, the request omitted it, the
+       * server kept the old value and answered 200, and the screen said Saved. The customer
+       * believed the number was gone, then booked anyway, and reported both as bugs.
+       *
+       * It now refuses, and says why.
+       */
+      if (digits.length === 0 && (user?.phone ?? '') !== '') {
+        throw new Error(
+          'A mobile number is needed to book. Replace it rather than clearing it.',
+        );
+      }
+
+      // Ten digits starting 6-9 is every Indian mobile. Checked here so a typo costs a
+      // keystroke instead of a round trip, and rejected the same way by the server.
+      if (digits.length > 0 && !/^[6-9]\d{9}$/.test(digits.slice(-10))) {
+        throw new Error('Enter a 10-digit Indian mobile number.');
+      }
+
       return api().auth.updateProfile({
         ...(name.trim() === '' ? {} : { name: name.trim() }),
         ...(email.trim() === '' ? {} : { email: email.trim() }),
-        // Only sent when filled — an empty string fails the E.164 check and would turn
-        // "I'd rather not give my number" into a validation error.
         ...(digits.length === 0 ? {} : { phone: `+91${digits.slice(-10)}` }),
         ...(dateOfBirth === '' ? {} : { dateOfBirth }),
         gender,

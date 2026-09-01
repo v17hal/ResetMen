@@ -37,14 +37,33 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     setState(() => _saving = true);
     try {
       final phone = _phone.text.trim();
+      final digits = phone.replaceAll(RegExp(r'\D'), '');
+      final existing = ref.read(sessionProvider).valueOrNull?.phone ?? '';
+
+      // A cleared number used to be dropped from the request so that "I didn't want to give
+      // my number" was not a validation error. A booking cannot be made without one now, so
+      // dropping it meant the field emptied, the server kept the old value, and the screen
+      // said Saved — while the number was still there and bookings still worked.
+      if (digits.isEmpty && existing.isNotEmpty) {
+        throw const FormatException(
+          'A mobile number is needed to book. Replace it rather than clearing it.',
+        );
+      }
+
+      // Ten digits starting 6-9 is every Indian mobile. Checked here so a typo costs a
+      // keystroke rather than a round trip, and rejected the same way by the server.
+      if (digits.isNotEmpty &&
+          !RegExp(r'^[6-9]\d{9}$').hasMatch(
+            digits.substring(digits.length > 10 ? digits.length - 10 : 0),
+          )) {
+        throw const FormatException('Enter a 10-digit Indian mobile number.');
+      }
+
       await ref.read(repositoryProvider).updateProfile(
             name: _name.text.trim().isEmpty ? null : _name.text.trim(),
             email: _email.text.trim().isEmpty ? null : _email.text.trim(),
             gender: _gender.wire,
-            // Only sent when it is actually filled in — an empty string would fail the
-            // E.164 check on the server and turn "I didn't want to give my number" into
-            // a validation error.
-            phone: phone.isEmpty ? null : toE164(phone),
+            phone: digits.isEmpty ? null : toE164(phone),
             dateOfBirth: _dob == null ? null : formatIsoDate(_dob!),
           );
       ref.invalidate(sessionProvider);

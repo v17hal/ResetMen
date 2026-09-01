@@ -77,6 +77,28 @@ export class BookingController {
     @Headers('idempotency-key') idempotencyKey?: string,
     @StoreIdHeader() header?: string,
   ) {
+    /**
+     * Refuse an anonymous hold before taking the slot, not after.
+     *
+     * With payments off there is nothing for a hold to wait for, so a booking has to belong
+     * to somebody the moment it is made — and this check used to run *after* the hold. The
+     * caller got their 401 and the row stayed: a HELD booking owned by nobody, occupying a
+     * station until its TTL lapsed. Live data had eighteen of them, and repeating the call
+     * would have kept a popular time unbookable for as long as someone cared to.
+     *
+     * `paymentsEnabled` is what decides it. With a gateway an anonymous hold is the whole
+     * point — the slot is kept while someone goes to find their phone — and the payment step
+     * claims it afterwards.
+     */
+    if (!this.paymentsEnabled && userId === null) {
+      throw new AppError(
+        'UNAUTHENTICATED',
+        401,
+        'Sign in to book',
+        'Sign in so we can send you your booking and your QR code.',
+      );
+    }
+
     const hold = await this.bookings.hold({
       storeId: await this.scope.resolve(header),
       serviceId: body.serviceId,
@@ -103,15 +125,6 @@ export class BookingController {
      * notify and no QR to show.
      */
     if (!this.paymentsEnabled) {
-      if (userId === null) {
-        throw new AppError(
-          'UNAUTHENTICATED',
-          401,
-          'Sign in to book',
-          'Sign in so we can send you your booking and your QR code.',
-        );
-      }
-
       await this.lifecycle.confirm(hold.bookingId, userId);
       return { ...hold, status: 'CONFIRMED', paymentRequired: false };
     }

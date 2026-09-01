@@ -78,25 +78,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async => ref.invalidate(homeProvider(_segmentId)),
-          child: home.when(
-            loading: () => const SkeletonPage(rows: 5),
-            error: (error, _) => ListView(
-              children: [
-                SizedBox(height: MediaQuery.sizeOf(context).height * 0.3),
-                ErrorView(
-                  error: error,
-                  onRetry: () => ref.invalidate(homeProvider(_segmentId)),
-                ),
-              ],
-            ),
-            data: (data) => _catalog(context, theme, data),
-          ),
+          // Not `home.when`: that shows the error screen the moment a refresh fails, even
+          // though the catalogue already on screen is perfectly readable. Someone who loses
+          // signal was shown the menu as if nothing had happened, and reported the silence
+          // as the bug. Stale data is kept and labelled instead.
+          child: switch (home) {
+            AsyncValue(:final value?) => _catalog(
+                context,
+                theme,
+                value,
+                stale: home.hasError,
+              ),
+            AsyncValue(hasError: true, :final error?) => ListView(
+                children: [
+                  SizedBox(height: MediaQuery.sizeOf(context).height * 0.3),
+                  ErrorView(
+                    error: error,
+                    onRetry: () => ref.invalidate(homeProvider(_segmentId)),
+                  ),
+                ],
+              ),
+            _ => const SkeletonPage(rows: 5),
+          },
         ),
       ),
     );
   }
 
-  Widget _catalog(BuildContext context, ThemeData theme, HomeData data) {
+  Widget _catalog(
+    BuildContext context,
+    ThemeData theme,
+    HomeData data, {
+    bool stale = false,
+  }) {
     // Categories with nothing bookable are dropped rather than shown empty — an inert
     // heading reads as something that failed to load.
     final live = data.categories
@@ -119,6 +133,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return CustomScrollView(
       slivers: [
+        if (stale)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(
+              ResetTokens.gutter,
+              ResetTokens.spaceBase,
+              ResetTokens.gutter,
+              0,
+            ),
+            sliver: SliverToBoxAdapter(
+              child: ResetCard(
+                color: theme.warningColor.withValues(alpha: 0.08),
+                borderColor: theme.warningColor.withValues(alpha: 0.4),
+                child: Text(
+                  'You are offline. Prices and times may have changed since this was '
+                  'saved — pull down to try again.',
+                  style: ResetTokens.bodySm,
+                ),
+              ),
+            ),
+          ),
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(
             ResetTokens.gutter,

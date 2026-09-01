@@ -29,6 +29,8 @@ class ConfirmationScreen extends ConsumerStatefulWidget {
 class _ConfirmationScreenState extends ConsumerState<ConfirmationScreen> {
   Booking? _booking;
   Object? _error;
+  /// Showing the saved copy because the network was unreachable.
+  bool _offline = false;
   Timer? _poll;
   int _attempts = 0;
 
@@ -68,7 +70,16 @@ class _ConfirmationScreenState extends ConsumerState<ConfirmationScreen> {
         ref.invalidate(bookingsProvider('upcoming'));
       }
     } catch (error) {
-      if (mounted && _booking == null) setState(() => _error = error);
+      if (!mounted || _booking != null) return;
+
+      // No signal. Fall back to the saved copy rather than an error screen: this is the
+      // screen that shows the QR, and it has to work in a basement.
+      final cached = ref.read(bookingCacheProvider).readOne(widget.bookingId);
+      setState(() {
+        _booking = cached;
+        _error = cached == null ? error : null;
+        _offline = cached != null;
+      });
     }
   }
 
@@ -100,6 +111,19 @@ class _ConfirmationScreenState extends ConsumerState<ConfirmationScreen> {
           : ListView(
               padding: const EdgeInsets.all(ResetTokens.gutter),
               children: [
+                // Says why the screen looks static: the times and the code are real, they are
+                // simply the last copy this device saved.
+                if (_offline) ...[
+                  ResetCard(
+                    color: theme.warningColor.withValues(alpha: 0.08),
+                    borderColor: theme.warningColor.withValues(alpha: 0.4),
+                    child: Text(
+                      'You are offline. This is your saved copy — the QR still works.',
+                      style: ResetTokens.bodySm,
+                    ),
+                  ),
+                  const SizedBox(height: ResetTokens.spaceBase),
+                ],
                 if (booking.status == BookingStatus.held) ...[
                   const Center(child: CircularProgressIndicator()),
                   const SizedBox(height: ResetTokens.spaceBase),

@@ -51,6 +51,18 @@ class BookingCache {
     }
   }
 
+  /// One booking by id, from the saved copy.
+  ///
+  /// The confirmation screen is the QR screen, and it fetched only from the API — so with
+  /// no signal it showed an error and the code was invisible at the exact moment it is
+  /// needed, standing at the counter in a basement. That is what the cache is for.
+  Booking? readOne(String bookingId) {
+    for (final booking in read()) {
+      if (booking.id == bookingId) return booking;
+    }
+    return null;
+  }
+
   DateTime? get savedAt {
     final raw = _prefs.getString(_stampKey);
     return raw == null ? null : DateTime.tryParse(raw);

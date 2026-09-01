@@ -178,6 +178,18 @@ export class BookingService {
 
     const quote = await this.quote(request);
 
+    // After the quote, because add-ons change the duration and so the window that has to be
+    // free. Before the idempotency check, so a replayed key still returns its own booking
+    // rather than being refused as a clash with itself.
+    if (request.source !== 'ADMIN_WALKIN') {
+      await this.assertNotDoubleBooked(
+        request.userId,
+        store.id,
+        startsAt,
+        quote.durationMinutes,
+      );
+    }
+
     if (request.idempotencyKey !== undefined) {
       const existing = await this.prisma.booking.findFirst({
         where: { storeId: request.storeId, idempotencyKey: request.idempotencyKey },
@@ -540,6 +552,55 @@ export class BookingService {
         403,
         'Booking not available',
         user.blockedReason ?? 'Please contact the store.',
+      );
+    }
+  }
+
+  /**
+   * One person, one chair.
+   *
+   * The exclusion constraint stops two bookings sharing a station; nothing stopped one
+   * customer taking three stations at the same time. Live data had it — the same account
+   * holding 09:00 twice on two stations — and the store would have set out two chairs for
+   * someone who can only sit in one, then chased a no-show that was never a real second
+   * booking.
+   *
+   * Compares the session window rather than `blockedUntil`: the cleaning buffer belongs to
+   * the station, not to the customer, and refusing a 09:15 booking because a 09:00 session
+   * is still being wiped down would reject something perfectly reasonable.
+   *
+   * Walk-ins are exempt. Staff can see who is in front of them, and a family booking on one
+   * account at the counter is the store's call, not the engine's.
+   */
+  private async assertNotDoubleBooked(
+    userId: string | null,
+    storeId: string,
+    startsAt: DateTime,
+    durationMinutes: number,
+  ): Promise<void> {
+    if (userId === null) return;
+
+    const endsAt = startsAt.plus({ minutes: durationMinutes });
+
+    const clash = await this.prisma.booking.findFirst({
+      where: {
+        userId,
+        storeId,
+        // Cancelled, expired, completed and no-show are all in the past or released.
+        status: { in: ['HELD', 'CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS'] },
+        startsAt: { lt: endsAt.toJSDate() },
+        endsAt: { gt: startsAt.toJSDate() },
+      },
+      select: { publicId: true, startsAt: true, serviceNameSnapshot: true },
+    });
+
+    if (clash !== null) {
+      throw new AppError(
+        'SLOT_UNAVAILABLE',
+        409,
+        'You already have a booking then',
+        `${clash.serviceNameSnapshot} overlaps this time (${clash.publicId}). ` +
+          'Cancel it first, or pick another time.',
       );
     }
   }

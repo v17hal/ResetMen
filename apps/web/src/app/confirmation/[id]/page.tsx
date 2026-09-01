@@ -11,13 +11,16 @@ import {
   formatDuration,
   formatMoney,
 } from '@reset/ui';
+import type { BookingDetail } from '@reset/api-client';
 import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
 import { QrTicket } from '@/components/qr-ticket';
 import { errorMessage } from '@/lib/auth';
 import { api } from '@/lib/client';
+import { bookingCache } from '@/lib/offline';
 
 /**
  * The screen someone holds up at the counter.
@@ -33,13 +36,36 @@ export default function ConfirmationPage() {
 
   const booking = useQuery({
     queryKey: ['booking', params.id],
-    queryFn: () => api().bookings.detail(params.id),
+    queryFn: async () => {
+      const fresh = await api().bookings.detail(params.id);
+      // Written through on every success, so the QR is already on the device before the
+      // basement it has to work in.
+      bookingCache.save(fresh);
+      return fresh;
+    },
     // Stops as soon as the webhook lands and a QR exists.
     refetchInterval: (query) =>
       query.state.data?.status === 'HELD' ? 2000 : false,
   });
 
-  if (booking.isError) {
+  /**
+   * The saved copy, used only when the network cannot be reached.
+   *
+   * This page is the QR, and it fetched from the API every time — so with no signal it
+   * showed an error and the code was invisible at the counter, which is the one place it is
+   * needed. Read in an effect rather than during render because localStorage does not exist
+   * on the server.
+   */
+  const [cached, setCached] = useState<BookingDetail | null>(null);
+  useEffect(() => {
+    if (booking.isError) setCached(bookingCache.read(params.id));
+  }, [booking.isError, params.id]);
+
+  const shown = booking.data ?? cached;
+  const offline = booking.data === undefined && cached !== null;
+
+  // Only an error when there is no saved copy either. With one, the page renders from it.
+  if (booking.isError && shown === null) {
     return (
       <div className="p-base">
         <ErrorState
@@ -51,7 +77,7 @@ export default function ConfirmationPage() {
     );
   }
 
-  if (booking.isPending) {
+  if (shown === null) {
     return (
       <div className="flex flex-col items-center gap-base p-base" aria-busy>
         <Skeleton className="h-8 w-48" />
@@ -61,7 +87,7 @@ export default function ConfirmationPage() {
   }
 
   const zone = store.data?.timezone;
-  const pending = booking.data.status === 'HELD';
+  const pending = shown.status === 'HELD';
 
   // No gateway: the booking is real, the money is not collected yet, and saying otherwise
   // sends someone to the counter believing they have already paid.
@@ -105,19 +131,25 @@ export default function ConfirmationPage() {
         )}
       </header>
 
-      {booking.data.checkinPayload !== null && <QrTicket payload={booking.data.checkinPayload} />}
+      {offline && (
+        <p className="w-full rounded-md border border-warning/40 bg-warning/[0.08] px-base py-sm text-body-sm">
+          You are offline. This is your saved copy — the QR still works.
+        </p>
+      )}
+
+      {shown.checkinPayload !== null && <QrTicket payload={shown.checkinPayload} />}
 
       <Card elevated className="flex w-full flex-col gap-sm text-left">
         <div className="flex items-center justify-between gap-sm">
-          <span className="font-display text-h2">{booking.data.serviceName}</span>
-          <BookingStatusBadge status={booking.data.status} />
+          <span className="font-display text-h2">{shown.serviceName}</span>
+          <BookingStatusBadge status={shown.status} />
         </div>
 
-        <p className="text-body">{formatDateTime(booking.data.startsAt, zone)}</p>
+        <p className="text-body">{formatDateTime(shown.startsAt, zone)}</p>
         <p className="text-body-sm text-text-muted">
-          {formatDuration(booking.data.durationMinutes)} ·{' '}
+          {formatDuration(shown.durationMinutes)} ·{' '}
           {/* "paid" was a plain untruth while payment happens at the counter. */}
-          {formatMoney(booking.data.payablePaise)} {payAtCounter ? 'to pay' : 'paid'}
+          {formatMoney(shown.payablePaise)} {payAtCounter ? 'to pay' : 'paid'}
         </p>
 
         {payAtCounter && (
@@ -126,9 +158,9 @@ export default function ConfirmationPage() {
           </p>
         )}
 
-        {booking.data.addons.length > 0 && (
+        {shown.addons.length > 0 && (
           <div className="flex flex-wrap gap-xs">
-            {booking.data.addons.map((addon) => (
+            {shown.addons.map((addon) => (
               <Badge key={addon.name}>{addon.name}</Badge>
             ))}
           </div>
@@ -136,7 +168,7 @@ export default function ConfirmationPage() {
 
         <div className="mt-xs border-t border-border pt-sm">
           <p className="text-caption text-text-muted">Booking code</p>
-          <p className="font-mono text-h2">{formatBookingCode(booking.data.publicId)}</p>
+          <p className="font-mono text-h2">{formatBookingCode(shown.publicId)}</p>
           <p className="mt-xs text-caption text-text-muted">
             If the camera will not read the code, read this out instead.
           </p>

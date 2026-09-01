@@ -15,6 +15,7 @@ import { useMemo, useState } from 'react';
 import { CompleteProfileBanner } from '@/components/complete-profile-banner';
 import { ServiceImage, lookFor } from '@/components/service-look';
 import { errorMessage } from '@/lib/auth';
+import { useOnline } from '@/lib/offline';
 import { api } from '@/lib/client';
 
 /**
@@ -34,6 +35,7 @@ export default function HomePage() {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const reduced = useReducedMotion();
+  const online = useOnline();
 
   const home = useQuery({
     queryKey: ['home', segmentId],
@@ -122,6 +124,15 @@ export default function HomePage() {
           className="min-h-touch w-full rounded-md border border-border bg-surface py-sm pl-[46px] pr-base text-body text-text shadow-card placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         />
       </label>
+
+      {/* Losing signal looked identical to everything working: React Query keeps the last
+          good catalogue and reports success while the refetch fails behind it. The data is
+          still readable and roughly right, so it stays — labelled. */}
+      {!online && (
+        <p className="rounded-md border border-warning/40 bg-warning/[0.08] px-base py-sm text-body-sm text-text">
+          You are offline. Prices and times may have changed since this was saved.
+        </p>
+      )}
 
       <CompleteProfileBanner />
 

@@ -219,6 +219,7 @@ export class BookingLifecycleService {
       include: {
         addons: true,
         store: { select: { timezone: true, settings: { select: { cancellationWindowMinutes: true } } } },
+        payments: { where: { status: 'CAPTURED' }, select: { id: true } },
       },
     });
 
@@ -237,6 +238,9 @@ export class BookingLifecycleService {
       include: {
         addons: true,
         store: { select: { timezone: true, settings: { select: { cancellationWindowMinutes: true } } } },
+        // Whether the money is in. With no gateway that is what decides if the booking is
+        // really on, so it decides whether there is a QR to show.
+        payments: { where: { status: 'CAPTURED' }, select: { id: true } },
       },
     });
     if (booking === null) throw AppError.notFound('Booking');
@@ -252,8 +256,25 @@ export class BookingLifecycleService {
         discountPaise: booking.discountPaise,
         payablePaise: booking.payablePaise,
       },
+      /**
+       * Whether the store has been paid.
+       *
+       * Every booking arrives unpaid and someone rings the customer to settle it, so a
+       * booking that has taken a slot is not yet a booking anyone should turn up for. The
+       * customer sees "awaiting confirmation" until this is true.
+       */
+      isPaid: booking.payments.length > 0,
+
+      /**
+       * The QR, withheld until the booking is actually paid for.
+       *
+       * It used to appear the instant the slot was taken, which told the customer they were
+       * done and gave the counter a code to scan for money nobody had collected. The code is
+       * the store's assurance the visit is settled, so it arrives when the settlement does.
+       */
       checkinPayload:
-        booking.status === 'CONFIRMED' || booking.status === 'CHECKED_IN'
+        (booking.status === 'CONFIRMED' || booking.status === 'CHECKED_IN') &&
+        booking.payments.length > 0
           ? await this.checkin.payloadFor(booking.id)
           : null,
       checkedInAt: booking.checkedInAt === null ? null : toIso(booking.checkedInAt.getTime(), zone),
@@ -267,6 +288,7 @@ export class BookingLifecycleService {
       include: {
         addons: true;
         store: { select: { timezone: true; settings: { select: { cancellationWindowMinutes: true } } } };
+        payments: { where: { status: 'CAPTURED' }; select: { id: true } };
       };
     }>,
   ) {
@@ -278,6 +300,9 @@ export class BookingLifecycleService {
       id: booking.id,
       publicId: booking.publicId,
       status: booking.status,
+      // Unpaid means the store has not settled it yet, so the customer is told it is
+      // awaiting confirmation rather than shown a booking they might not have.
+      isPaid: booking.payments.length > 0,
       serviceName: booking.serviceNameSnapshot,
       startsAt: toIso(booking.startsAt.getTime(), zone),
       endsAt: toIso(booking.endsAt.getTime(), zone),

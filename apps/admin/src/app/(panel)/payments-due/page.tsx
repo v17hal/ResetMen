@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Card,
+  ConfirmDialog,
   DataTable,
   EmptyState,
   ErrorState,
@@ -48,6 +49,7 @@ export default function PaymentsDuePage() {
   const [date, setDate] = useState(today);
   const [onlyUnpaid, setOnlyUnpaid] = useState(true);
   const [method, setMethod] = useState<Method>('CASH');
+  const [confirming, setConfirming] = useState<TimelineBooking | null>(null);
 
   const timeline = useQuery({
     queryKey: keys.timeline(date),
@@ -63,6 +65,26 @@ export default function PaymentsDuePage() {
       } else {
         toast.success(`${booking.publicId} — ${formatMoney(result.amountPaise)} recorded.`);
       }
+      void queryClient.invalidateQueries({ queryKey: keys.timeline(date) });
+    },
+    onError: (error: unknown) => toast.error(errorMessage(error)),
+  });
+
+  /**
+   * The other half of chasing payment.
+   *
+   * Some of these calls end in "I don't want it any more", and without a way to act on that
+   * the slot stays held and the row stays on this list for ever. Cancelling frees the time
+   * for someone else and takes it off the chase.
+   */
+  const cancel = useMutation({
+    mutationFn: (booking: TimelineBooking) =>
+      adminClient().bookings.setStatus(booking.id, {
+        status: 'CANCELLED',
+        reason: 'Cancelled by the store — payment not made',
+      }),
+    onSuccess: (_result, booking) => {
+      toast.success(`${booking.publicId} cancelled. The slot is free again.`);
       void queryClient.invalidateQueries({ queryKey: keys.timeline(date) });
     },
     onError: (error: unknown) => toast.error(errorMessage(error)),
@@ -206,18 +228,54 @@ export default function PaymentsDuePage() {
               align: 'right',
               cell: (row) =>
                 row.isPaid ? null : (
-                  <Button
-                    size="sm"
-                    loading={markPaid.isPending && markPaid.variables?.id === row.id}
-                    onClick={() => markPaid.mutate(row)}
-                  >
-                    Mark paid
-                  </Button>
+                  <div className="flex justify-end gap-xs">
+                    <Button
+                      size="sm"
+                      loading={markPaid.isPending && markPaid.variables?.id === row.id}
+                      onClick={() => markPaid.mutate(row)}
+                    >
+                      Mark paid
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={cancel.isPending && cancel.variables?.id === row.id}
+                      // Asked for first: this frees a slot someone else could have, and a
+                      // mis-tap beside "Mark paid" would cancel a booking that was about to
+                      // be settled.
+                      onClick={() => setConfirming(row)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
                 ),
             },
           ]}
         />
       )}
+
+      <ConfirmDialog
+        open={confirming !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirming(null);
+        }}
+        title="Cancel this booking?"
+        description={
+          confirming === null
+            ? undefined
+            : `${confirming.customerName} — ${confirming.serviceName} at ${formatTime(
+                confirming.startsAt,
+              )}. The slot goes back for someone else, and they are not told automatically.`
+        }
+        confirmLabel="Yes, cancel it"
+        cancelLabel="Keep it"
+        destructive
+        loading={cancel.isPending}
+        onConfirm={() => {
+          if (confirming !== null) cancel.mutate(confirming);
+          setConfirming(null);
+        }}
+      />
     </div>
   );
 }

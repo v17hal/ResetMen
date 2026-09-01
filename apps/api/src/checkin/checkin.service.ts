@@ -133,8 +133,27 @@ export class CheckinService {
           addons: true,
           station: { select: { name: true } },
           user: { select: { id: true, name: true, phone: true } },
+          payments: { where: { status: 'CAPTURED' }, select: { id: true } },
         },
       });
+
+      /**
+       * Nobody is checked in before the store has been paid.
+       *
+       * The QR is only issued once a booking is settled, so a paid customer scans and walks
+       * in as before. This covers the other door: staff can also check someone in by typing
+       * the booking code, and without this an unpaid booking could be served by someone who
+       * did not know it was unpaid. The message says what to do about it.
+       */
+      if (booking.payments.length === 0) {
+        throw new AppError(
+          'CHECKIN_INVALID',
+          409,
+          'Not paid yet',
+          `${booking.publicId} has not been paid for. Take payment and mark it paid on ` +
+            'Payments due, then check in.',
+        );
+      }
 
       if (booking.status === 'CHECKED_IN' || booking.status === 'IN_PROGRESS') {
         throw new AppError(

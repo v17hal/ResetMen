@@ -127,7 +127,15 @@ export default function BookingsPage() {
                       <p className="truncate font-display text-h2 text-[17px]">
                         {booking.serviceName}
                       </p>
-                      <BookingStatusBadge status={booking.status} />
+                      {/* An unpaid booking is not one to turn up for, whatever the
+                          underlying status says. */}
+                      {booking.isPaid ? (
+                        <BookingStatusBadge status={booking.status} />
+                      ) : booking.status === 'CANCELLED' ? (
+                        <BookingStatusBadge status={booking.status} />
+                      ) : (
+                        <Badge tone="warning">Awaiting confirmation</Badge>
+                      )}
                     </div>
 
                     <p className="text-body-sm text-text-muted">

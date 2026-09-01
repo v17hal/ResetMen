@@ -83,6 +83,14 @@ export const bookingSummary = z.object({
   payablePaise: paise,
   addons: z.array(z.object({ name: z.string(), pricePaise: paise })),
   canCancel: z.boolean(),
+  /**
+   * Whether the store has been paid.
+   *
+   * There is no gateway, so a booking arrives unpaid and someone rings the customer to
+   * settle it. Until that happens the booking holds a slot but is not something to turn up
+   * for, and it is shown as awaiting confirmation rather than as booked.
+   */
+  isPaid: z.boolean(),
 });
 export type BookingSummary = z.infer<typeof bookingSummary>;
 

@@ -121,11 +121,14 @@ export default function ConfirmationPage() {
                 />
               </svg>
             </span>
-            <h1 className="font-display text-display">You&rsquo;re booked</h1>
+            <h1 className="font-display text-display">
+              {shown.isPaid ? "You're booked" : 'Awaiting confirmation'}
+            </h1>
             <p className="text-body text-text-muted">
-              {payAtCounter
-                ? 'Your slot is held. Someone from the team will call you to confirm and take payment.'
-                : 'Show this at the counter when you arrive.'}
+              {shown.isPaid
+                ? 'Show this at the counter when you arrive.'
+                : 'Your slot is held. The store will call you to confirm and take payment, ' +
+                  'and your entry code appears here once it is settled.'}
             </p>
           </>
         )}
@@ -137,7 +140,20 @@ export default function ConfirmationPage() {
         </p>
       )}
 
-      {shown.checkinPayload !== null && <QrTicket payload={shown.checkinPayload} />}
+      {shown.checkinPayload !== null ? (
+        <QrTicket payload={shown.checkinPayload} />
+      ) : (
+        !pending && (
+          // The code is the store's assurance the visit is settled, so it arrives when the
+          // settlement does. Saying so beats an empty space where a QR should be.
+          <div className="w-full rounded-lg border border-dashed border-border bg-surface p-lg text-center">
+            <p className="font-display text-h2">Entry code pending</p>
+            <p className="mt-xs text-body-sm text-text-muted">
+              It appears here as soon as the store marks your booking paid.
+            </p>
+          </div>
+        )
+      )}
 
       <Card elevated className="flex w-full flex-col gap-sm text-left">
         <div className="flex items-center justify-between gap-sm">

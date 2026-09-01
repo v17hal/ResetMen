@@ -158,7 +158,14 @@ export default function ConfirmationPage() {
       <Card elevated className="flex w-full flex-col gap-sm text-left">
         <div className="flex items-center justify-between gap-sm">
           <span className="font-display text-h2">{shown.serviceName}</span>
-          <BookingStatusBadge status={shown.status} />
+          {/* The underlying status is CONFIRMED the moment the slot is taken, which is
+              true of the slot and not of the booking. Showing it beside "Awaiting
+              confirmation" put two contradictory answers on one screen. */}
+          {shown.isPaid || shown.status === 'CANCELLED' ? (
+            <BookingStatusBadge status={shown.status} />
+          ) : (
+            <Badge tone="warning">Awaiting confirmation</Badge>
+          )}
         </div>
 
         <p className="text-body">{formatDateTime(shown.startsAt, zone)}</p>

@@ -11,12 +11,13 @@ import {
   ErrorState,
   Select,
   SkeletonList,
+  formatDate,
   formatMoney,
   formatPhone,
   formatTime,
   useToast,
 } from '@reset/ui';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { errorMessage } from '@/lib/auth';
@@ -30,6 +31,15 @@ const METHODS: readonly Method[] = ['CASH', 'UPI', 'CARD', 'OTHER'];
 function today(): string {
   return new Date().toLocaleDateString('en-CA');
 }
+
+function addDays(from: string, days: number): string {
+  const d = new Date(`${from}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toLocaleDateString('en-CA');
+}
+
+/** Matches the store's booking horizon: nothing can be booked further out than this. */
+const HORIZON_DAYS = 8;
 
 /**
  * Money still to collect.
@@ -47,14 +57,42 @@ export default function PaymentsDuePage() {
   const queryClient = useQueryClient();
 
   const [date, setDate] = useState(today);
+  const [wholeHorizon, setWholeHorizon] = useState(true);
   const [onlyUnpaid, setOnlyUnpaid] = useState(true);
   const [method, setMethod] = useState<Method>('CASH');
   const [confirming, setConfirming] = useState<TimelineBooking | null>(null);
 
-  const timeline = useQuery({
-    queryKey: keys.timeline(date),
-    queryFn: () => adminClient().bookings.timeline(date),
+  /**
+   * Every day someone might still be rung about, not just today.
+   *
+   * This screen opened on today and nothing else, which hid the bookings it exists for:
+   * a customer books tomorrow, the store has to call them today, and the row was a day
+   * away on a date picker nobody thought to move. Somebody would have been chased only
+   * after their slot had passed.
+   *
+   * The API exposes the day by station and has no range query, so this is one request per
+   * day across the booking horizon. Eight small reads on a screen the counter keeps open —
+   * cheaper than the endpoint that does not exist yet.
+   */
+  const days = wholeHorizon
+    ? Array.from({ length: HORIZON_DAYS }, (_, i) => addDays(today(), i))
+    : [date];
+
+  const results = useQueries({
+    queries: days.map((day) => ({
+      queryKey: keys.timeline(day),
+      queryFn: () => adminClient().bookings.timeline(day),
+    })),
   });
+
+  const timeline = {
+    isLoading: results.some((r) => r.isLoading),
+    isError: results.some((r) => r.isError),
+    isSuccess: results.every((r) => r.isSuccess),
+    error: results.find((r) => r.isError)?.error,
+    refetch: () => results.forEach((r) => void r.refetch()),
+    data: results.flatMap((r) => r.data?.stations ?? []),
+  };
 
   const markPaid = useMutation({
     mutationFn: (booking: TimelineBooking) =>
@@ -65,7 +103,7 @@ export default function PaymentsDuePage() {
       } else {
         toast.success(`${booking.publicId} — ${formatMoney(result.amountPaise)} recorded.`);
       }
-      void queryClient.invalidateQueries({ queryKey: keys.timeline(date) });
+      days.forEach((d) => void queryClient.invalidateQueries({ queryKey: keys.timeline(d) }));
     },
     onError: (error: unknown) => toast.error(errorMessage(error)),
   });
@@ -85,13 +123,13 @@ export default function PaymentsDuePage() {
       }),
     onSuccess: (_result, booking) => {
       toast.success(`${booking.publicId} cancelled. The slot is free again.`);
-      void queryClient.invalidateQueries({ queryKey: keys.timeline(date) });
+      days.forEach((d) => void queryClient.invalidateQueries({ queryKey: keys.timeline(d) }));
     },
     onError: (error: unknown) => toast.error(errorMessage(error)),
   });
 
   // Cancelled and expired bookings are not money anybody is owed.
-  const collectable = (timeline.data?.stations ?? [])
+  const collectable = timeline.data
     .flatMap((station) => station.bookings)
     .filter((b) => b.status !== 'CANCELLED' && b.status !== 'EXPIRED')
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
@@ -111,7 +149,8 @@ export default function PaymentsDuePage() {
         <h1 className="font-display text-h1">Payments due</h1>
         <p className="text-body-sm text-text-muted">
           Bookings taken in the app are unpaid until the money is in the till. Ring the
-          customer, take payment, then mark it here.
+          customer, take payment, then mark it here. Showing everything still to collect
+          across the next week — a booking usually needs chasing before the day it is for.
         </p>
       </header>
 
@@ -121,10 +160,19 @@ export default function PaymentsDuePage() {
           <input
             type="date"
             value={date}
+            disabled={wholeHorizon}
             onChange={(event) => setDate(event.target.value)}
-            className="rounded-md border border-border bg-surface px-sm py-xs text-body-sm text-text"
+            className="rounded-md border border-border bg-surface px-sm py-xs text-body-sm text-text disabled:opacity-40"
           />
         </label>
+
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setWholeHorizon((value) => !value)}
+        >
+          {wholeHorizon ? 'Pick one day' : 'All upcoming'}
+        </Button>
 
         <label className="flex flex-col gap-xs text-body-sm">
           <span className="text-text-muted">Record as</span>
@@ -168,7 +216,7 @@ export default function PaymentsDuePage() {
 
       {timeline.isSuccess && rows.length === 0 && (
         <EmptyState
-          title={onlyUnpaid ? 'Nothing outstanding' : 'No bookings on this day'}
+          title={onlyUnpaid ? 'Nothing outstanding' : 'No bookings in this period'}
           description={
             onlyUnpaid
               ? 'Every booking on this day has been paid for.'
@@ -182,7 +230,15 @@ export default function PaymentsDuePage() {
           rows={rows}
           rowKey={(row) => row.id}
           columns={[
-            { key: 'time', header: 'Time', cell: (row) => formatTime(row.startsAt) },
+            {
+              key: 'when',
+              header: 'When',
+              // Rows span several days now, so the time alone is ambiguous.
+              cell: (row) =>
+                wholeHorizon
+                  ? `${formatDate(row.startsAt)}, ${formatTime(row.startsAt)}`
+                  : formatTime(row.startsAt),
+            },
             { key: 'code', header: 'Booking', cell: (row) => row.publicId },
             { key: 'customer', header: 'Customer', cell: (row) => row.customerName },
             {

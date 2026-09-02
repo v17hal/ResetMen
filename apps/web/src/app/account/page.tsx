@@ -88,6 +88,26 @@ export default function AccountPage() {
         throw new UserFacingError('Your email comes from your Google account and cannot be removed.');
       }
 
+      /**
+       * The date picker's bounds are a suggestion, not a rule.
+       *
+       * An HTML `max` constrains the calendar and nothing else: a typed date walks straight
+       * past it, which is how a birthday in 2030 was saved. The server refuses it now, and
+       * this says so before the round trip.
+       */
+      if (dateOfBirth !== '') {
+        const chosen = new Date(dateOfBirth);
+        const thirteen = new Date();
+        thirteen.setFullYear(thirteen.getFullYear() - 13);
+
+        if (chosen > thirteen) {
+          throw new UserFacingError('You must be at least 13 years old.');
+        }
+        if (chosen < new Date('1920-01-01')) {
+          throw new UserFacingError('That date of birth is too far back.');
+        }
+      }
+
       return api().auth.updateProfile({
         ...(name.trim() === '' ? {} : { name: name.trim() }),
         ...(email.trim() === '' ? {} : { email: email.trim() }),

@@ -14,6 +14,27 @@ import { uuid } from './common.js';
  * digits starting 6 to 9. When a second market opens, this is the line that changes, and a
  * failing test is a better way to discover that than a customer nobody can reach.
  */
+/**
+ * A date of birth that could belong to a living adult.
+ *
+ * `z.string().date()` checks the shape and nothing else, so the API accepted 2030, 1850,
+ * and 2025 — a one-year-old — while the form showed a date picker with sensible bounds. An
+ * HTML `max` only constrains the picker: a typed value walks past it, and so does anything
+ * that is not this website.
+ *
+ * The lower bound is a sanity check. The upper bound is the DPDP Act: below thirteen the
+ * consent is a parent's to give, and nothing here can ask a parent.
+ */
+export const dateOfBirth = z
+  .string()
+  .date()
+  .refine((value) => {
+    const thirteenYearsAgo = new Date();
+    thirteenYearsAgo.setFullYear(thirteenYearsAgo.getFullYear() - 13);
+    return new Date(value) <= thirteenYearsAgo;
+  }, 'You must be at least 13 years old.')
+  .refine((value) => new Date(value) >= new Date('1920-01-01'), 'That date is too far back.');
+
 export const phone = z
   .string()
   .regex(
@@ -52,6 +73,13 @@ export const userProfile = z.object({
    * `YYYY-MM-DD`, not an instant — a birthday has no time of day, and serialising it as
    * one shifts it a day either side of midnight depending on the reader's timezone.
    */
+  /**
+   * Deliberately the loose date on the way out.
+   *
+   * The strict rule belongs on input. Applying it here would make a profile unreadable
+   * because of a value the API accepted before the rule existed — punishing the customer
+   * for our own past leniency, on a read.
+   */
   dateOfBirth: z.string().date().nullable(),
   preferredSegmentId: uuid.nullable(),
 });
@@ -69,7 +97,7 @@ export const updateProfile = z.object({
    * dismissibly, is the trade — a required field here would cost bookings.
    */
   phone: phone.optional(),
-  dateOfBirth: z.string().date().optional(),
+  dateOfBirth: dateOfBirth.optional(),
   preferredSegmentId: uuid.optional(),
 });
 export type UpdateProfile = z.infer<typeof updateProfile>;

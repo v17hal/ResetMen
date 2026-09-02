@@ -46,6 +46,7 @@ import type {
   AdminPaymentRow,
   AdminProductOrderRow,
   AdminSegmentRow,
+  AdminServiceCoverage,
   AdminServiceRow,
   AdminStationRow,
   AuditEntry,
@@ -292,7 +293,7 @@ export class AdminCapacityResource {
     return this.http.put(`/admin/stations/${encodeURIComponent(id)}/services`, { body: input });
   }
   /** Which services no station can perform — the config error nobody notices until a refund. */
-  coverage(): Promise<unknown> {
+  coverage(): Promise<AdminServiceCoverage[]> {
     return this.http.get('/admin/stations/coverage');
   }
 

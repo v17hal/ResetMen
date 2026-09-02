@@ -282,6 +282,23 @@ export interface AdminCustomerDetail {
 }
 
 /**
+ * Whether each service can actually be booked anywhere.
+ *
+ * The count that matters, and the only one that is right. A station with
+ * `allowsAllServices` has no rows in the join table at all, so counting designations gives
+ * zero for a service every station can perform — which is how the Catalog screen came to
+ * warn that three bookable services could never be booked.
+ */
+export interface AdminServiceCoverage {
+  serviceId: string;
+  serviceName: string;
+  eligibleStations: number;
+  totalStations: number;
+  /** Null when the service is fine. Written by the server; show it as it arrives. */
+  warning: string | null;
+}
+
+/**
  * A station, as the admin list returns it.
  *
  * `allowsAllServices` and `serviceIds` were being returned all along and declared nowhere,

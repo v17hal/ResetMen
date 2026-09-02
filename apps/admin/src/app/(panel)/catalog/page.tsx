@@ -94,6 +94,10 @@ function Services() {
     queryKey: keys.services,
     queryFn: () => adminClient().catalog.services(),
   });
+  const coverage = useQuery({
+    queryKey: keys.coverage,
+    queryFn: () => adminClient().capacity.coverage(),
+  });
 
   const rows = services.data ?? [];
   const move = useReorder('service', rows, keys.services);
@@ -133,9 +137,19 @@ function Services() {
     );
   }
 
-  const uncovered = rows.filter(
-    (service) => service.isActive && service._count.stationServices === 0,
-  );
+  /**
+   * Services that genuinely cannot be booked anywhere.
+   *
+   * This used to count the rows in the station-to-service join table. A station set to
+   * allow every service has no rows in that table at all, so a service every station can
+   * perform counted zero and was reported as unbookable. With two of the three stations set
+   * that way, the banner named three perfectly bookable services and sent the owner off to
+   * fix configuration that was not broken.
+   *
+   * The server works it out properly, allowing for that flag, so ask it rather than
+   * re-deriving it from a count that cannot express the answer.
+   */
+  const uncovered = (coverage.data ?? []).filter((item) => item.eligibleStations === 0);
 
   return (
     <div className="flex flex-col gap-base">
@@ -151,8 +165,8 @@ function Services() {
             can perform.
           </p>
           <p className="text-body-sm text-text-muted">
-            {uncovered.map((service) => service.name).join(', ')} — these show in the app and
-            then offer no times at all. Fix under Capacity → station services.
+            {uncovered.map((item) => item.serviceName).join(', ')} — these show in the app
+            and then offer no times at all. Fix under Capacity → Stations → Change services.
           </p>
         </Card>
       )}

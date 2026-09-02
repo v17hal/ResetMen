@@ -282,6 +282,47 @@ export interface AdminCustomerDetail {
 }
 
 /**
+ * A station, as the admin list returns it.
+ *
+ * `allowsAllServices` and `serviceIds` were being returned all along and declared nowhere,
+ * so the Stations screen could not show what a station is designated for and rendered the
+ * word "Services" with nothing behind it.
+ */
+export interface AdminStationRow {
+  id: string;
+  name: string;
+  isActive: boolean;
+  sortOrder: number;
+  /** When true the station takes anything, and `serviceIds` is not consulted. */
+  allowsAllServices: boolean;
+  serviceIds: string[];
+}
+
+/**
+ * An allocation rule, as the admin list returns it.
+ *
+ * The rule's stations and services come back as named objects, not as id arrays. The screen
+ * assumed `stationIds` and `serviceIds` — the field names from the *request* schema — and
+ * asserted that shape with a cast over an `unknown[]`, so nothing checked it and the tab
+ * threw `Cannot read properties of undefined (reading 'length')` on every load.
+ */
+export interface AdminAllocationRuleRow {
+  id: string;
+  name: string;
+  mode: 'EXCLUSIVE_TO' | 'EXCLUDE_FROM';
+  recurrence: 'ONE_OFF' | 'WEEKLY';
+  daysOfWeek: number[];
+  dateFrom: string | null;
+  dateTo: string | null;
+  startsAtLocal: string;
+  endsAtLocal: string;
+  priority: number;
+  isActive: boolean;
+  stations: Array<{ id: string; name: string }>;
+  services: Array<{ id: string; name: string }>;
+}
+
+/**
  * A one-off closure. The whole store when `stationId` is null, otherwise one station.
  *
  * The list endpoint only returns closures that have not finished yet — a shop closed last

@@ -1,6 +1,6 @@
 'use client';
 
-import type { AllocationRulePreview } from '@reset/api-client';
+import type { AdminAllocationRuleRow, AllocationRulePreview } from '@reset/api-client';
 import {
   Badge,
   Button,
@@ -25,22 +25,6 @@ import { keys, useServices, useStations } from '@/lib/queries';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-interface RuleRow {
-  id: string;
-  name: string;
-  mode: 'EXCLUSIVE_TO' | 'EXCLUDE_FROM';
-  recurrence: 'ONE_OFF' | 'WEEKLY';
-  daysOfWeek: number[];
-  dateFrom: string | null;
-  dateTo: string | null;
-  startsAtLocal: string;
-  endsAtLocal: string;
-  stationIds: string[];
-  serviceIds: string[];
-  priority: number;
-  isActive: boolean;
-}
-
 /**
  * Time-boxed station reservations — the client's 02/08/2026 morning ₹199 push.
  *
@@ -51,12 +35,12 @@ interface RuleRow {
 export function AllocationRules() {
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState<RuleRow | 'new' | null>(null);
-  const [deleting, setDeleting] = useState<RuleRow | null>(null);
+  const [editing, setEditing] = useState<AdminAllocationRuleRow | 'new' | null>(null);
+  const [deleting, setDeleting] = useState<AdminAllocationRuleRow | null>(null);
 
   const rules = useQuery({
     queryKey: keys.allocationRules,
-    queryFn: () => adminClient().capacity.allocationRules() as Promise<RuleRow[]>,
+    queryFn: () => adminClient().capacity.allocationRules(),
   });
 
   const remove = useMutation({
@@ -105,7 +89,7 @@ export function AllocationRules() {
                 <span className="font-medium">{row.name}</span>
                 <span className="text-caption text-text-muted">
                   {row.mode === 'EXCLUSIVE_TO' ? 'Reserved for' : 'Kept clear of'}{' '}
-                  {row.serviceIds.length} service{row.serviceIds.length === 1 ? '' : 's'}
+                  {row.services.map((service) => service.name).join(', ')}
                 </span>
               </div>
             ),
@@ -131,7 +115,7 @@ export function AllocationRules() {
             header: 'Stations',
             align: 'right',
             hideOnMobile: true,
-            cell: (row) => row.stationIds.length,
+            cell: (row) => row.stations.map((station) => station.name).join(', '),
           },
           {
             key: 'active',
@@ -170,7 +154,7 @@ export function AllocationRules() {
   );
 }
 
-function RuleDialog({ rule, onClose }: { rule: RuleRow | 'new' | null; onClose: () => void }) {
+function RuleDialog({ rule, onClose }: { rule: AdminAllocationRuleRow | 'new' | null; onClose: () => void }) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const stations = useStations();
@@ -181,8 +165,8 @@ function RuleDialog({ rule, onClose }: { rule: RuleRow | 'new' | null; onClose: 
 
   const [form, setForm] = useState({
     name: '',
-    mode: 'EXCLUSIVE_TO' as RuleRow['mode'],
-    recurrence: 'WEEKLY' as RuleRow['recurrence'],
+    mode: 'EXCLUSIVE_TO' as AdminAllocationRuleRow['mode'],
+    recurrence: 'WEEKLY' as AdminAllocationRuleRow['recurrence'],
     daysOfWeek: [] as number[],
     dateFrom: '',
     startsAtLocal: '10:00',
@@ -202,8 +186,11 @@ function RuleDialog({ rule, onClose }: { rule: RuleRow | 'new' | null; onClose: 
       dateFrom: existing?.dateFrom ?? todayLocal(),
       startsAtLocal: existing?.startsAtLocal ?? '10:00',
       endsAtLocal: existing?.endsAtLocal ?? '13:00',
-      stationIds: existing?.stationIds ?? [],
-      serviceIds: existing?.serviceIds ?? [],
+      // The row carries named objects; the request wants ids. Editing a rule used to read
+      // `existing.stationIds`, which is not a field the API sends, so every saved edit
+      // silently dropped the rule's stations and services.
+      stationIds: (existing?.stations ?? []).map((station) => station.id),
+      serviceIds: (existing?.services ?? []).map((service) => service.id),
     });
     setPreview(null);
     setError(null);
@@ -310,7 +297,7 @@ function RuleDialog({ rule, onClose }: { rule: RuleRow | 'new' | null; onClose: 
           label="Mode"
           value={form.mode}
           onChange={(event) =>
-            setForm((c) => ({ ...c, mode: event.target.value as RuleRow['mode'] }))
+            setForm((c) => ({ ...c, mode: event.target.value as AdminAllocationRuleRow['mode'] }))
           }
           hint={
             form.mode === 'EXCLUSIVE_TO'
@@ -328,7 +315,7 @@ function RuleDialog({ rule, onClose }: { rule: RuleRow | 'new' | null; onClose: 
           onChange={(event) =>
             setForm((c) => ({
               ...c,
-              recurrence: event.target.value as RuleRow['recurrence'],
+              recurrence: event.target.value as AdminAllocationRuleRow['recurrence'],
             }))
           }
         >

@@ -37,6 +37,7 @@ import type { HttpClient } from '../http.js';
 import type {
   AdminAddonGroupRow,
   AdminAddonOptionRow,
+  AdminAllocationRuleRow,
   AdminBlackoutRow,
   AdminCampaignRow,
   AdminCategoryRow,
@@ -46,6 +47,7 @@ import type {
   AdminProductOrderRow,
   AdminSegmentRow,
   AdminServiceRow,
+  AdminStationRow,
   AuditEntry,
   DashboardDto,
   HoldResponse,
@@ -276,7 +278,7 @@ export class AdminCatalogResource {
 export class AdminCapacityResource {
   constructor(private readonly http: HttpClient) {}
 
-  stations(): Promise<Array<{ id: string; name: string; isActive: boolean; sortOrder: number }>> {
+  stations(): Promise<AdminStationRow[]> {
     return this.http.get('/admin/stations');
   }
   createStation(input: StationInput): Promise<unknown> {
@@ -294,7 +296,7 @@ export class AdminCapacityResource {
     return this.http.get('/admin/stations/coverage');
   }
 
-  allocationRules(): Promise<unknown[]> {
+  allocationRules(): Promise<AdminAllocationRuleRow[]> {
     return this.http.get('/admin/allocation-rules');
   }
   createAllocationRule(input: AllocationRuleInput): Promise<unknown> {

@@ -93,6 +93,49 @@ test.describe('Admin screens load', () => {
   }
 });
 
+/**
+ * Every tab of every multi-tab screen, opened.
+ *
+ * TC-50..62 load each screen and check it renders, which only ever exercised the tab each
+ * one opens on. Capacity → Allocation rules threw `Cannot read properties of undefined`
+ * on every load — the screen read `stationIds` and `serviceIds`, which that endpoint has
+ * never sent, asserted through a cast over an `unknown[]` so nothing could check it — and
+ * the whole suite passed regardless, because nothing ever clicked the second tab.
+ *
+ * A tab is a screen. This opens all of them and fails on any client-side exception.
+ */
+test.describe('Every tab renders', () => {
+  test.use(STAFF_SESSION);
+
+  for (const [id, path, tabs] of [
+    ['TC-63', '/capacity', ['Stations', 'Allocation rules', 'Opening hours', 'Closures', 'Booking settings']],
+    ['TC-64', '/catalog', ['Services', 'Categories', 'Segments', 'Add-ons']],
+    ['TC-65', '/rewards', ['Streak rules', 'Scratch campaigns', 'Manual grant']],
+    ['TC-66', '/products', ['Catalog', 'Orders']],
+  ] as const) {
+    test(`${id} ${path} — every tab opens without an exception`, async ({ page }) => {
+      const errors = watchForClientErrors(page);
+      await page.goto(`${ADMIN}${path}`);
+
+      for (const tab of tabs) {
+        await page.getByRole('tab', { name: new RegExp(`^${tab}$`, 'i') }).click();
+
+        await expect(
+          page.getByText(/Application error|client-side exception/i),
+          `${path} → ${tab} crashed the page`,
+        ).toHaveCount(0);
+        // The panel still has to be rendering something, not a blank error boundary.
+        await expect(page.getByRole('main')).toBeVisible();
+      }
+
+      expect(
+        errors.filter((e) => !/favicon|manifest|404/i.test(e)),
+        `${path} logged client errors while moving between tabs`,
+      ).toEqual([]);
+    });
+  }
+});
+
 test.describe('Payments due — the counter\'s working screen', () => {
   let customer: Customer;
 

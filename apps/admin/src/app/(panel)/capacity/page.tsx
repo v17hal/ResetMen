@@ -1,6 +1,6 @@
 'use client';
 
-import type { AdminBlackoutRow } from '@reset/api-client';
+import type { AdminBlackoutRow, AdminStationRow } from '@reset/api-client';
 import {
   Badge,
   Button,
@@ -79,19 +79,16 @@ export default function CapacityPage() {
 
 // ── Stations ────────────────────────────────────────────────────────────────
 
-interface StationRow {
-  id: string;
-  name: string;
-  isActive: boolean;
-  sortOrder: number;
-}
-
 function Stations() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const stations = useStations();
-  const [editing, setEditing] = useState<StationRow | 'new' | null>(null);
-  const [designating, setDesignating] = useState<StationRow | null>(null);
+  const [editing, setEditing] = useState<AdminStationRow | 'new' | null>(null);
+  const [designating, setDesignating] = useState<AdminStationRow | null>(null);
+
+  // To turn the designated service ids into names in the table. Cached for five minutes by
+  // `useServices`, so this costs nothing that the Catalog screen has not already paid.
+  const services = useServices();
 
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -122,7 +119,7 @@ function Stations() {
   });
 
   const toggle = useMutation({
-    mutationFn: (station: StationRow) =>
+    mutationFn: (station: AdminStationRow) =>
       adminClient().capacity.updateStation(station.id, {
         name: station.name,
         isActive: !station.isActive,
@@ -154,7 +151,7 @@ function Stations() {
 
       <DataTable
         loading={stations.isPending}
-        rows={(stations.data ?? []) as StationRow[]}
+        rows={stations.data ?? []}
         rowKey={(row) => row.id}
         onRowClick={setEditing}
         empty={{
@@ -164,14 +161,36 @@ function Stations() {
         columns={[
           { key: 'name', header: 'Station', cell: (row) => row.name },
           {
-            key: 'services',
-            header: '',
-            align: 'right',
-            cell: (row) => (
-              <Button variant="ghost" size="sm" onClick={() => setDesignating(row)}>
-                Services
-              </Button>
-            ),
+            /**
+             * What the station is actually designated for.
+             *
+             * This column was a ghost button reading "Services" under a blank header, which
+             * on a dark table is indistinguishable from a label. Staff reported there was no
+             * way to assign a service to a station and were right about what they could see:
+             * the only thing on screen was the word itself.
+             *
+             * The designation was in the response the whole time — `allowsAllServices` and
+             * `serviceIds` — and both the client type and this screen threw it away.
+             */
+            key: 'can-perform',
+            header: 'Can perform',
+            cell: (row) => {
+              if (row.allowsAllServices) {
+                return <span className="text-text-muted">Every service</span>;
+              }
+
+              if (row.serviceIds.length === 0) {
+                return (
+                  <Badge tone="danger">Nothing — nobody can book this station</Badge>
+                );
+              }
+
+              const named = row.serviceIds
+                .map((id) => services.data?.find((service) => service.id === id)?.name)
+                .filter((name): name is string => name !== undefined);
+
+              return named.join(', ');
+            },
           },
           {
             key: 'active',
@@ -185,6 +204,16 @@ function Stations() {
                 onClick={() => toggle.mutate(row)}
               >
                 {row.isActive ? 'Active' : 'Inactive'}
+              </Button>
+            ),
+          },
+          {
+            key: 'actions',
+            header: '',
+            align: 'right',
+            cell: (row) => (
+              <Button variant="secondary" size="sm" onClick={() => setDesignating(row)}>
+                Change services
               </Button>
             ),
           },
@@ -238,7 +267,7 @@ function StationServicesDialog({
   station,
   onClose,
 }: {
-  station: StationRow | null;
+  station: AdminStationRow | null;
   onClose: () => void;
 }) {
   const toast = useToast();

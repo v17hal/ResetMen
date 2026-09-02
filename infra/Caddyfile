@@ -84,6 +84,26 @@
 	reverse_proxy web:3000
 }
 
+# ── www → the apex ─────────────────────────────────────────────────────────────
+#
+# The DNS record for www has always existed and Caddy was never told to answer for it, so
+# it had no certificate and refused the handshake. On its own that is a bad redirect; with
+# the HSTS header above it is a dead shop.
+#
+# `includeSubDomains` tells every browser that has ever loaded resetmen.in to force HTTPS
+# on every subdomain for a year, and a browser will not offer to click through a TLS
+# failure on an HSTS host. So anyone who typed the www form — or whose address bar
+# completed to it, which is what address bars do — got a hard error with no way past it,
+# while the site itself was up and healthy. Nothing on the server could show that: it
+# answers the apex perfectly and never sees the request that failed.
+#
+# A redirect rather than a second copy of the app: one canonical hostname, one set of
+# cookies, one origin in Firebase's authorised list.
+www.{$WEB_DOMAIN} {
+	import security
+	redir https://{$WEB_DOMAIN}{uri} permanent
+}
+
 # ── Admin panel ────────────────────────────────────────────────────────────────
 {$ADMIN_DOMAIN} {
 	import security

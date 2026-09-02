@@ -248,10 +248,11 @@ function Checkout() {
           <SignIn reason="Your slot is held while you do this." />
         </Card>
       ) : (user.phone ?? '').trim() === '' ? (
-        // The API refuses a hold without one, so asking here — rather than sending them to
-        // /account and losing the slot they just picked — is the difference between a
-        // booking and an abandoned one.
-        <PhoneRequired onSaved={() => createHold.mutate()} />
+        // Asked here rather than by sending them to /account, which would lose the slot they
+        // just picked. It saves the number and nothing else: holding the slot on save was
+        // right when the hold was made as the page opened, and became a way to book without
+        // pressing Book once the booking moved to the button.
+        <PhoneRequired />
       ) : (
         <div className="sticky bottom-base z-20">
           <Button

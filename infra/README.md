@@ -110,18 +110,74 @@ A backup on the same disk survives a bad migration. It does not survive the disk
 There is no CI publishing images yet, so the server builds its own from the checkout:
 
 ```bash
-git pull --ff-only
-docker compose -f infra/docker-compose.build.yml --env-file infra/.env.prod build
-docker compose -f infra/docker-compose.prod.yml  --env-file infra/.env.prod \
-  run --rm api npx prisma migrate deploy
-docker compose -f infra/docker-compose.prod.yml  --env-file infra/.env.prod up -d
+cd ~/ResetMen && git pull --ff-only
+
+DOCKER_BUILDKIT=0 docker-compose \
+  -f infra/docker-compose.build.yml --env-file infra/.env.prod build
+
+docker-compose -f infra/docker-compose.prod.yml -f infra/docker-compose.build.yml \
+  --env-file infra/.env.prod up -d --no-deps api web admin
 ```
+
+Four things about that, each of which has already gone wrong once:
+
+**`docker-compose`, not `docker compose`.** The box has the standalone binary, not the CLI
+plugin. The plugin form fails with `unknown shorthand flag: 'f'`.
+
+**`DOCKER_BUILDKIT=0`.** `~/.docker/cli-plugins/docker-buildx` is a nine-byte file containing
+the text `Not Found` — a download that failed and got saved as the plugin. With BuildKit on,
+compose tries to use it, prints `exec format error`, **exits 0, and builds nothing**. A green
+exit code and stale images is the worst way for a build to fail. The broken file is moved to
+`~/docker-buildx.broken.txt`; installing a real buildx would let this flag go.
+
+**Both compose files on `up`.** `docker-compose.prod.yml` defaults the three app images to
+`ghcr.io/reset/*`, which nothing publishes to, so on its own it tries to pull and gets
+`denied`. The build file pins the locally built tags, so passing it as an override is what
+makes `up` use them. It was previously done by typing `API_IMAGE=… WEB_IMAGE=… ADMIN_IMAGE=…`
+in front of the command, which works and is one forgotten variable away from a failed deploy.
+
+**`--no-deps api web admin`.** `db-init` still resolves to the unreachable registry image, and
+it is a one-shot initialiser that has already run. Naming the three services skips it.
 
 Build through `docker-compose.build.yml` rather than a `docker build` command line. Every
 `NEXT_PUBLIC_*` value is inlined into the browser bundle at build time, and passing them by
 hand is how this deployment twice shipped a site whose sign-in did not work — one
 `--build-arg` resolved to an empty string, the build succeeded and the container was
 healthy. That file reads them from `.env.prod` and refuses to build if any is missing.
+
+### Migrations
+
+**This database has no migration history.** It was created by `db-init`, which runs
+`prisma db push` — that builds the schema and writes nothing to `_prisma_migrations`. So
+`prisma migrate status` reports all five migrations as unapplied, and running
+`prisma migrate deploy` against it would try to create objects that already exist.
+
+Do not run `migrate deploy` here until the history is reconciled — `prisma migrate resolve
+--applied <name>` for each of the five, once, after checking the live schema really does
+match. Until then a schema change has to go out the same way the schema arrived, with
+`db push`, and that is worth fixing before the store is carrying real bookings.
+
+`npx prisma` is also wrong on this box: it fetches Prisma 8 from npm, which renamed
+`migrate` to `migration`, rather than using the Prisma 6 bundled in the image. Use the
+bundled CLI, the way `db-init` does:
+
+```bash
+docker-compose -f infra/docker-compose.prod.yml -f infra/docker-compose.build.yml \
+  --env-file infra/.env.prod run --rm --no-deps --entrypoint sh api -c \
+  'node $(ls -d /app/node_modules/.pnpm/prisma@6*/node_modules/prisma/build/index.js | head -1) \
+     migrate status --schema /app/apps/api/prisma/schema.prisma'
+```
+
+### Checking it actually deployed
+
+A healthy container is not a working site — both times sign-in shipped broken, every
+container was healthy. Check the thing itself:
+
+```bash
+# The Firebase config is baked into a lazily-loaded chunk, so grep the build, not the homepage.
+docker exec reset-web-1 sh -c 'grep -rl AIzaSy /app/apps/web/.next/static | wc -l'   # want 1
+curl -s -o /dev/null -w '%{http_code}\n' https://api.resetmen.in/api/v1/health/ready  # want 200
+```
 
 Once images are published to a registry, this becomes a `pull`:
 

@@ -53,9 +53,22 @@ export function Dialog({
             'fixed z-50 flex flex-col gap-base bg-surface shadow-overlay focus:outline-none',
             // Wraps rather than overflowing, whatever is in the description.
             'break-words',
+            /**
+             * Never taller than the window.
+             *
+             * The centred variant had no height limit, so a form longer than the viewport
+             * centred itself and hung off both ends — taking the footer, and the Save
+             * button in it, somewhere unreachable. Shrinking the browser appeared to fix it
+             * because the form then fitted. Every form in the admin panel opens this way,
+             * so this was not one broken screen.
+             *
+             * The box is capped and the body scrolls inside it; the title and the buttons
+             * stay put, which is the point of having a footer at all.
+             */
+            'max-h-[calc(100dvh-2rem)]',
             isSheet
               ? [
-                  'inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-xl p-lg',
+                  'inset-x-0 bottom-0 max-h-[85dvh] rounded-t-xl p-lg',
                   'data-[state=open]:animate-slide-up',
                   // Above the tab bar, and clear of the home indicator on a gesture phone.
                   'pb-[max(1.25rem,env(safe-area-inset-bottom))]',
@@ -72,7 +85,7 @@ export function Dialog({
             className,
           )}
         >
-          <div className="flex items-start justify-between gap-base">
+          <div className="flex shrink-0 items-start justify-between gap-base">
             <div className="flex flex-col gap-xs">
               <RadixDialog.Title className="font-display text-h2 text-text">
                 {title}
@@ -90,10 +103,16 @@ export function Dialog({
             </RadixDialog.Close>
           </div>
 
-          {children != null && <div className="overflow-y-auto">{children}</div>}
+          {/* `min-h-0` is what lets this shrink inside the flex column; without it the
+              body claims its full height and pushes the footer out of the box again. */}
+          {children != null && (
+            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+          )}
 
           {footer != null && (
-            <div className="flex flex-col-reverse gap-sm sm:flex-row sm:justify-end">{footer}</div>
+            <div className="flex shrink-0 flex-col-reverse gap-sm sm:flex-row sm:justify-end">
+              {footer}
+            </div>
           )}
         </RadixDialog.Content>
       </RadixDialog.Portal>

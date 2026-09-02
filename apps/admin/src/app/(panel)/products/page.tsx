@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   DataTable,
+  ConfirmDialog,
   Dialog,
   ErrorState,
   Input,
@@ -79,6 +80,7 @@ function Catalog() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<ProductRow | 'new' | null>(null);
+  const [deleting, setDeleting] = useState<ProductRow | null>(null);
   const [adjusting, setAdjusting] = useState<ProductRow | null>(null);
 
   const products = useQuery({
@@ -110,6 +112,22 @@ function Catalog() {
     });
     setError(null);
   }, [existing, editing]);
+
+  /**
+   * Removing a product.
+   *
+   * Asked for first, and the dialog says what it means: a product with orders against it is
+   * hidden rather than erased, because those orders are records the store has to keep.
+   */
+  const remove = useMutation({
+    mutationFn: (product: ProductRow) => adminClient().products.remove(product.id),
+    onSuccess: (_result, product) => {
+      toast.success(`${product.name} removed.`);
+      setDeleting(null);
+      void queryClient.invalidateQueries({ queryKey: keys.products });
+    },
+    onError: (error: unknown) => toast.error(errorMessage(error)),
+  });
 
   const save = useMutation({
     mutationFn: () => {
@@ -199,22 +217,81 @@ function Catalog() {
               ),
           },
           {
-            key: 'adjust',
-            header: '',
-            align: 'right',
-            cell: (row) => (
-              <Button variant="ghost" size="sm" onClick={() => setAdjusting(row)}>
-                Adjust
-              </Button>
-            ),
-          },
-          {
             key: 'active',
             header: '',
             align: 'right',
             cell: (row) => (row.isActive ? null : <Badge>Hidden</Badge>),
           },
+          {
+            key: 'actions',
+            header: '',
+            align: 'right',
+            /**
+             * Named buttons, not a click target on the row.
+             *
+             * Editing existed all along — as `onRowClick`, with nothing on screen saying so.
+             * Staff reported there was no way to edit a product, and they were right about
+             * what they could see. Delete existed on the API and had never been offered at
+             * all.
+             *
+             * `stopPropagation` because the row is still clickable, so anyone who learned
+             * that habit keeps it, and the buttons do not fire it twice.
+             */
+            cell: (row) => (
+              <div className="flex justify-end gap-xs">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setAdjusting(row);
+                  }}
+                >
+                  Stock
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setEditing(row);
+                  }}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-danger"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setDeleting(row);
+                  }}
+                >
+                  Delete
+                </Button>
+              </div>
+            ),
+          },
         ]}
+      />
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null);
+        }}
+        title="Remove this product?"
+        description={
+          deleting === null
+            ? undefined
+            : `${deleting.name} will stop appearing in the shop. Past orders keep their record of it.`
+        }
+        confirmLabel="Yes, remove it"
+        cancelLabel="Keep it"
+        destructive
+        loading={remove.isPending}
+        onConfirm={() => deleting !== null && remove.mutate(deleting)}
       />
 
       <Dialog

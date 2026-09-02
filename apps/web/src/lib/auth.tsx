@@ -122,7 +122,19 @@ export function errorMessage(error: unknown, fallback = 'Something went wrong.')
     switch (error.code) {
       case 'SLOT_TAKEN':
       case 'SLOT_UNAVAILABLE':
-        return 'That time has just been taken. Pick another and we will hold it for you.';
+        /**
+         * The server's own words first.
+         *
+         * This code covers two different situations and only one of them is "somebody else
+         * got there". The other is a clash with a booking the customer already has, where
+         * the server names the service and the code it overlaps — and that was being
+         * replaced with "that time has just been taken", which blames a stranger for the
+         * customer's own booking and hides the one thing they could act on.
+         */
+        return (
+          error.detail ??
+          'That time has just been taken. Pick another and we will hold it for you.'
+        );
       case 'HOLD_EXPIRED':
         return 'Your slot was released because checkout took too long. Choose a time again.';
       case 'CUSTOMER_BLOCKED':

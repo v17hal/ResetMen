@@ -458,8 +458,14 @@ String friendlyMessage(Object error, [String fallback = 'Something went wrong.']
 
   if (error is ResetApiException) {
     return switch (error.code) {
+      // The server's own words first. This code covers two situations and only one of them
+      // is "somebody else got there": the other is a clash with a booking the customer
+      // already holds, where the server names the service and the code it overlaps. Replacing
+      // that blamed a stranger for the customer's own booking and hid the thing they could
+      // act on.
       ErrorCode.slotTaken || ErrorCode.slotUnavailable =>
-        'That time has just been taken. Pick another and we will hold it for you.',
+        error.detail ??
+            'That time has just been taken. Pick another and we will hold it for you.',
       ErrorCode.holdExpired =>
         'Your slot was released because checkout took too long. Choose a time again.',
       ErrorCode.customerBlocked =>

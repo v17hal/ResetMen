@@ -68,11 +68,41 @@ export async function setPhone(
   expect(res.ok(), 'saving a valid phone number should succeed').toBeTruthy();
 }
 
-/** Removes the customer and everything they made. Safe to call twice. */
+/**
+ * Removes the customer and everything they made. Safe to call twice.
+ *
+ * The bookings are cancelled first, and that is not belt and braces. This used to delete
+ * only the account, and a deleted account's bookings stayed CONFIRMED and holding stations
+ * — so every run of this suite left a handful of slots blocked on a live store, and after
+ * a day of runs there were thirty-seven of them against one real booking. The suite claimed
+ * to clean up after itself and did not.
+ *
+ * The API now releases them on deletion too, so this is the second of two locks on the same
+ * door. It stays because a suite that runs against production should not depend on the
+ * thing it is testing to tidy up after it.
+ */
 export async function deleteCustomer(
   request: APIRequestContext,
   customer: Customer,
 ): Promise<void> {
+  const upcoming = await request
+    .get(`${API}/bookings?status=upcoming`, {
+      headers: { Authorization: `Bearer ${customer.accessToken}` },
+    })
+    .catch(() => null);
+
+  if (upcoming !== null && upcoming.ok()) {
+    const { data } = (await upcoming.json()) as { data: { id: string }[] };
+    for (const booking of data) {
+      await request
+        .post(`${API}/bookings/${booking.id}/cancel`, {
+          headers: { Authorization: `Bearer ${customer.accessToken}` },
+          data: { reason: 'QA cleanup' },
+        })
+        .catch(() => undefined);
+    }
+  }
+
   await request
     .delete(`${API}/auth/me`, {
       headers: { Authorization: `Bearer ${customer.accessToken}` },

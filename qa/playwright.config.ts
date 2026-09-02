@@ -52,9 +52,20 @@ export default defineConfig({
   },
 
   projects: [
+    /**
+     * Signs in as staff once; every admin test reuses the session.
+     *
+     * Signing in per test meant thirty logins from one address in a few minutes, the rate
+     * limiter did exactly what it is for, and two thirds of the admin suite failed reporting
+     * a fault that did not exist. It is also what staff actually do: sign in once, work all
+     * day.
+     */
+    { name: 'setup', testMatch: /auth\.setup\.ts/ },
+
     {
       name: 'desktop',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+      dependencies: ['setup'],
     },
     {
       /**
@@ -65,6 +76,7 @@ export default defineConfig({
        */
       name: 'mobile',
       use: { ...devices['Pixel 7'] },
+      dependencies: ['setup'],
     },
   ],
 });

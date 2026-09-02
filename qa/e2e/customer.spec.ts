@@ -1,15 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 import {
-  type Customer,
   WEB,
   catalogue,
-  createCustomer,
-  deleteCustomer,
   expectNoHorizontalOverflow,
   expectTouchTargets,
   firstOpenDay,
-  setPhone,
   signIn,
   watchForClientErrors,
 } from './support';
@@ -99,15 +95,9 @@ test.describe('Catalogue', () => {
 });
 
 test.describe('Booking', () => {
-  let customer: Customer;
 
-  test.afterEach(async ({ request }) => {
-    if (customer !== undefined) await deleteCustomer(request, customer);
-  });
-
-  test('TC-10 booking is refused until a mobile number is given', async ({ page, request }) => {
-    customer = await createCustomer(request);
-    await signIn(page, customer);
+  test('TC-10 booking is refused until a mobile number is given', async ({ page, request, guestAccount }) => {
+    await signIn(page, guestAccount);
 
     const { services } = await catalogue(request);
     const head = services.find((s) => s.name === 'Head')!;
@@ -120,9 +110,8 @@ test.describe('Booking', () => {
     await expect(page.getByText(/One more thing|mobile number/i).first()).toBeVisible();
   });
 
-  test('TC-11 a number longer than ten digits cannot be entered', async ({ page, request }) => {
-    customer = await createCustomer(request);
-    await signIn(page, customer);
+  test('TC-11 a number longer than ten digits cannot be entered', async ({ page, request, guestAccount }) => {
+    await signIn(page, guestAccount);
 
     const { services } = await catalogue(request);
     const head = services.find((s) => s.name === 'Head')!;
@@ -142,9 +131,9 @@ test.describe('Booking', () => {
   test('TC-12 a number that is not an Indian mobile is refused with a reason', async ({
     page,
     request,
+    guestAccount,
   }) => {
-    customer = await createCustomer(request);
-    await signIn(page, customer);
+    await signIn(page, guestAccount);
 
     const { services } = await catalogue(request);
     const head = services.find((s) => s.name === 'Head')!;
@@ -162,10 +151,10 @@ test.describe('Booking', () => {
     await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
   });
 
-  test('TC-13 opening checkout does not create a booking', async ({ page, request }) => {
-    customer = await createCustomer(request);
-    await setPhone(request, customer);
-    await signIn(page, customer);
+  test('TC-13 opening checkout does not create a booking', async ({ page, request,
+    booker,
+  }) => {
+    await signIn(page, booker);
 
     const { services } = await catalogue(request);
     const head = services.find((s) => s.name === 'Head')!;
@@ -180,16 +169,16 @@ test.describe('Booking', () => {
     await page.goto(`${WEB}/bookings`);
 
     const mine = await request.get(`${process.env.API_URL ?? 'https://api.resetmen.in/api/v1'}/bookings`, {
-      headers: { Authorization: `Bearer ${customer.accessToken}` },
+      headers: { Authorization: `Bearer ${booker.accessToken}` },
     });
     const body = (await mine.json()) as { data: unknown[] };
     expect(body.data, 'browsing to checkout must not book anything').toHaveLength(0);
   });
 
-  test('TC-14 the button says Book, and takes no money', async ({ page, request }) => {
-    customer = await createCustomer(request);
-    await setPhone(request, customer);
-    await signIn(page, customer);
+  test('TC-14 the button says Book, and takes no money', async ({ page, request,
+    booker,
+  }) => {
+    await signIn(page, booker);
 
     const { services } = await catalogue(request);
     const head = services.find((s) => s.name === 'Head')!;
@@ -206,10 +195,9 @@ test.describe('Booking', () => {
   test('TC-15 booking succeeds and reports itself as awaiting confirmation', async ({
     page,
     request,
+    booker,
   }) => {
-    customer = await createCustomer(request);
-    await setPhone(request, customer);
-    await signIn(page, customer);
+    await signIn(page, booker);
 
     const { services } = await catalogue(request);
     const head = services.find((s) => s.name === 'Head')!;
@@ -226,10 +214,10 @@ test.describe('Booking', () => {
     await expect(page.getByText(/to pay/i).first()).toBeVisible();
   });
 
-  test('TC-16 an unpaid booking shows no QR code', async ({ page, request }) => {
-    customer = await createCustomer(request);
-    await setPhone(request, customer);
-    await signIn(page, customer);
+  test('TC-16 an unpaid booking shows no QR code', async ({ page, request,
+    booker,
+  }) => {
+    await signIn(page, booker);
 
     const { services } = await catalogue(request);
     const head = services.find((s) => s.name === 'Head')!;
@@ -248,10 +236,9 @@ test.describe('Booking', () => {
   test('TC-17 the booking appears under Visits, marked awaiting confirmation', async ({
     page,
     request,
+    booker,
   }) => {
-    customer = await createCustomer(request);
-    await setPhone(request, customer);
-    await signIn(page, customer);
+    await signIn(page, booker);
 
     const { services } = await catalogue(request);
     const head = services.find((s) => s.name === 'Head')!;
@@ -269,16 +256,18 @@ test.describe('Booking', () => {
 });
 
 test.describe('Account', () => {
-  let customer: Customer;
+  /**
+   * One customer for the whole group.
+   *
+   * A fresh Firebase account per test meant forty sign-ups from one address in twenty
+   * minutes, which exhausted the auth rate limit and failed the tail of the suite for a
+   * reason that had nothing to do with the product. These three tests only read and edit
+   * one profile, so they can share.
+   */
 
-  test.afterEach(async ({ request }) => {
-    if (customer !== undefined) await deleteCustomer(request, customer);
-  });
 
-  test('TC-20 clearing a saved number is refused with a reason', async ({ page, request }) => {
-    customer = await createCustomer(request);
-    await setPhone(request, customer);
-    await signIn(page, customer);
+  test('TC-20 clearing a saved number is refused with a reason', async ({ page, booker }) => {
+    await signIn(page, booker);
 
     await page.goto(`${WEB}/account`);
     await page.getByLabel(/Mobile number/i).fill('');
@@ -290,10 +279,9 @@ test.describe('Account', () => {
 
   test('TC-21 no field is pre-filled with a value that is not the customer\'s', async ({
     page,
-    request,
+    guestAccount,
   }) => {
-    customer = await createCustomer(request);
-    await signIn(page, customer);
+    await signIn(page, guestAccount);
     await page.goto(`${WEB}/account`);
 
     const phone = page.getByLabel(/Mobile number/i);
@@ -303,9 +291,8 @@ test.describe('Account', () => {
     ).toBe('');
   });
 
-  test('TC-22 date of birth cannot be set to an impossible date', async ({ page, request }) => {
-    customer = await createCustomer(request);
-    await signIn(page, customer);
+  test('TC-22 date of birth cannot be set to an impossible date', async ({ page, guestAccount }) => {
+    await signIn(page, guestAccount);
     await page.goto(`${WEB}/account`);
 
     const dob = page.getByLabel(/Date of birth/i);

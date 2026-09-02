@@ -112,7 +112,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       <div
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-sm p-base sm:bottom-auto sm:right-0 sm:top-0 sm:items-end"
+        className="pointer-events-none fixed inset-x-0 z-50 flex flex-col items-center gap-sm p-base bottom-[calc(var(--reset-layout-bottom-nav-height,0px)+env(safe-area-inset-bottom))] sm:bottom-auto sm:right-0 sm:top-0 sm:items-end"
         // Two regions, because politeness cannot vary per message inside one.
         aria-live="polite"
       >
@@ -123,7 +123,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           ))}
       </div>
       <div
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-sm p-base sm:bottom-auto sm:right-0 sm:top-0 sm:items-end"
+        className="pointer-events-none fixed inset-x-0 z-50 flex flex-col items-center gap-sm p-base bottom-[calc(var(--reset-layout-bottom-nav-height,0px)+env(safe-area-inset-bottom))] sm:bottom-auto sm:right-0 sm:top-0 sm:items-end"
         aria-live="assertive"
         role="alert"
       >

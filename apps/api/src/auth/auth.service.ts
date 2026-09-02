@@ -4,6 +4,7 @@ import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 
 import { AppError } from '../common/errors.js';
+import { BookingLifecycleService } from '../booking/booking-lifecycle.service.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { FirebaseTokenVerifier } from './firebase-token.verifier.js';
 import { TokenService } from './token.service.js';
@@ -22,6 +23,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
     private readonly firebase: FirebaseTokenVerifier,
+    private readonly lifecycle: BookingLifecycleService,
   ) {}
 
   /**
@@ -271,6 +273,40 @@ export class AuthService {
    */
   async requestDeletion(userId: string): Promise<{ scheduledFor: string }> {
     const purgeAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    /**
+     * Release the slots before releasing the account.
+     *
+     * Deleting an account left its upcoming bookings CONFIRMED and holding stations, for
+     * ever. Nobody could be told, because the phone number had just been cleared, and
+     * nobody could turn up, because the account was gone — but the engine still counted
+     * them, so real customers were told a time was taken by someone who no longer existed.
+     * Live data had thirty-seven of them against one genuine booking.
+     *
+     * Cancelled before the details are cleared, so the cancellation notice can still reach
+     * a phone that is about to be erased.
+     */
+    const upcoming = await this.prisma.booking.findMany({
+      where: {
+        userId,
+        status: { in: ['HELD', 'CONFIRMED'] },
+        startsAt: { gte: new Date() },
+      },
+      select: { id: true },
+    });
+
+    for (const booking of upcoming) {
+      await this.lifecycle
+        .transition(booking.id, 'CANCELLED', 'SYSTEM', null, 'Account deleted')
+        .catch((error: unknown) => {
+          // One stubborn booking must not stop the deletion the customer asked for.
+          this.logger.warn(`Could not cancel ${booking.id} during deletion: ${String(error)}`);
+        });
+    }
+
+    if (upcoming.length > 0) {
+      this.logger.log(`Released ${upcoming.length} slot(s) held by deleted account ${userId}`);
+    }
 
     /**
      * The details go now; the row stays for the records that point at it.

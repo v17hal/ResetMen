@@ -1,0 +1,18 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "https://admin.resetmen.in",
+      "localStorage": [
+        {
+          "name": "reset.admin.auth",
+          "value": "{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjOGQwNGE1YS0xYzVmLTQyNDctYTg3MS01ZDliNzUwOTk3NTMiLCJhdWQiOiJhZG1pbiIsInJvbGUiOiJPV05FUiIsInN0b3JlSWQiOm51bGwsImV4cCI6MTc4ODMyOTY5NywianRpIjoiaEdUSEVRT2JramtqVkliZyJ9.09p1z_AHYgh8XBhLSUYXsyaEL_UrYHQeSDK9ZpCwMg4\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjOGQwNGE1YS0xYzVmLTQyNDctYTg3MS01ZDliNzUwOTk3NTMiLCJhdWQiOiJhZG1pbiIsInJvbGUiOiJPV05FUiIsInN0b3JlSWQiOm51bGwsImV4cCI6MTc5MDkyMDc5NywianRpIjoidmNuYlBaQUtFYkxXYlkxdiJ9.HtFLdbifT_Z-iIpVVbzMo-jupcvq_5JlJ_ihsJ5GVMI\"}"
+        },
+        {
+          "name": "reset.admin.session",
+          "value": "{\"id\":\"c8d04a5a-1c5f-4247-a871-5d9b75099753\",\"name\":\"admin\",\"email\":\"admin@resetmen.in\",\"role\":\"OWNER\"}"
+        }
+      ]
+    }
+  ]
+}

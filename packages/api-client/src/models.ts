@@ -3,6 +3,8 @@ import type {
   BookingStatus,
   PaymentStatus,
   ProductOrderStatus,
+  RewardType,
+  ScratchTrigger,
   Slot,
 } from '@reset/types';
 
@@ -199,6 +201,99 @@ export interface AdminAddonGroupRow {
   isActive: boolean;
   options: AdminAddonOptionRow[];
   services: Array<{ service: { id: string; name: string } }>;
+}
+
+/**
+ * A scratch campaign as the admin list returns it, prizes and all.
+ *
+ * `stockRemaining` is computed by the server rather than subtracted here, and `stockUsed`
+ * is why a prize table is edited in place: reducing a prize's stock below what has already
+ * been won is refused, and recreating the row would lose the count that refusal depends on.
+ */
+export interface AdminCampaignReward {
+  id: string;
+  campaignId: string;
+  label: string;
+  rewardType: RewardType;
+  rewardValue: number;
+  weight: number;
+  stockTotal: number | null;
+  stockUsed: number;
+  stockRemaining: number | null;
+  validityDays: number;
+  isActive: boolean;
+}
+
+export interface AdminCampaignRow {
+  id: string;
+  name: string;
+  trigger: ScratchTrigger;
+  triggerValue: number | null;
+  isActive: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  cardsIssued: number;
+  rewards: AdminCampaignReward[];
+}
+
+/**
+ * One customer, in full.
+ *
+ * The counters live under `stats` rather than on the row itself, which is why this is its
+ * own interface: the endpoint has never returned a `CustomerSummary`, and typing it as one
+ * meant `lifetimeValuePaise` read as a number and arrived undefined.
+ */
+export interface AdminCustomerDetail {
+  id: string;
+  phone: string | null;
+  name: string | null;
+  email: string | null;
+  gender: string | null;
+  dateOfBirth: string | null;
+  preferredSegment: string | null;
+  isBlocked: boolean;
+  blockedReason: string | null;
+  createdAt: string;
+  lastLoginAt: string | null;
+  stats: {
+    completedVisits: number;
+    lifetimeValuePaise: number;
+    noShowCount: number;
+    currentStreak: number;
+    bestStreak: number;
+    totalVisits: number;
+  };
+  bookings: Array<{
+    id: string;
+    publicId: string;
+    status: BookingStatus;
+    serviceName: string;
+    startsAt: string;
+    payablePaise: number;
+    addons: string[];
+  }>;
+  rewards: Array<{
+    id: string;
+    label: string;
+    source: string;
+    status: 'AVAILABLE' | 'USED' | 'EXPIRED' | 'REVOKED';
+    validTill: string;
+  }>;
+}
+
+/**
+ * A one-off closure. The whole store when `stationId` is null, otherwise one station.
+ *
+ * The list endpoint only returns closures that have not finished yet — a shop closed last
+ * Diwali is history, not something staff need to scroll past.
+ */
+export interface AdminBlackoutRow {
+  id: string;
+  stationId: string | null;
+  startsAt: string;
+  endsAt: string;
+  reason: string | null;
+  station: { name: string } | null;
 }
 
 // ── Availability — apps/api/src/availability/availability.service.ts ─────────

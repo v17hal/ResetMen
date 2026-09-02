@@ -8,6 +8,15 @@
  */
 
 /**
+ * The store's timezone.
+ *
+ * Most screens read it off a response that happens to carry it. The ones that fetch nothing
+ * carrying it — closures, campaign windows — use this. The store is in Indore, and a date
+ * typed as "the 14th" has to mean the 14th there whatever the tablet is set to.
+ */
+export const STORE_TIMEZONE = 'Asia/Kolkata';
+
+/**
  * The UTC offset a timezone is at on a given instant, as `+05:30`.
  *
  * Read from `Intl` rather than hard-coded, so the platform stays correct if it is ever

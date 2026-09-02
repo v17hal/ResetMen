@@ -1,15 +1,19 @@
 'use client';
 
+import type { AdminBlackoutRow } from '@reset/api-client';
 import {
   Badge,
   Button,
   Card,
   Checkbox,
+  ConfirmDialog,
   DataTable,
   Dialog,
   ErrorState,
   Input,
+  Select,
   SkeletonList,
+  formatDateTime,
   useToast,
 } from '@reset/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -19,8 +23,9 @@ import { AllocationRules } from '@/components/allocation-rules';
 import { errorMessage } from '@/lib/auth';
 import { adminClient } from '@/lib/client';
 import { keys, useServices, useStations } from '@/lib/queries';
+import { STORE_TIMEZONE, localDateIn, localInputToIso } from '@/lib/time';
 
-type Tab = 'stations' | 'rules' | 'hours' | 'settings';
+type Tab = 'stations' | 'rules' | 'hours' | 'closures' | 'settings';
 
 export default function CapacityPage() {
   const [tab, setTab] = useState<Tab>('stations');
@@ -40,6 +45,7 @@ export default function CapacityPage() {
             ['stations', 'Stations'],
             ['rules', 'Allocation rules'],
             ['hours', 'Opening hours'],
+            ['closures', 'Closures'],
             ['settings', 'Booking settings'],
           ] as const
         ).map(([id, label]) => (
@@ -62,6 +68,8 @@ export default function CapacityPage() {
         <AllocationRules />
       ) : tab === 'hours' ? (
         <OpeningHours />
+      ) : tab === 'closures' ? (
+        <Closures />
       ) : (
         <BookingSettings />
       )}
@@ -525,6 +533,299 @@ const SETTINGS: ReadonlyArray<{
   },
 ];
 
+// ── Closures ────────────────────────────────────────────────────────────────
+
+/**
+ * Holidays, half-days and a station out of action.
+ *
+ * The API has always had these and no screen has ever created one, while Booking settings
+ * told staff to go and set them "from the timeline" — which draws them and cannot make one.
+ * So the only way to close the shop for a day was to not have it in the database at all.
+ *
+ * Only closures that have not finished yet are listed. One that ended last month is history
+ * and nothing on this screen can act on it.
+ */
+function Closures() {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const [removing, setRemoving] = useState<AdminBlackoutRow | null>(null);
+
+  const blackouts = useQuery({
+    queryKey: keys.blackouts,
+    queryFn: () => adminClient().capacity.blackouts(),
+  });
+
+  const remove = useMutation({
+    mutationFn: (blackout: AdminBlackoutRow) =>
+      adminClient().capacity.deleteBlackout(blackout.id),
+    onSuccess: () => {
+      toast.success('Closure lifted — those times can be booked again.');
+      setRemoving(null);
+      void queryClient.invalidateQueries({ queryKey: keys.blackouts });
+    },
+    onError: (caught) => toast.error(errorMessage(caught)),
+  });
+
+  if (blackouts.isError) {
+    return (
+      <ErrorState
+        description={errorMessage(blackouts.error)}
+        onRetry={() => void blackouts.refetch()}
+      />
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-base">
+      <Card className="text-body-sm text-text-muted">
+        A closure takes times off the app. Close the whole store for a holiday, or one station
+        while a chair is being repaired. Bookings already taken inside the window are not
+        touched — the store refuses the closure and names them instead, so nobody is stranded
+        by a change made after they booked.
+      </Card>
+
+      <div className="flex justify-end">
+        <Button onClick={() => setAdding(true)}>+ Add closure</Button>
+      </div>
+
+      <DataTable
+        loading={blackouts.isPending}
+        rows={blackouts.data ?? []}
+        rowKey={(row) => row.id}
+        empty={{
+          title: 'Nothing closed',
+          description: 'The store is open to its normal hours for the whole booking window.',
+        }}
+        columns={[
+          {
+            key: 'when',
+            header: 'When',
+            cell: (row) => (
+              <div className="flex flex-col">
+                <span className="font-medium">{formatDateTime(row.startsAt, STORE_TIMEZONE)}</span>
+                <span className="text-caption text-text-muted">
+                  until {formatDateTime(row.endsAt, STORE_TIMEZONE)}
+                </span>
+              </div>
+            ),
+          },
+          {
+            key: 'what',
+            header: 'Closed',
+            cell: (row) =>
+              row.stationId === null ? (
+                <Badge tone="danger">Whole store</Badge>
+              ) : (
+                <Badge>{row.station?.name ?? 'One station'}</Badge>
+              ),
+          },
+          {
+            key: 'reason',
+            header: 'Reason',
+            hideOnMobile: true,
+            cell: (row) => row.reason ?? <span className="text-text-muted">—</span>,
+          },
+          {
+            key: 'actions',
+            header: '',
+            align: 'right',
+            cell: (row) => (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-danger"
+                onClick={() => setRemoving(row)}
+              >
+                Lift
+              </Button>
+            ),
+          },
+        ]}
+      />
+
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(open) => {
+          if (!open) setRemoving(null);
+        }}
+        title="Lift this closure?"
+        description="Those times go back on sale in the app immediately."
+        confirmLabel="Yes, lift it"
+        cancelLabel="Leave it closed"
+        destructive
+        loading={remove.isPending}
+        onConfirm={() => removing !== null && remove.mutate(removing)}
+      />
+
+      <ClosureDialog open={adding} onClose={() => setAdding(false)} />
+    </div>
+  );
+}
+
+function ClosureDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const stations = useStations();
+
+  const [form, setForm] = useState({
+    wholeDay: true,
+    date: '',
+    from: '',
+    to: '',
+    stationId: '',
+    reason: '',
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setForm({
+      wholeDay: true,
+      date: localDateIn(STORE_TIMEZONE),
+      from: '',
+      to: '',
+      stationId: '',
+      reason: '',
+    });
+    setError(null);
+  }, [open]);
+
+  const save = useMutation({
+    mutationFn: () => {
+      /**
+       * A whole day is midnight to the next midnight, not 00:00–23:59.
+       *
+       * The window is compared as start < end and end > start, so an appointment running to
+       * 23:45 has to fall inside it. Stopping a minute short would leave the last slot of
+       * the day quietly bookable on a day the store is shut.
+       */
+      const { startsAt, endsAt } = form.wholeDay
+        ? {
+            startsAt: localInputToIso(`${form.date}T00:00`, STORE_TIMEZONE),
+            endsAt: localInputToIso(`${nextDay(form.date)}T00:00`, STORE_TIMEZONE),
+          }
+        : {
+            startsAt: localInputToIso(form.from, STORE_TIMEZONE),
+            endsAt: localInputToIso(form.to, STORE_TIMEZONE),
+          };
+
+      return adminClient().capacity.createBlackout({
+        stationId: form.stationId === '' ? null : form.stationId,
+        startsAt,
+        endsAt,
+        reason: form.reason.trim() === '' ? undefined : form.reason.trim(),
+      });
+    },
+    onSuccess: () => {
+      toast.success('Closed. Those times are off the app.');
+      void queryClient.invalidateQueries({ queryKey: keys.blackouts });
+      onClose();
+    },
+    // The store refuses when bookings fall inside the window and says how many. Shown as it
+    // arrives — a count this screen does not have and could not work out.
+    onError: (caught) => setError(errorMessage(caught)),
+  });
+
+  const canSave = form.wholeDay
+    ? form.date !== ''
+    : form.from !== '' && form.to !== '' && form.to > form.from;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      variant="sheet"
+      title="Add a closure"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={save.isPending} disabled={!canSave} onClick={() => save.mutate()}>
+            Close these times
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-base">
+        <Checkbox
+          label="Closed for the whole day"
+          hint="Turn off for a half-day, or a couple of hours."
+          checked={form.wholeDay}
+          onChange={(event) => setForm((c) => ({ ...c, wholeDay: event.target.checked }))}
+        />
+
+        {form.wholeDay ? (
+          <Input
+            label="Date"
+            type="date"
+            required
+            value={form.date}
+            min={localDateIn(STORE_TIMEZONE)}
+            onChange={(event) => setForm((c) => ({ ...c, date: event.target.value }))}
+          />
+        ) : (
+          <div className="flex flex-col gap-base sm:flex-row">
+            <Input
+              label="From"
+              type="datetime-local"
+              required
+              value={form.from}
+              onChange={(event) => setForm((c) => ({ ...c, from: event.target.value }))}
+              containerClassName="flex-1"
+            />
+            <Input
+              label="Until"
+              type="datetime-local"
+              required
+              value={form.to}
+              onChange={(event) => setForm((c) => ({ ...c, to: event.target.value }))}
+              containerClassName="flex-1"
+              error={
+                form.from !== '' && form.to !== '' && form.to <= form.from
+                  ? 'Has to be after the start.'
+                  : undefined
+              }
+            />
+          </div>
+        )}
+
+        <Select
+          label="What is closed"
+          value={form.stationId}
+          onChange={(event) => setForm((c) => ({ ...c, stationId: event.target.value }))}
+        >
+          <option value="">The whole store</option>
+          {(stations.data ?? []).map((station) => (
+            <option key={station.id} value={station.id}>
+              {station.name} only
+            </option>
+          ))}
+        </Select>
+
+        <Input
+          label="Reason"
+          value={form.reason}
+          onChange={(event) => setForm((c) => ({ ...c, reason: event.target.value }))}
+          hint="For the staff who look at this later. Customers never see it."
+          error={error}
+        />
+      </div>
+    </Dialog>
+  );
+}
+
+/** The calendar day after a `YYYY-MM-DD`, computed in UTC so no timezone can shift it. */
+function nextDay(date: string): string {
+  const at = new Date(`${date}T00:00:00Z`);
+  at.setUTCDate(at.getUTCDate() + 1);
+  return at.toISOString().slice(0, 10);
+}
+
+// ── Booking settings ────────────────────────────────────────────────────────
+
 function BookingSettings() {
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -592,7 +893,7 @@ function BookingSettings() {
         </Button>
       </div>
 
-      <Badge tone="neutral">Blackouts and one-off closures are set from the timeline.</Badge>
+      <Badge tone="neutral">Holidays and one-off closures are set under Closures.</Badge>
     </div>
   );
 }

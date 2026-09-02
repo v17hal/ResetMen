@@ -1,10 +1,11 @@
 'use client';
 
-import type { RewardType } from '@reset/api-client';
+import type { AdminCampaignRow, RewardType, ScratchTrigger } from '@reset/api-client';
 import {
   Badge,
   Button,
   Card,
+  Checkbox,
   ConfirmDialog,
   DataTable,
   Dialog,
@@ -14,6 +15,7 @@ import {
   Textarea,
   formatMoney,
   formatPercent,
+  paiseToRupees,
   rupeesToPaise,
   useToast,
 } from '@reset/ui';
@@ -23,6 +25,21 @@ import { useEffect, useState } from 'react';
 import { errorMessage } from '@/lib/auth';
 import { adminClient } from '@/lib/client';
 import { keys } from '@/lib/queries';
+import { STORE_TIMEZONE, isoToLocalInput, localInputToIso } from '@/lib/time';
+
+const TRIGGERS: ReadonlyArray<{ value: ScratchTrigger; label: string; hint: string }> = [
+  { value: 'ON_CHECKIN', label: 'Every check-in', hint: 'A card each time someone arrives.' },
+  {
+    value: 'ON_NTH_BOOKING',
+    label: 'On their nth booking',
+    hint: 'One card, at the booking number set below.',
+  },
+  {
+    value: 'ON_STREAK_COMPLETE',
+    label: 'When a streak completes',
+    hint: 'A card when a streak rule pays out.',
+  },
+];
 
 const REWARD_TYPES: ReadonlyArray<{ value: RewardType; label: string; unit: string }> = [
   { value: 'PERCENT_OFF', label: 'Percent off', unit: '%' },
@@ -321,20 +338,33 @@ function StreakRules() {
 
 // ── Scratch campaigns ───────────────────────────────────────────────────────
 
-interface CampaignRow {
-  id: string;
-  name: string;
-  trigger: string;
-  isActive: boolean;
-  rewards?: Array<{ label: string; weight: number; stockTotal: number | null; stockUsed: number }>;
-}
-
 function Campaigns() {
-  const [statsFor, setStatsFor] = useState<CampaignRow | null>(null);
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const [statsFor, setStatsFor] = useState<AdminCampaignRow | null>(null);
+  const [editing, setEditing] = useState<AdminCampaignRow | 'new' | null>(null);
+  const [stopping, setStopping] = useState<AdminCampaignRow | null>(null);
 
   const campaigns = useQuery({
     queryKey: keys.campaigns,
-    queryFn: () => adminClient().rewards.campaigns() as Promise<CampaignRow[]>,
+    queryFn: () => adminClient().rewards.campaigns(),
+  });
+
+  /**
+   * Stopping a campaign.
+   *
+   * The route deactivates rather than deletes, so the row stays here with its figures. Cards
+   * already issued point at it, and a card whose campaign has vanished cannot be scratched
+   * or explained to the person holding it.
+   */
+  const stop = useMutation({
+    mutationFn: (campaign: AdminCampaignRow) => adminClient().rewards.stopCampaign(campaign.id),
+    onSuccess: (_result, campaign) => {
+      toast.success(`${campaign.name} stopped. No new cards will be issued.`);
+      setStopping(null);
+      void queryClient.invalidateQueries({ queryKey: keys.campaigns });
+    },
+    onError: (caught) => toast.error(errorMessage(caught)),
   });
 
   if (campaigns.isError) {
@@ -351,6 +381,10 @@ function Campaigns() {
         customer keeps their card.
       </Card>
 
+      <div className="flex justify-end">
+        <Button onClick={() => setEditing('new')}>+ New campaign</Button>
+      </div>
+
       <DataTable
         loading={campaigns.isPending}
         rows={campaigns.data ?? []}
@@ -361,11 +395,33 @@ function Campaigns() {
           description: 'Without one, no scratch cards are issued.',
         }}
         columns={[
-          { key: 'name', header: 'Campaign', cell: (row) => row.name },
+          {
+            key: 'name',
+            header: 'Campaign',
+            cell: (row) => (
+              <div className="flex flex-col">
+                <span className="font-medium">{row.name}</span>
+                <span className="text-caption text-text-muted">
+                  {row.rewards.filter((reward) => reward.isActive).length} prize
+                  {row.rewards.filter((reward) => reward.isActive).length === 1 ? '' : 's'}
+                </span>
+              </div>
+            ),
+          },
           {
             key: 'trigger',
             header: 'Issued on',
-            cell: (row) => row.trigger.toLowerCase().replace(/_/g, ' '),
+            cell: (row) =>
+              row.trigger === 'ON_NTH_BOOKING'
+                ? `Booking number ${row.triggerValue ?? '?'}`
+                : (TRIGGERS.find((t) => t.value === row.trigger)?.label ?? row.trigger),
+          },
+          {
+            key: 'issued',
+            header: 'Cards issued',
+            align: 'right',
+            hideOnMobile: true,
+            cell: (row) => row.cardsIssued,
           },
           {
             key: 'active',
@@ -373,12 +429,444 @@ function Campaigns() {
             align: 'right',
             cell: (row) => (row.isActive ? <Badge tone="success">Running</Badge> : <Badge>Off</Badge>),
           },
+          {
+            key: 'actions',
+            header: '',
+            align: 'right',
+            cell: (row) => (
+              <div className="flex justify-end gap-xs">
+                <Button variant="ghost" size="sm" onClick={() => setStatsFor(row)}>
+                  Figures
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => setEditing(row)}>
+                  Edit
+                </Button>
+                {row.isActive && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-danger"
+                    onClick={() => setStopping(row)}
+                  >
+                    Stop
+                  </Button>
+                )}
+              </div>
+            ),
+          },
         ]}
       />
 
+      <ConfirmDialog
+        open={stopping !== null}
+        onOpenChange={(open) => {
+          if (!open) setStopping(null);
+        }}
+        title="Stop this campaign?"
+        description={
+          stopping === null
+            ? undefined
+            : `No new cards will be issued for ${stopping.name}. Cards already in wallets stay ` +
+              'there and can still be scratched. It stays in this list and can be turned back ' +
+              'on by editing it.'
+        }
+        confirmLabel="Yes, stop it"
+        cancelLabel="Keep it running"
+        destructive
+        loading={stop.isPending}
+        onConfirm={() => stopping !== null && stop.mutate(stopping)}
+      />
+
+      <CampaignDialog campaign={editing} onClose={() => setEditing(null)} />
       <CampaignStats campaign={statsFor} onClose={() => setStatsFor(null)} />
     </div>
   );
+}
+
+/** One row of the prize table while it is being edited. Strings, because inputs hold strings. */
+interface PrizeDraft {
+  label: string;
+  rewardType: RewardType;
+  rewardValue: string;
+  weight: string;
+  /** Empty means unlimited, which is what the API calls `null`. */
+  stock: string;
+  validityDays: string;
+  isActive: boolean;
+  /** Already won this many times. Read-only, and the floor the stock cannot go below. */
+  stockUsed: number;
+}
+
+const BLANK_PRIZE: PrizeDraft = {
+  label: '',
+  rewardType: 'PERCENT_OFF',
+  rewardValue: '10',
+  weight: '1',
+  stock: '',
+  validityDays: '30',
+  isActive: true,
+  stockUsed: 0,
+};
+
+/**
+ * Building and editing a scratch campaign.
+ *
+ * The whole thing was read-only: campaigns could be looked at and costed, and the only way
+ * to make one was to write rows into the database by hand. So the prizes customers could win
+ * were whatever had been seeded, for ever.
+ *
+ * Prizes are matched by label when saving, and the server updates them in place so their
+ * win counts survive an edit. Renaming a prize therefore creates a new one and retires the
+ * old — worth knowing, and said on the form.
+ */
+function CampaignDialog({
+  campaign,
+  onClose,
+}: {
+  campaign: AdminCampaignRow | 'new' | null;
+  onClose: () => void;
+}) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const isNew = campaign === 'new';
+  const existing = campaign === 'new' || campaign === null ? null : campaign;
+
+  const [form, setForm] = useState({
+    name: '',
+    trigger: 'ON_CHECKIN' as ScratchTrigger,
+    triggerValue: '5',
+    isActive: true,
+    startsAt: '',
+    endsAt: '',
+  });
+  const [prizes, setPrizes] = useState<PrizeDraft[]>([BLANK_PRIZE]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setForm({
+      name: existing?.name ?? '',
+      trigger: existing?.trigger ?? 'ON_CHECKIN',
+      triggerValue: String(existing?.triggerValue ?? 5),
+      isActive: existing?.isActive ?? true,
+      startsAt: existing?.startsAt == null ? '' : isoToLocalInput(existing.startsAt, STORE_TIMEZONE),
+      endsAt: existing?.endsAt == null ? '' : isoToLocalInput(existing.endsAt, STORE_TIMEZONE),
+    });
+    setPrizes(
+      existing === null || existing.rewards.length === 0
+        ? [BLANK_PRIZE]
+        : existing.rewards.map((reward) => ({
+            label: reward.label,
+            rewardType: reward.rewardType,
+            // Money prizes are stored in paise and typed in rupees; percentages are neither.
+            rewardValue: String(
+              isMoney(reward.rewardType) ? paiseToRupees(reward.rewardValue) : reward.rewardValue,
+            ),
+            weight: String(reward.weight),
+            stock: reward.stockTotal === null ? '' : String(reward.stockTotal),
+            validityDays: String(reward.validityDays),
+            isActive: reward.isActive,
+            stockUsed: reward.stockUsed,
+          })),
+    );
+    setError(null);
+  }, [existing, isNew]);
+
+  const save = useMutation({
+    mutationFn: () => {
+      const input = {
+        name: form.name.trim(),
+        trigger: form.trigger,
+        triggerValue: form.trigger === 'ON_NTH_BOOKING' ? Number(form.triggerValue) : null,
+        isActive: form.isActive,
+        startsAt: form.startsAt === '' ? null : localInputToIso(form.startsAt, STORE_TIMEZONE),
+        endsAt: form.endsAt === '' ? null : localInputToIso(form.endsAt, STORE_TIMEZONE),
+        rewards: prizes.map((prize) => ({
+          label: prize.label.trim(),
+          rewardType: prize.rewardType,
+          rewardValue: isMoney(prize.rewardType)
+            ? rupeesToPaise(Number(prize.rewardValue))
+            : Number(prize.rewardValue),
+          weight: Number(prize.weight),
+          stockTotal: prize.stock === '' ? null : Number(prize.stock),
+          validityDays: Number(prize.validityDays),
+          isActive: prize.isActive,
+        })),
+      };
+
+      return isNew
+        ? adminClient().rewards.createCampaign(input)
+        : adminClient().rewards.updateCampaign(existing!.id, input);
+    },
+    onSuccess: () => {
+      toast.success(isNew ? 'Campaign created.' : 'Saved.');
+      void queryClient.invalidateQueries({ queryKey: keys.campaigns });
+      onClose();
+    },
+    onError: (caught) => setError(errorMessage(caught)),
+  });
+
+  if (campaign === null) return null;
+
+  const drawable = prizes.filter((prize) => prize.isActive && Number(prize.weight) > 0);
+  const totalWeight = drawable.reduce((sum, prize) => sum + Number(prize.weight), 0);
+
+  const problem =
+    form.name.trim() === ''
+      ? 'The campaign needs a name.'
+      : prizes.some((prize) => prize.label.trim() === '')
+        ? 'Every prize needs a label — it is what the customer reads on the card.'
+        : new Set(prizes.map((p) => p.label.trim().toLowerCase())).size !== prizes.length
+          ? 'Two prizes share a label. The server matches them by label, so they would collide.'
+          : drawable.length === 0
+            ? 'At least one prize has to be on with a weight above zero, or nothing can be won.'
+            : form.trigger === 'ON_NTH_BOOKING' && Number(form.triggerValue) < 1
+              ? 'Say which booking number issues the card.'
+              : prizes.find((prize) => prize.stock !== '' && Number(prize.stock) < prize.stockUsed)
+                ? 'A prize cannot be capped below the number already won.'
+                : null;
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      variant="sheet"
+      title={isNew ? 'New campaign' : existing!.name}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            loading={save.isPending}
+            disabled={problem !== null}
+            onClick={() => save.mutate()}
+          >
+            {isNew ? 'Create' : 'Save'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-lg">
+        <div className="flex flex-col gap-base">
+          <Input
+            label="Name"
+            required
+            value={form.name}
+            onChange={(event) => setForm((c) => ({ ...c, name: event.target.value }))}
+            hint="For staff. Customers see the prize, not the campaign."
+          />
+
+          <Select
+            label="Issue a card"
+            value={form.trigger}
+            onChange={(event) =>
+              setForm((c) => ({ ...c, trigger: event.target.value as ScratchTrigger }))
+            }
+            hint={TRIGGERS.find((t) => t.value === form.trigger)?.hint}
+          >
+            {TRIGGERS.map((trigger) => (
+              <option key={trigger.value} value={trigger.value}>
+                {trigger.label}
+              </option>
+            ))}
+          </Select>
+
+          {form.trigger === 'ON_NTH_BOOKING' && (
+            <Input
+              label="Which booking"
+              type="number"
+              min={1}
+              required
+              value={form.triggerValue}
+              onChange={(event) => setForm((c) => ({ ...c, triggerValue: event.target.value }))}
+              hint="5 means the card is issued on their fifth booking."
+            />
+          )}
+
+          <div className="flex flex-col gap-base sm:flex-row">
+            <Input
+              label="Starts (optional)"
+              type="datetime-local"
+              value={form.startsAt}
+              onChange={(event) => setForm((c) => ({ ...c, startsAt: event.target.value }))}
+              containerClassName="flex-1"
+              hint="Leave empty to start as soon as it is on."
+            />
+            <Input
+              label="Ends (optional)"
+              type="datetime-local"
+              value={form.endsAt}
+              onChange={(event) => setForm((c) => ({ ...c, endsAt: event.target.value }))}
+              containerClassName="flex-1"
+              hint="Leave empty to run until stopped."
+            />
+          </div>
+
+          <Checkbox
+            label="Running"
+            hint="Off means no cards are issued. Cards already in wallets are unaffected."
+            checked={form.isActive}
+            onChange={(event) => setForm((c) => ({ ...c, isActive: event.target.checked }))}
+          />
+        </div>
+
+        <section className="flex flex-col gap-base border-t border-border pt-base">
+          <div>
+            <h3 className="text-body-sm font-medium">Prizes</h3>
+            <p className="text-caption text-text-muted">
+              Weight is relative, not a percentage — a prize weighted 1 against one weighted 9
+              is drawn a tenth as often. The chance shown is worked out from the weights below.
+            </p>
+          </div>
+
+          {prizes.map((prize, index) => (
+            <Card key={index} className="flex flex-col gap-sm">
+              <div className="flex items-start justify-between gap-sm">
+                <span className="text-caption font-medium text-text-muted">
+                  Prize {index + 1}
+                  {prize.isActive && Number(prize.weight) > 0 && totalWeight > 0 && (
+                    <>
+                      {' · '}
+                      {formatPercent((Number(prize.weight) / totalWeight) * 100)} of draws
+                    </>
+                  )}
+                  {prize.stockUsed > 0 && ` · won ${prize.stockUsed} time${prize.stockUsed === 1 ? '' : 's'}`}
+                </span>
+
+                {prizes.length > 1 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-danger"
+                    onClick={() =>
+                      setPrizes((current) => current.filter((_, at) => at !== index))
+                    }
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+
+              <Input
+                label="Label"
+                required
+                value={prize.label}
+                onChange={(event) => updatePrize(setPrizes, index, { label: event.target.value })}
+                hint={
+                  prize.stockUsed > 0
+                    ? 'Renaming this retires it and starts a new prize — the win count stays with the old name.'
+                    : 'What the customer reads when they scratch. “20% off your next visit”.'
+                }
+              />
+
+              <div className="flex flex-col gap-base sm:flex-row">
+                <Select
+                  label="Prize"
+                  value={prize.rewardType}
+                  onChange={(event) =>
+                    updatePrize(setPrizes, index, {
+                      rewardType: event.target.value as RewardType,
+                    })
+                  }
+                  containerClassName="flex-1"
+                >
+                  {REWARD_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </Select>
+                <Input
+                  label={`Value (${REWARD_TYPES.find((t) => t.value === prize.rewardType)?.unit ?? ''})`}
+                  type="number"
+                  min={0}
+                  value={prize.rewardValue}
+                  onChange={(event) =>
+                    updatePrize(setPrizes, index, { rewardValue: event.target.value })
+                  }
+                  containerClassName="flex-1"
+                />
+              </div>
+
+              <div className="flex flex-col gap-base sm:flex-row">
+                <Input
+                  label="Weight"
+                  type="number"
+                  min={0}
+                  value={prize.weight}
+                  onChange={(event) => updatePrize(setPrizes, index, { weight: event.target.value })}
+                  containerClassName="flex-1"
+                />
+                <Input
+                  label="Stock"
+                  type="number"
+                  min={prize.stockUsed}
+                  value={prize.stock}
+                  onChange={(event) => updatePrize(setPrizes, index, { stock: event.target.value })}
+                  containerClassName="flex-1"
+                  hint="Empty for unlimited."
+                  error={
+                    prize.stock !== '' && Number(prize.stock) < prize.stockUsed
+                      ? `Already won ${prize.stockUsed} times.`
+                      : undefined
+                  }
+                />
+                <Input
+                  label="Valid for (days)"
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={prize.validityDays}
+                  onChange={(event) =>
+                    updatePrize(setPrizes, index, { validityDays: event.target.value })
+                  }
+                  containerClassName="flex-1"
+                />
+              </div>
+
+              <Checkbox
+                label="In the draw"
+                checked={prize.isActive}
+                onChange={(event) =>
+                  updatePrize(setPrizes, index, { isActive: event.target.checked })
+                }
+              />
+            </Card>
+          ))}
+
+          <div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setPrizes((current) => [...current, { ...BLANK_PRIZE }])}
+            >
+              + Add prize
+            </Button>
+          </div>
+        </section>
+
+        {problem !== null && <p className="text-caption text-danger">{problem}</p>}
+        {error !== null && <p className="text-caption text-danger">{error}</p>}
+      </div>
+    </Dialog>
+  );
+}
+
+function updatePrize(
+  setPrizes: (updater: (current: PrizeDraft[]) => PrizeDraft[]) => void,
+  index: number,
+  patch: Partial<PrizeDraft>,
+): void {
+  setPrizes((current) =>
+    current.map((prize, at) => (at === index ? { ...prize, ...patch } : prize)),
+  );
+}
+
+/** Which prize values are money, and therefore typed in rupees and stored in paise. */
+function isMoney(type: RewardType): boolean {
+  return type !== 'PERCENT_OFF';
 }
 
 interface CampaignStatsDto {
@@ -394,7 +882,7 @@ function CampaignStats({
   campaign,
   onClose,
 }: {
-  campaign: CampaignRow | null;
+  campaign: AdminCampaignRow | null;
   onClose: () => void;
 }) {
   const stats = useQuery({

@@ -3,13 +3,16 @@
 import type { CustomerSummary } from '@reset/api-client';
 import {
   Badge,
+  BookingStatusBadge,
   Button,
+  ConfirmDialog,
   DataTable,
   Dialog,
   ErrorState,
   Input,
   Textarea,
   formatDate,
+  formatDateTime,
   formatMoney,
   formatPhone,
   useToast,
@@ -163,11 +166,38 @@ function CustomerDialog({
   const queryClient = useQueryClient();
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [revoking, setRevoking] = useState<{ id: string; label: string } | null>(null);
 
   useEffect(() => {
     setReason('');
     setError(null);
+    setRevoking(null);
   }, [customer]);
+
+  /**
+   * The rest of this customer.
+   *
+   * The list row carries counters and nothing else. Their recent visits and their wallet
+   * come from the detail endpoint, which existed, was typed wrongly, and was called by no
+   * screen — so a staff member looking someone up could see that they had eight visits and
+   * not one of the eight.
+   */
+  const detail = useQuery({
+    queryKey: keys.customer(customer?.id ?? ''),
+    queryFn: () => adminClient().customers.get(customer!.id),
+    enabled: customer !== null,
+  });
+
+  /** Taking back a reward granted by mistake. Audited against whoever did it. */
+  const revoke = useMutation({
+    mutationFn: (reward: { id: string }) => adminClient().rewards.revokeGrant(reward.id),
+    onSuccess: () => {
+      toast.success('Reward revoked. It is out of their wallet.');
+      setRevoking(null);
+      void queryClient.invalidateQueries({ queryKey: keys.customer(customer!.id) });
+    },
+    onError: (caught) => toast.error(errorMessage(caught)),
+  });
 
   const setBlocked = useMutation({
     mutationFn: (blocked: boolean) =>
@@ -224,6 +254,102 @@ function CustomerDialog({
             </dd>
           </div>
         </dl>
+
+        <section className="flex flex-col gap-sm border-t border-border pt-base">
+          <h3 className="text-body-sm font-medium">Recent visits</h3>
+
+          {detail.isPending ? (
+            <p className="text-caption text-text-muted">Loading…</p>
+          ) : detail.isError ? (
+            <p className="text-caption text-danger">{errorMessage(detail.error)}</p>
+          ) : detail.data.bookings.length === 0 ? (
+            <p className="text-caption text-text-muted">They have never booked.</p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-border">
+              {detail.data.bookings.slice(0, 8).map((booking) => (
+                <li key={booking.id} className="flex items-center justify-between gap-sm py-sm">
+                  <div className="flex flex-col">
+                    <span className="text-body-sm font-medium">{booking.serviceName}</span>
+                    <span className="text-caption text-text-muted">
+                      {formatDateTime(booking.startsAt)}
+                      {booking.addons.length > 0 && ` · ${booking.addons.join(', ')}`}
+                    </span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-xs">
+                    <span className="text-body-sm tabular-nums">
+                      {formatMoney(booking.payablePaise)}
+                    </span>
+                    <BookingStatusBadge status={booking.status} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="flex flex-col gap-sm border-t border-border pt-base">
+          <h3 className="text-body-sm font-medium">Wallet</h3>
+          <p className="text-caption text-text-muted">
+            Rewards they have earned or been given. Revoking one is recorded against whoever
+            did it.
+          </p>
+
+          {detail.isPending ? (
+            <p className="text-caption text-text-muted">Loading…</p>
+          ) : detail.isError ? null : detail.data.rewards.length === 0 ? (
+            <p className="text-caption text-text-muted">Nothing in their wallet.</p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-border">
+              {detail.data.rewards.map((reward) => (
+                <li key={reward.id} className="flex items-center justify-between gap-sm py-sm">
+                  <div className="flex flex-col">
+                    <span className="text-body-sm">{reward.label}</span>
+                    <span className="text-caption text-text-muted">
+                      {reward.source === 'MANUAL' ? 'Granted by staff' : 'Earned'} · expires{' '}
+                      {formatDate(reward.validTill)}
+                    </span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-xs">
+                    {reward.status === 'AVAILABLE' ? (
+                      <Badge tone="success">Available</Badge>
+                    ) : (
+                      <Badge>{reward.status.toLowerCase()}</Badge>
+                    )}
+                    {reward.status === 'AVAILABLE' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-danger"
+                        onClick={() => setRevoking({ id: reward.id, label: reward.label })}
+                      >
+                        Revoke
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <ConfirmDialog
+          open={revoking !== null}
+          onOpenChange={(open) => {
+            if (!open) setRevoking(null);
+          }}
+          title="Take this reward back?"
+          description={
+            revoking === null
+              ? undefined
+              : `${revoking.label} disappears from their wallet and cannot be used. There is no ` +
+                'undo — granting it again is a new reward.'
+          }
+          confirmLabel="Yes, revoke it"
+          cancelLabel="Leave it"
+          destructive
+          loading={revoke.isPending}
+          onConfirm={() => revoking !== null && revoke.mutate(revoking)}
+        />
 
         <section className="flex flex-col gap-sm border-t border-border pt-base">
           <h3 className="text-body-sm font-medium">

@@ -37,7 +37,10 @@ import type { HttpClient } from '../http.js';
 import type {
   AdminAddonGroupRow,
   AdminAddonOptionRow,
+  AdminBlackoutRow,
+  AdminCampaignRow,
   AdminCategoryRow,
+  AdminCustomerDetail,
   AdminLoginResponse,
   AdminPaymentRow,
   AdminProductOrderRow,
@@ -254,11 +257,18 @@ export class AdminCatalogResource {
     return this.http.delete(`/admin/catalog/addon-options/${encodeURIComponent(id)}`);
   }
 
-  /** Drag-and-drop ordering. One call for the whole list, not one per moved row. */
+  /**
+   * Ordering. One call for the whole list, not one per moved row.
+   *
+   * The entity names are singular and camel-cased because that is the enum the route
+   * validates against. This signature previously offered plurals and an `addon-options`
+   * that the server has never accepted, so every call it invited would have been rejected
+   * before reaching a handler.
+   */
   reorder(
-    entity: 'segments' | 'categories' | 'services' | 'addon-groups' | 'addon-options',
+    entity: 'segment' | 'category' | 'service' | 'addonGroup',
     items: ReadonlyArray<{ id: string; sortOrder: number }>,
-  ): Promise<void> {
+  ): Promise<{ updated: number }> {
     return this.http.post(`/admin/catalog/reorder/${entity}`, { body: { items } });
   }
 }
@@ -317,10 +327,10 @@ export class AdminCapacityResource {
     return this.http.put('/admin/store-hours', { body: { hours } });
   }
 
-  blackouts(): Promise<unknown[]> {
+  blackouts(): Promise<AdminBlackoutRow[]> {
     return this.http.get('/admin/blackouts');
   }
-  createBlackout(input: BlackoutInput): Promise<unknown> {
+  createBlackout(input: BlackoutInput): Promise<AdminBlackoutRow> {
     return this.http.post('/admin/blackouts', { body: input });
   }
   deleteBlackout(id: string): Promise<void> {
@@ -352,7 +362,15 @@ export class AdminCustomersResource {
     return this.http.get('/admin/customers', { query: { ...params } });
   }
 
-  get(id: string): Promise<CustomerSummary & { bookings: BookingDetail[] }> {
+  /**
+   * One customer, with their recent bookings and their wallet.
+   *
+   * This used to be typed `CustomerSummary & { bookings: BookingDetail[] }`, which the
+   * endpoint has never returned — the counters are nested under `stats`, the bookings are a
+   * reduced shape, and the rewards were not declared at all. Nothing called it, so nothing
+   * caught it.
+   */
+  get(id: string): Promise<AdminCustomerDetail> {
     return this.http.get(`/admin/customers/${encodeURIComponent(id)}`);
   }
 
@@ -402,21 +420,29 @@ export class AdminRewardsResource {
     return this.http.delete(`/admin/rewards/streak-rules/${encodeURIComponent(id)}`);
   }
 
-  async campaigns(): Promise<unknown[]> {
-    const { data } = await this.http.get<{ data: unknown[] }>('/admin/rewards/campaigns');
+  async campaigns(): Promise<AdminCampaignRow[]> {
+    const { data } = await this.http.get<{ data: AdminCampaignRow[] }>(
+      '/admin/rewards/campaigns',
+    );
     return data;
   }
   /** Issued, scratched, cost per card — the numbers that decide whether to keep running it. */
   campaignStats(id: string): Promise<unknown> {
     return this.http.get(`/admin/rewards/campaigns/${encodeURIComponent(id)}/stats`);
   }
-  createCampaign(input: ScratchCampaignInput): Promise<unknown> {
+  createCampaign(input: ScratchCampaignInput): Promise<AdminCampaignRow> {
     return this.http.post('/admin/rewards/campaigns', { body: input });
   }
-  updateCampaign(id: string, input: ScratchCampaignInput): Promise<unknown> {
+  updateCampaign(id: string, input: ScratchCampaignInput): Promise<AdminCampaignRow> {
     return this.http.put(`/admin/rewards/campaigns/${encodeURIComponent(id)}`, { body: input });
   }
-  deleteCampaign(id: string): Promise<void> {
+  /**
+   * Stops a campaign. Named for the verb on the route, not the effect.
+   *
+   * The handler deactivates rather than deletes: cards already issued point at it, and a
+   * card whose campaign has vanished cannot be scratched or explained.
+   */
+  stopCampaign(id: string): Promise<{ deactivated: boolean }> {
     return this.http.delete(`/admin/rewards/campaigns/${encodeURIComponent(id)}`);
   }
 
@@ -424,10 +450,15 @@ export class AdminRewardsResource {
   grant(input: GrantRewardInput): Promise<unknown> {
     return this.http.post('/admin/rewards/grants', { body: input });
   }
-  revokeGrant(id: string, reason?: string): Promise<void> {
-    return this.http.post(`/admin/rewards/grants/${encodeURIComponent(id)}/revoke`, {
-      body: { reason },
-    });
+  /**
+   * Takes a reward back out of someone's wallet. Audited against whoever did it.
+   *
+   * No reason is sent because the route accepts no body — the parameter this used to take
+   * was dropped on the floor by the handler, so asking staff for one would have been asking
+   * them to type into nothing.
+   */
+  revokeGrant(id: string): Promise<unknown> {
+    return this.http.post(`/admin/rewards/grants/${encodeURIComponent(id)}/revoke`);
   }
 }
 

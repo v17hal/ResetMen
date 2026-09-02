@@ -1,10 +1,18 @@
 'use client';
 
-import type { AdminCategoryRow, AdminSegmentRow, AdminServiceRow } from '@reset/api-client';
+import type {
+  AdminAddonGroupRow,
+  AdminAddonOptionRow,
+  AdminCategoryRow,
+  AdminSegmentRow,
+  AdminServiceRow,
+} from '@reset/api-client';
 import {
   Badge,
   Button,
   Card,
+  Checkbox,
+  ConfirmDialog,
   DataTable,
   Dialog,
   ErrorState,
@@ -24,7 +32,15 @@ import { errorMessage } from '@/lib/auth';
 import { adminClient } from '@/lib/client';
 import { keys } from '@/lib/queries';
 
-type Tab = 'services' | 'categories' | 'segments';
+type Tab = 'services' | 'categories' | 'segments' | 'addons';
+
+/** Labels are written out rather than derived, because "Addons" is not how it is spelt. */
+const TABS: ReadonlyArray<{ id: Tab; label: string }> = [
+  { id: 'services', label: 'Services' },
+  { id: 'categories', label: 'Categories' },
+  { id: 'segments', label: 'Segments' },
+  { id: 'addons', label: 'Add-ons' },
+];
 
 export default function CatalogPage() {
   const [tab, setTab] = useState<Tab>('services');
@@ -39,7 +55,7 @@ export default function CatalogPage() {
       </header>
 
       <div role="tablist" className="flex flex-wrap gap-xs">
-        {(['services', 'categories', 'segments'] as const).map((id) => (
+        {TABS.map(({ id, label }) => (
           <Button
             key={id}
             role="tab"
@@ -48,12 +64,20 @@ export default function CatalogPage() {
             size="sm"
             onClick={() => setTab(id)}
           >
-            {id[0]!.toUpperCase() + id.slice(1)}
+            {label}
           </Button>
         ))}
       </div>
 
-      {tab === 'services' ? <Services /> : tab === 'categories' ? <Categories /> : <Segments />}
+      {tab === 'services' ? (
+        <Services />
+      ) : tab === 'categories' ? (
+        <Categories />
+      ) : tab === 'segments' ? (
+        <Segments />
+      ) : (
+        <Addons />
+      )}
     </div>
   );
 }
@@ -64,10 +88,31 @@ function Services() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<AdminServiceRow | 'new' | null>(null);
+  const [deleting, setDeleting] = useState<AdminServiceRow | null>(null);
 
   const services = useQuery({
     queryKey: keys.services,
     queryFn: () => adminClient().catalog.services(),
+  });
+
+  const rows = services.data ?? [];
+  const move = useReorder('service', rows, keys.services);
+
+  /**
+   * Removing a service.
+   *
+   * The API refuses while upcoming bookings exist, and says how many. That refusal is
+   * shown as it arrives rather than pre-empted here: it is a count this screen does not
+   * have, and it is the same answer whoever asks.
+   */
+  const remove = useMutation({
+    mutationFn: (service: AdminServiceRow) => adminClient().catalog.deleteService(service.id),
+    onSuccess: (_result, service) => {
+      toast.success(`${service.name} removed.`);
+      setDeleting(null);
+      void queryClient.invalidateQueries({ queryKey: keys.services });
+    },
+    onError: (caught) => toast.error(errorMessage(caught)),
   });
 
   const toggle = useMutation({
@@ -88,7 +133,7 @@ function Services() {
     );
   }
 
-  const uncovered = (services.data ?? []).filter(
+  const uncovered = rows.filter(
     (service) => service.isActive && service._count.stationServices === 0,
   );
 
@@ -114,7 +159,7 @@ function Services() {
 
       <DataTable
         loading={services.isPending}
-        rows={services.data ?? []}
+        rows={rows}
         rowKey={(row) => row.id}
         onRowClick={setEditing}
         empty={{ title: 'No services yet', description: 'Add one to make it bookable.' }}
@@ -171,7 +216,61 @@ function Services() {
               </Button>
             ),
           },
+          {
+            key: 'order',
+            header: 'Order',
+            align: 'right',
+            hideOnMobile: true,
+            cell: (row) => <OrderButtons row={row} rows={rows} label={row.name} move={move} />,
+          },
+          {
+            key: 'actions',
+            header: '',
+            align: 'right',
+            /**
+             * Named buttons rather than only a clickable row.
+             *
+             * Editing worked all along, as `onRowClick`, with nothing on screen saying so.
+             * Deleting existed on the API and was never offered at all, so a service the
+             * store stopped doing stayed in the catalog for ever.
+             */
+            cell: (row) => (
+              <div className="flex justify-end gap-xs">
+                <Button variant="secondary" size="sm" onClick={() => setEditing(row)}>
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-danger"
+                  onClick={() => setDeleting(row)}
+                >
+                  Delete
+                </Button>
+              </div>
+            ),
+          },
         ]}
+      />
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null);
+        }}
+        title="Remove this service?"
+        description={
+          deleting === null
+            ? undefined
+            : `${deleting.name} stops appearing in the app. Bookings already taken for it keep ` +
+              'their record and are still honoured. This is refused while any of them are ' +
+              'still to come.'
+        }
+        confirmLabel="Yes, remove it"
+        cancelLabel="Keep it"
+        destructive
+        loading={remove.isPending}
+        onConfirm={() => deleting !== null && remove.mutate(deleting)}
       />
 
       <ServiceDialog service={editing} onClose={() => setEditing(null)} />
@@ -195,6 +294,10 @@ function ServiceDialog({
     queryKey: keys.categories,
     queryFn: () => adminClient().catalog.categories(),
   });
+  const addonGroups = useQuery({
+    queryKey: keys.addonGroups,
+    queryFn: () => adminClient().catalog.addonGroups(),
+  });
 
   const [form, setForm] = useState({
     name: '',
@@ -204,6 +307,8 @@ function ServiceDialog({
     price: '',
     duration: '60',
   });
+  /** Which add-on groups this service offers. Saved as a second call, after the service. */
+  const [groupIds, setGroupIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -215,6 +320,7 @@ function ServiceDialog({
       price: existing === null ? '' : String(paiseToRupees(existing.pricePaise)),
       duration: existing === null ? '60' : String(existing.durationMinutes),
     });
+    setGroupIds((existing?.addonGroups ?? []).map((link) => link.addonGroup.id));
     setError(null);
   }, [existing, isNew]);
 
@@ -236,13 +342,26 @@ function ServiceDialog({
         isActive: existing?.isActive ?? false,
       };
 
-      return isNew
-        ? adminClient().catalog.createService(input)
-        : adminClient().catalog.updateService(existing!.id, input);
+      /**
+       * Two calls, in order.
+       *
+       * Add-on attachment is a separate endpoint, so the service has to exist before it can
+       * be attached to anything. Doing it here rather than in a second screen means a new
+       * service arrives complete: staff pick the groups in the same form that sets the price.
+       */
+      return (async () => {
+        const saved = isNew
+          ? await adminClient().catalog.createService(input)
+          : await adminClient().catalog.updateService(existing!.id, input);
+        await adminClient().catalog.setServiceAddonGroups(saved.id, groupIds);
+        return saved;
+      })();
     },
     onSuccess: () => {
       toast.success(isNew ? 'Service created — publish it when it is ready.' : 'Saved.');
       void queryClient.invalidateQueries({ queryKey: keys.services });
+      // The group rows carry the services attached to them, so they are stale too.
+      void queryClient.invalidateQueries({ queryKey: keys.addonGroups });
       onClose();
     },
     onError: (caught) => setError(errorMessage(caught)),
@@ -345,6 +464,37 @@ function ServiceDialog({
           onChange={(event) => setForm((c) => ({ ...c, description: event.target.value }))}
           error={error}
         />
+
+        <fieldset className="flex flex-col gap-sm">
+          <legend className="text-body-sm font-medium">Add-ons offered</legend>
+          <p className="text-caption text-text-muted">
+            Each group a customer is asked about while booking this service. Add-ons change
+            the price and the length of the appointment, so the slot engine reserves the
+            longer time. Groups themselves are built under the Add-ons tab.
+          </p>
+
+          {(addonGroups.data ?? []).length === 0 ? (
+            <p className="text-caption text-text-muted">
+              No add-on groups exist yet. Nothing to offer until one is created.
+            </p>
+          ) : (
+            (addonGroups.data ?? []).map((group) => (
+              <Checkbox
+                key={group.id}
+                label={group.name}
+                hint={`Choose ${group.minSelect}–${group.maxSelect} · ${group.options.length} option${group.options.length === 1 ? '' : 's'}`}
+                checked={groupIds.includes(group.id)}
+                onChange={(event) =>
+                  setGroupIds((current) =>
+                    event.target.checked
+                      ? [...current, group.id]
+                      : current.filter((id) => id !== group.id),
+                  )
+                }
+              />
+            ))
+          )}
+        </fieldset>
       </div>
     </Dialog>
   );
@@ -356,6 +506,7 @@ function Categories() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<AdminCategoryRow | 'new' | null>(null);
+  const [deleting, setDeleting] = useState<AdminCategoryRow | null>(null);
 
   const categories = useQuery({
     queryKey: keys.categories,
@@ -378,6 +529,21 @@ function Categories() {
     });
     setError(null);
   }, [existing, editing, segments.data]);
+
+  const rows = categories.data ?? [];
+  const move = useReorder('category', rows, keys.categories);
+
+  /** Refused while the category still holds services — the API says how many. */
+  const remove = useMutation({
+    mutationFn: (category: AdminCategoryRow) =>
+      adminClient().catalog.deleteCategory(category.id),
+    onSuccess: (_result, category) => {
+      toast.success(`${category.name} removed.`);
+      setDeleting(null);
+      void queryClient.invalidateQueries({ queryKey: keys.categories });
+    },
+    onError: (caught) => toast.error(errorMessage(caught)),
+  });
 
   const save = useMutation({
     mutationFn: () => {
@@ -419,7 +585,7 @@ function Categories() {
 
       <DataTable
         loading={categories.isPending}
-        rows={categories.data ?? []}
+        rows={rows}
         rowKey={(row) => row.id}
         onRowClick={setEditing}
         empty={{ title: 'No categories yet' }}
@@ -446,7 +612,53 @@ function Categories() {
             align: 'right',
             cell: (row) => (row.isActive ? null : <Badge>Hidden</Badge>),
           },
+          {
+            key: 'order',
+            header: 'Order',
+            align: 'right',
+            hideOnMobile: true,
+            cell: (row) => <OrderButtons row={row} rows={rows} label={row.name} move={move} />,
+          },
+          {
+            key: 'actions',
+            header: '',
+            align: 'right',
+            cell: (row) => (
+              <div className="flex justify-end gap-xs">
+                <Button variant="secondary" size="sm" onClick={() => setEditing(row)}>
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-danger"
+                  onClick={() => setDeleting(row)}
+                >
+                  Delete
+                </Button>
+              </div>
+            ),
+          },
         ]}
+      />
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null);
+        }}
+        title="Remove this category?"
+        description={
+          deleting === null
+            ? undefined
+            : `${deleting.name} disappears from the grouping customers browse. It has to be ` +
+              'emptied of services first — move them elsewhere and try again.'
+        }
+        confirmLabel="Yes, remove it"
+        cancelLabel="Keep it"
+        destructive
+        loading={remove.isPending}
+        onConfirm={() => deleting !== null && remove.mutate(deleting)}
       />
 
       <Dialog
@@ -515,12 +727,27 @@ function Segments() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<AdminSegmentRow | 'new' | null>(null);
+  const [deleting, setDeleting] = useState<AdminSegmentRow | null>(null);
   const [form, setForm] = useState({ name: '', slug: '' });
   const [error, setError] = useState<string | null>(null);
 
   const segments = useQuery({
     queryKey: keys.segments,
     queryFn: () => adminClient().catalog.segments(),
+  });
+
+  const rows = segments.data ?? [];
+  const move = useReorder('segment', rows, keys.segments);
+
+  /** Refused while the segment still holds categories — the API says how many. */
+  const remove = useMutation({
+    mutationFn: (segment: AdminSegmentRow) => adminClient().catalog.deleteSegment(segment.id),
+    onSuccess: (_result, segment) => {
+      toast.success(`${segment.name} removed.`);
+      setDeleting(null);
+      void queryClient.invalidateQueries({ queryKey: keys.segments });
+    },
+    onError: (caught) => toast.error(errorMessage(caught)),
   });
 
   const existing = editing === 'new' || editing === null ? null : editing;
@@ -565,7 +792,7 @@ function Segments() {
 
       <DataTable
         loading={segments.isPending}
-        rows={segments.data ?? []}
+        rows={rows}
         rowKey={(row) => row.id}
         onRowClick={setEditing}
         empty={{ title: 'No segments yet' }}
@@ -583,7 +810,53 @@ function Segments() {
             align: 'right',
             cell: (row) => (row.isActive ? null : <Badge>Hidden</Badge>),
           },
+          {
+            key: 'order',
+            header: 'Order',
+            align: 'right',
+            hideOnMobile: true,
+            cell: (row) => <OrderButtons row={row} rows={rows} label={row.name} move={move} />,
+          },
+          {
+            key: 'actions',
+            header: '',
+            align: 'right',
+            cell: (row) => (
+              <div className="flex justify-end gap-xs">
+                <Button variant="secondary" size="sm" onClick={() => setEditing(row)}>
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-danger"
+                  onClick={() => setDeleting(row)}
+                >
+                  Delete
+                </Button>
+              </div>
+            ),
+          },
         ]}
+      />
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null);
+        }}
+        title="Remove this segment?"
+        description={
+          deleting === null
+            ? undefined
+            : `${deleting.name} disappears from the switcher in the app. It has to be emptied ` +
+              'of categories first — move them elsewhere and try again.'
+        }
+        confirmLabel="Yes, remove it"
+        cancelLabel="Keep it"
+        destructive
+        loading={remove.isPending}
+        onConfirm={() => deleting !== null && remove.mutate(deleting)}
       />
 
       <Dialog
@@ -631,6 +904,538 @@ function Segments() {
         </div>
       </Dialog>
     </div>
+  );
+}
+
+// ── Ordering ────────────────────────────────────────────────────────────────
+
+/**
+ * Move one row up or down and tell the server the new order.
+ *
+ * The endpoint takes the whole list rather than the row that moved, so the positions are
+ * renumbered from zero on every move. That is deliberate: seed data and hand-edits leave
+ * gaps and duplicate positions behind, and a list that renumbers itself cannot drift into
+ * an order nobody chose.
+ *
+ * Nothing called this endpoint before, and the client's own signature offered entity names
+ * — plurals, and an `addon-options` — that the route has never accepted. Any call it
+ * invited would have been rejected before reaching a handler.
+ */
+function useReorder<Row extends { id: string }>(
+  entity: 'segment' | 'category' | 'service' | 'addonGroup',
+  rows: readonly Row[],
+  queryKey: readonly unknown[],
+) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, by }: { id: string; by: -1 | 1 }): Promise<unknown> => {
+      const order = [...rows];
+      const from = order.findIndex((row) => row.id === id);
+      const to = from + by;
+      if (from < 0 || to < 0 || to >= order.length) return Promise.resolve(null);
+
+      const [moved] = order.splice(from, 1);
+      order.splice(to, 0, moved!);
+
+      return adminClient().catalog.reorder(
+        entity,
+        order.map((row, index) => ({ id: row.id, sortOrder: index })),
+      );
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey }),
+    onError: (caught) => toast.error(errorMessage(caught)),
+  });
+}
+
+/**
+ * The two arrows that drive it.
+ *
+ * Labelled for screen readers with the row's own name, because "up" on its own says nothing
+ * about which of twenty rows is about to move.
+ */
+function OrderButtons<Row extends { id: string }>({
+  row,
+  rows,
+  label,
+  move,
+}: {
+  row: Row;
+  rows: readonly Row[];
+  label: string;
+  move: { mutate: (variables: { id: string; by: -1 | 1 }) => void; isPending: boolean };
+}) {
+  const index = rows.findIndex((candidate) => candidate.id === row.id);
+
+  return (
+    <div className="flex justify-end gap-3xs">
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label={`Move ${label} up`}
+        disabled={index <= 0 || move.isPending}
+        onClick={() => move.mutate({ id: row.id, by: -1 })}
+      >
+        ↑
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label={`Move ${label} down`}
+        disabled={index < 0 || index >= rows.length - 1 || move.isPending}
+        onClick={() => move.mutate({ id: row.id, by: 1 })}
+      >
+        ↓
+      </Button>
+    </div>
+  );
+}
+
+// ── Add-ons ─────────────────────────────────────────────────────────────────
+
+/**
+ * Add-on groups and the options inside them.
+ *
+ * The whole add-on system existed on the API with no screen anywhere, so the add-ons a
+ * customer was offered were whatever the database had been seeded with and could never be
+ * changed, priced or retired.
+ *
+ * A group is the question — "Hot towel?" — and an option is an answer. `minSelect` and
+ * `maxSelect` decide whether answering is optional and how many answers are allowed.
+ * Which services ask which questions is set on the service, not here; the services already
+ * using a group are listed read-only so it is obvious what a change touches.
+ */
+function Addons() {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+
+  const [editingGroup, setEditingGroup] = useState<AdminAddonGroupRow | 'new' | null>(null);
+  const [editingOption, setEditingOption] = useState<
+    { groupId: string; groupName: string; option: AdminAddonOptionRow | null } | null
+  >(null);
+  const [removing, setRemoving] = useState<AdminAddonOptionRow | null>(null);
+
+  const groups = useQuery({
+    queryKey: keys.addonGroups,
+    queryFn: () => adminClient().catalog.addonGroups(),
+  });
+
+  const rows = groups.data ?? [];
+  const move = useReorder('addonGroup', rows, keys.addonGroups);
+
+  /**
+   * Retiring an option.
+   *
+   * The endpoint deactivates rather than erases, and the row stays in this list — priced
+   * add-ons appear on past bookings and those records have to keep meaning something. The
+   * dialog says so, because a "Delete" that leaves the row on screen otherwise reads as a
+   * failure.
+   */
+  const removeOption = useMutation({
+    mutationFn: (option: AdminAddonOptionRow) =>
+      adminClient().catalog.deleteAddonOption(option.id),
+    onSuccess: (_result, option) => {
+      toast.success(`${option.name} is no longer offered.`);
+      setRemoving(null);
+      void queryClient.invalidateQueries({ queryKey: keys.addonGroups });
+    },
+    onError: (caught) => toast.error(errorMessage(caught)),
+  });
+
+  if (groups.isError) {
+    return (
+      <ErrorState description={errorMessage(groups.error)} onRetry={() => void groups.refetch()} />
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-base">
+      <Card className="text-body-sm text-text-muted">
+        Add-ons are the extras offered while booking — a hot towel, a longer massage. They
+        change both the price and the length of the appointment, and the slot engine reserves
+        the longer time, so an add-on that adds fifteen minutes takes fifteen minutes of the
+        station.
+      </Card>
+
+      <div className="flex justify-end">
+        <Button onClick={() => setEditingGroup('new')}>+ Add group</Button>
+      </div>
+
+      {groups.isPending ? (
+        <Card className="text-body-sm text-text-muted">Loading…</Card>
+      ) : rows.length === 0 ? (
+        <Card>
+          <p className="text-body font-medium">No add-on groups yet</p>
+          <p className="text-body-sm text-text-muted">
+            Create one, add the options customers can pick, then attach it to a service from
+            the Services tab.
+          </p>
+        </Card>
+      ) : (
+        rows.map((group) => (
+          <Card key={group.id} className="flex flex-col gap-sm">
+            <div className="flex flex-wrap items-start justify-between gap-sm">
+              <div className="flex flex-col">
+                <span className="flex items-center gap-xs font-medium">
+                  {group.name}
+                  {!group.isActive && <Badge>Hidden</Badge>}
+                </span>
+                <span className="text-caption text-text-muted">
+                  {group.minSelect === 0
+                    ? `Optional · up to ${group.maxSelect}`
+                    : `Choose ${group.minSelect}–${group.maxSelect}`}
+                  {' · '}
+                  {group.services.length === 0
+                    ? 'no services use this'
+                    : group.services.map((link) => link.service.name).join(', ')}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-xs">
+                <OrderButtons row={group} rows={rows} label={group.name} move={move} />
+                <Button variant="secondary" size="sm" onClick={() => setEditingGroup(group)}>
+                  Edit group
+                </Button>
+              </div>
+            </div>
+
+            {/* No station covers this, so nothing is bookable through it either. */}
+            {group.services.length === 0 && group.isActive && (
+              <p className="text-caption text-warning">
+                Attached to no service, so no customer will ever be asked this. Attach it from
+                the Services tab.
+              </p>
+            )}
+
+            <ul className="flex flex-col divide-y divide-border border-t border-border">
+              {group.options.length === 0 && (
+                <li className="py-sm text-body-sm text-text-muted">
+                  No options yet — the group is a question with no answers, and is skipped.
+                </li>
+              )}
+
+              {group.options.map((option) => (
+                <li key={option.id} className="flex items-center justify-between gap-sm py-sm">
+                  <div className="flex flex-col">
+                    <span className="flex items-center gap-xs text-body-sm">
+                      {option.name}
+                      {!option.isActive && <Badge>Not offered</Badge>}
+                    </span>
+                    <span className="text-caption text-text-muted">
+                      {option.pricePaise === 0 ? 'No extra charge' : `+ ${formatMoney(option.pricePaise)}`}
+                      {option.durationDeltaMinutes > 0 &&
+                        ` · + ${formatDuration(option.durationDeltaMinutes)}`}
+                    </span>
+                  </div>
+
+                  <div className="flex shrink-0 gap-xs">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() =>
+                        setEditingOption({ groupId: group.id, groupName: group.name, option })
+                      }
+                    >
+                      Edit
+                    </Button>
+                    {option.isActive && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-danger"
+                        onClick={() => setRemoving(option)}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  setEditingOption({ groupId: group.id, groupName: group.name, option: null })
+                }
+              >
+                + Add option
+              </Button>
+            </div>
+          </Card>
+        ))
+      )}
+
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(open) => {
+          if (!open) setRemoving(null);
+        }}
+        title="Stop offering this add-on?"
+        description={
+          removing === null
+            ? undefined
+            : `${removing.name} will not be offered on new bookings. It stays in this list, ` +
+              'marked "not offered", because bookings already taken with it have to keep ' +
+              'their record of what was charged. Editing it turns it back on.'
+        }
+        confirmLabel="Yes, stop offering it"
+        cancelLabel="Keep offering it"
+        destructive
+        loading={removeOption.isPending}
+        onConfirm={() => removing !== null && removeOption.mutate(removing)}
+      />
+
+      <AddonGroupDialog group={editingGroup} onClose={() => setEditingGroup(null)} />
+      <AddonOptionDialog target={editingOption} onClose={() => setEditingOption(null)} />
+    </div>
+  );
+}
+
+function AddonGroupDialog({
+  group,
+  onClose,
+}: {
+  group: AdminAddonGroupRow | 'new' | null;
+  onClose: () => void;
+}) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const isNew = group === 'new';
+  const existing = group === 'new' || group === null ? null : group;
+
+  const [form, setForm] = useState({ name: '', min: '0', max: '1', isActive: true });
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setForm({
+      name: existing?.name ?? '',
+      min: String(existing?.minSelect ?? 0),
+      max: String(existing?.maxSelect ?? 1),
+      isActive: existing?.isActive ?? true,
+    });
+    setError(null);
+  }, [existing, isNew]);
+
+  const save = useMutation({
+    mutationFn: () => {
+      const input = {
+        name: form.name.trim(),
+        minSelect: Number(form.min),
+        maxSelect: Number(form.max),
+        sortOrder: existing?.sortOrder ?? 0,
+        isActive: form.isActive,
+      };
+      return isNew
+        ? adminClient().catalog.createAddonGroup(input)
+        : adminClient().catalog.updateAddonGroup(existing!.id, input);
+    },
+    onSuccess: () => {
+      toast.success(isNew ? 'Group created — add its options next.' : 'Saved.');
+      void queryClient.invalidateQueries({ queryKey: keys.addonGroups });
+      void queryClient.invalidateQueries({ queryKey: keys.services });
+      onClose();
+    },
+    onError: (caught) => setError(errorMessage(caught)),
+  });
+
+  if (group === null) return null;
+
+  const min = Number(form.min);
+  const max = Number(form.max);
+  const canSave =
+    form.name.trim() !== '' && Number.isInteger(min) && Number.isInteger(max) && max >= Math.max(min, 1);
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      variant="sheet"
+      title={isNew ? 'Add add-on group' : existing!.name}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={save.isPending} disabled={!canSave} onClick={() => save.mutate()}>
+            {isNew ? 'Create' : 'Save'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-base">
+        <Input
+          label="Name"
+          required
+          value={form.name}
+          onChange={(event) => setForm((c) => ({ ...c, name: event.target.value }))}
+          hint="The question the customer is asked. “Hot towel”, “Extra time”."
+        />
+
+        <div className="flex gap-base">
+          <Input
+            label="Minimum picks"
+            type="number"
+            min={0}
+            value={form.min}
+            onChange={(event) => setForm((c) => ({ ...c, min: event.target.value }))}
+            containerClassName="flex-1"
+            hint="0 makes it optional."
+          />
+          <Input
+            label="Maximum picks"
+            type="number"
+            min={1}
+            value={form.max}
+            onChange={(event) => setForm((c) => ({ ...c, max: event.target.value }))}
+            containerClassName="flex-1"
+            hint="1 makes it a single choice."
+          />
+        </div>
+
+        {max < min && (
+          <p className="text-caption text-danger">
+            The maximum cannot be below the minimum, or nothing satisfies it.
+          </p>
+        )}
+
+        <Checkbox
+          label="Offered to customers"
+          hint="Turn off to retire the whole group without deleting what it has recorded."
+          checked={form.isActive}
+          onChange={(event) => setForm((c) => ({ ...c, isActive: event.target.checked }))}
+        />
+
+        {error !== null && <p className="text-caption text-danger">{error}</p>}
+      </div>
+    </Dialog>
+  );
+}
+
+function AddonOptionDialog({
+  target,
+  onClose,
+}: {
+  target: { groupId: string; groupName: string; option: AdminAddonOptionRow | null } | null;
+  onClose: () => void;
+}) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const existing = target?.option ?? null;
+
+  const [form, setForm] = useState({ name: '', price: '0', minutes: '0', isActive: true });
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setForm({
+      name: existing?.name ?? '',
+      // The row comes back as `pricePaise` and goes out as `priceDeltaPaise`. The server
+      // renames it on the way in; this is the only place that has to know.
+      price: existing === null ? '0' : String(paiseToRupees(existing.pricePaise)),
+      minutes: String(existing?.durationDeltaMinutes ?? 0),
+      isActive: existing?.isActive ?? true,
+    });
+    setError(null);
+  }, [existing, target]);
+
+  const save = useMutation({
+    mutationFn: () => {
+      const input = {
+        name: form.name.trim(),
+        priceDeltaPaise: rupeesToPaise(Number(form.price)),
+        durationDeltaMinutes: Number(form.minutes),
+        sortOrder: existing?.sortOrder ?? 0,
+        isActive: form.isActive,
+      };
+      return existing === null
+        ? adminClient().catalog.addAddonOption(target!.groupId, input)
+        : adminClient().catalog.updateAddonOption(existing.id, input);
+    },
+    onSuccess: () => {
+      toast.success('Saved.');
+      void queryClient.invalidateQueries({ queryKey: keys.addonGroups });
+      onClose();
+    },
+    onError: (caught) => setError(errorMessage(caught)),
+  });
+
+  if (target === null) return null;
+
+  const minutes = Number(form.minutes);
+  const canSave =
+    form.name.trim() !== '' &&
+    form.price !== '' &&
+    Number(form.price) >= 0 &&
+    Number.isInteger(minutes) &&
+    minutes >= 0 &&
+    minutes <= 120;
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      variant="sheet"
+      title={existing === null ? `Add option to ${target.groupName}` : existing.name}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={save.isPending} disabled={!canSave} onClick={() => save.mutate()}>
+            {existing === null ? 'Add' : 'Save'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-base">
+        <Input
+          label="Name"
+          required
+          value={form.name}
+          onChange={(event) => setForm((c) => ({ ...c, name: event.target.value }))}
+        />
+
+        <div className="flex gap-base">
+          <Input
+            label="Extra charge (₹)"
+            type="number"
+            min={0}
+            step="1"
+            required
+            value={form.price}
+            onChange={(event) => setForm((c) => ({ ...c, price: event.target.value }))}
+            containerClassName="flex-1"
+            hint="0 for a free extra."
+          />
+          <Input
+            label="Extra time (min)"
+            type="number"
+            min={0}
+            max={120}
+            required
+            value={form.minutes}
+            onChange={(event) => setForm((c) => ({ ...c, minutes: event.target.value }))}
+            containerClassName="flex-1"
+            hint="Held on the station as well as charged."
+          />
+        </div>
+
+        <Checkbox
+          label="Offered to customers"
+          checked={form.isActive}
+          onChange={(event) => setForm((c) => ({ ...c, isActive: event.target.checked }))}
+        />
+
+        {error !== null && <p className="text-caption text-danger">{error}</p>}
+      </div>
+    </Dialog>
   );
 }
 

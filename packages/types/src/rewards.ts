@@ -14,6 +14,7 @@ export type RewardType = z.infer<typeof rewardType>;
 export const rewardStatus = z.enum(['ACTIVE', 'REDEEMED', 'EXPIRED', 'REVOKED']);
 export const rewardSource = z.enum(['SCRATCH_CARD', 'STREAK', 'PROMO', 'MANUAL']);
 export const scratchTrigger = z.enum(['ON_CHECKIN', 'ON_NTH_BOOKING', 'ON_STREAK_COMPLETE']);
+export type ScratchTrigger = z.infer<typeof scratchTrigger>;
 export const scratchCardStatus = z.enum(['ISSUED', 'SCRATCHED', 'EXPIRED']);
 
 /**

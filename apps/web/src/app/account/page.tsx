@@ -17,7 +17,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
 import { SignIn } from '@/components/sign-in';
-import { errorMessage, useAuth } from '@/lib/auth';
+import { UserFacingError, errorMessage, useAuth } from '@/lib/auth';
 import { api } from '@/lib/client';
 
 export default function AccountPage() {
@@ -62,7 +62,7 @@ export default function AccountPage() {
        * It now refuses, and says why.
        */
       if (digits.length === 0 && (user?.phone ?? '') !== '') {
-        throw new Error(
+        throw new UserFacingError(
           'A mobile number is needed to book. Replace it rather than clearing it.',
         );
       }
@@ -70,7 +70,22 @@ export default function AccountPage() {
       // Ten digits starting 6-9 is every Indian mobile. Checked here so a typo costs a
       // keystroke instead of a round trip, and rejected the same way by the server.
       if (digits.length > 0 && !/^[6-9]\d{9}$/.test(digits.slice(-10))) {
-        throw new Error('Enter a 10-digit Indian mobile number.');
+        throw new UserFacingError('Enter a 10-digit Indian mobile number.');
+      }
+
+      /**
+       * A cleared field is refused, not quietly ignored.
+       *
+       * Name and email were dropped from the request when empty, exactly as the phone was:
+       * the server kept the old value, answered 200, and the screen said Saved over a field
+       * the customer had just emptied. Clearing something and being told it worked, when it
+       * did not, is worse than being told no.
+       */
+      if (name.trim() === '' && (user?.name ?? '') !== '') {
+        throw new UserFacingError('Your name is how the counter greets you — it cannot be blank.');
+      }
+      if (email.trim() === '' && (user?.email ?? '') !== '') {
+        throw new UserFacingError('Your email comes from your Google account and cannot be removed.');
       }
 
       return api().auth.updateProfile({

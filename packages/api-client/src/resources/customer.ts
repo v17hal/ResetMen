@@ -256,18 +256,22 @@ export class RewardsResource {
    * Applicability is decided server-side, so the UI greys out a row and prints the reason it
    * was given rather than re-implementing minimum-order rules.
    */
-  wallet(params: {
+  // The last of the `{ data }` endpoints typed as a bare array. Missed when the others were
+  // fixed, and it is what threw the client-side exception on the Rewards page: `.map` on an
+  // object, which React reports only as "an error occurred".
+  async wallet(params: {
     serviceId?: string;
     addonOptionIds?: readonly string[];
     includeUsed?: boolean;
   } = {}): Promise<WalletEntry[]> {
-    return this.http.get('/rewards/wallet', {
+    const { data } = await this.http.get<{ data: WalletEntry[] }>('/rewards/wallet', {
       query: {
         serviceId: params.serviceId,
         addonOptionIds: params.addonOptionIds,
         includeUsed: params.includeUsed,
       },
     });
+    return data;
   }
 
   streak(): Promise<StreakDto> {

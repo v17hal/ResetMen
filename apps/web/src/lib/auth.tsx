@@ -100,7 +100,24 @@ export function useAuth(): AuthContextValue {
  * Deliberately warmer than the admin equivalent, and it never shows a raw error code —
  * someone mid-checkout needs to know what to do next, not what went wrong internally.
  */
+/**
+ * An error whose message was written for the person reading it.
+ *
+ * `errorMessage` returns its fallback for anything it does not recognise, which is right
+ * for a network failure and wrong for our own validation: "Enter a 10-digit mobile number"
+ * became "Something went wrong", and the customer was told nothing at all about the field
+ * they had just got wrong. Raising this says the message is safe to show as written.
+ */
+export class UserFacingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UserFacingError';
+  }
+}
+
 export function errorMessage(error: unknown, fallback = 'Something went wrong.'): string {
+  if (error instanceof UserFacingError) return error.message;
+
   if (isResetApiError(error)) {
     switch (error.code) {
       case 'SLOT_TAKEN':

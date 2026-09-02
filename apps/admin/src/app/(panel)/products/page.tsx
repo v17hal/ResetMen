@@ -473,17 +473,37 @@ function StockDialog({ product, onClose }: { product: ProductRow | null; onClose
 }
 
 const ORDER_STATUSES: ReadonlyArray<ProductOrderStatus | 'ALL'> = [
-  'ALL',
+  'PENDING',
   'PAID',
   'READY_FOR_PICKUP',
   'PICKED_UP',
   'CANCELLED',
+  'ALL',
 ];
+
+/** PENDING means unpaid. Nobody at a counter thinks of an order as "pending". */
+const ORDER_STATUS_LABELS: Record<ProductOrderStatus | 'ALL', string> = {
+  PENDING: 'Unpaid',
+  PAID: 'Paid',
+  READY_FOR_PICKUP: 'Ready',
+  PICKED_UP: 'Collected',
+  CANCELLED: 'Cancelled',
+  ALL: 'All',
+};
 
 function Orders() {
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<ProductOrderStatus | 'ALL'>('PAID');
+  /**
+   * Opens on the orders that need something doing to them.
+   *
+   * It used to open on PAID, which was a list nothing could ever appear in: the only route
+   * to PAID was a captured gateway payment and there is no gateway, so every order the store
+   * took sat at PENDING until a job cancelled it. Staff opened this screen and saw nothing,
+   * which was accurate and useless.
+   */
+  const [status, setStatus] = useState<ProductOrderStatus | 'ALL'>('PENDING');
+  const [cancelling, setCancelling] = useState<AdminProductOrderRow | null>(null);
 
   const filter = status === 'ALL' ? undefined : status;
 
@@ -501,8 +521,27 @@ function Orders() {
       id: string;
       next: 'READY_FOR_PICKUP' | 'PICKED_UP' | 'CANCELLED';
     }) => adminClient().products.setOrderStatus(id, { status: next }),
-    onSuccess: () => {
-      toast.success('Order updated.');
+    onSuccess: (_result, { next }) => {
+      toast.success(
+        next === 'CANCELLED' ? 'Order cancelled — the stock is back on the shelf.' : 'Order updated.',
+      );
+      setCancelling(null);
+      void queryClient.invalidateQueries({ queryKey: ['products', 'orders'] });
+      // Cancelling returns the stock, so the catalogue's numbers are stale too.
+      void queryClient.invalidateQueries({ queryKey: keys.products });
+    },
+    onError: (caught) => toast.error(errorMessage(caught)),
+  });
+
+  /** The counter took the money. Same idea as Mark paid on a booking, same idempotence. */
+  const markPaid = useMutation({
+    mutationFn: (order: AdminProductOrderRow) => adminClient().products.markOrderPaid(order.id),
+    onSuccess: (result, order) => {
+      toast.success(
+        result.alreadyRecorded
+          ? `${order.publicId} was already paid.`
+          : `${formatMoney(result.amountPaise)} recorded. Ready to hand over.`,
+      );
       void queryClient.invalidateQueries({ queryKey: ['products', 'orders'] });
     },
     onError: (caught) => toast.error(errorMessage(caught)),
@@ -515,8 +554,10 @@ function Orders() {
   return (
     <div className="flex flex-col gap-base">
       <Card className="text-body-sm text-text-muted">
-        Marking an order ready sends the customer a notification. Pickup at the store only —
-        delivery is out of scope.
+        An order is placed unpaid and holds its stock. Take the money at the counter and press
+        Mark paid — that is what lets it be handed over, and what puts it into the day&rsquo;s
+        takings. Marking an order ready sends the customer a notification. Pickup at the store
+        only — delivery is out of scope.
       </Card>
 
       <div className="flex flex-wrap gap-xs">
@@ -527,14 +568,14 @@ function Orders() {
             size="sm"
             onClick={() => setStatus(option)}
           >
-            {option === 'ALL' ? 'All' : option.toLowerCase().replace(/_/g, ' ')}
+            {ORDER_STATUS_LABELS[option]}
           </Button>
         ))}
       </div>
 
       <DataTable
         loading={orders.isPending}
-        rows={orders.data?.data ?? []}
+        rows={orders.data ?? []}
         rowKey={(row) => row.id}
         empty={{ title: 'No orders in this view' }}
         columns={[
@@ -557,9 +598,17 @@ function Orders() {
             cell: (row: AdminProductOrderRow) => (
               <div className="flex flex-col">
                 <span>{row.customerName}</span>
-                <span className="text-caption text-text-muted">
-                  {formatPhone(row.customerPhone)}
-                </span>
+                {/* A number staff can ring, not text to read out. Same as Payments due. */}
+                {row.customerPhone === null ? (
+                  <span className="text-caption text-text-muted">No number</span>
+                ) : (
+                  <a
+                    href={`tel:${row.customerPhone}`}
+                    className="text-caption text-primary underline-offset-2 hover:underline"
+                  >
+                    {formatPhone(row.customerPhone)}
+                  </a>
+                )}
               </div>
             ),
           },
@@ -585,10 +634,12 @@ function Orders() {
                     ? 'success'
                     : row.status === 'CANCELLED'
                       ? 'neutral'
-                      : 'info'
+                      : row.status === 'PENDING'
+                        ? 'warning'
+                        : 'info'
                 }
               >
-                {row.status.toLowerCase().replace(/_/g, ' ')}
+                {row.status === 'PENDING' ? 'Unpaid' : row.status.toLowerCase().replace(/_/g, ' ')}
               </Badge>
             ),
           },
@@ -596,28 +647,74 @@ function Orders() {
             key: 'actions',
             header: '',
             align: 'right',
-            cell: (row: AdminProductOrderRow) =>
-              row.status === 'PAID' ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={setOrderStatus.isPending}
-                  onClick={() => setOrderStatus.mutate({ id: row.id, next: 'READY_FOR_PICKUP' })}
-                >
-                  Mark ready
-                </Button>
-              ) : row.status === 'READY_FOR_PICKUP' ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={setOrderStatus.isPending}
-                  onClick={() => setOrderStatus.mutate({ id: row.id, next: 'PICKED_UP' })}
-                >
-                  Collected
-                </Button>
-              ) : null,
+            cell: (row: AdminProductOrderRow) => (
+              <div className="flex justify-end gap-xs">
+                {row.status === 'PENDING' && (
+                  <Button
+                    size="sm"
+                    loading={markPaid.isPending && markPaid.variables?.id === row.id}
+                    onClick={() => markPaid.mutate(row)}
+                  >
+                    Mark paid
+                  </Button>
+                )}
+                {row.status === 'PAID' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={setOrderStatus.isPending}
+                    onClick={() => setOrderStatus.mutate({ id: row.id, next: 'READY_FOR_PICKUP' })}
+                  >
+                    Mark ready
+                  </Button>
+                )}
+                {row.status === 'READY_FOR_PICKUP' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={setOrderStatus.isPending}
+                    onClick={() => setOrderStatus.mutate({ id: row.id, next: 'PICKED_UP' })}
+                  >
+                    Collected
+                  </Button>
+                )}
+                {(row.status === 'PENDING' ||
+                  row.status === 'PAID' ||
+                  row.status === 'READY_FOR_PICKUP') && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-danger"
+                    onClick={() => setCancelling(row)}
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            ),
           },
         ]}
+      />
+
+      <ConfirmDialog
+        open={cancelling !== null}
+        onOpenChange={(open) => {
+          if (!open) setCancelling(null);
+        }}
+        title="Cancel this order?"
+        description={
+          cancelling === null
+            ? undefined
+            : `${cancelling.publicId} is cancelled and its stock goes back on the shelf. If it ` +
+              'was already paid for, the refund is a separate conversation at the counter.'
+        }
+        confirmLabel="Yes, cancel it"
+        cancelLabel="Keep it"
+        destructive
+        loading={setOrderStatus.isPending}
+        onConfirm={() =>
+          cancelling !== null && setOrderStatus.mutate({ id: cancelling.id, next: 'CANCELLED' })
+        }
       />
     </div>
   );

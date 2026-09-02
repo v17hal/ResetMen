@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
+import { loadEnv } from '../config/env.js';
 import { PrismaService } from '../database/prisma.service.js';
 
 /** How long an unpaid order may hold its stock. Generous — nothing else wants the shelf. */
@@ -9,6 +10,16 @@ const ABANDON_AFTER_MINUTES = 30;
 @Injectable()
 export class ProductJobs {
   private readonly logger = new Logger(ProductJobs.name);
+
+  /**
+   * Whether an unpaid order is an abandoned cart.
+   *
+   * With a gateway it is: the customer left the checkout and the stock should go back. With
+   * money taken at the counter it is not — the order is a reservation, and the customer is
+   * expected to walk in later and pay for it. Cancelling those after half an hour is how
+   * every order the store ever took quietly disappeared before anyone could collect it.
+   */
+  private readonly paymentsEnabled = loadEnv().PAYMENTS_ENABLED;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -21,6 +32,8 @@ export class ProductJobs {
    */
   @Cron(CronExpression.EVERY_10_MINUTES, { name: 'release-abandoned-orders' })
   async releaseAbandonedOrders(): Promise<void> {
+    if (!this.paymentsEnabled) return;
+
     const cutoff = new Date(Date.now() - ABANDON_AFTER_MINUTES * 60_000);
 
     const abandoned = await this.prisma.productOrder.findMany({

@@ -253,8 +253,27 @@ export default function AccountPage() {
                     <span className="font-mono text-body-sm">
                       {formatMoney(order.totalPaise)}
                     </span>
-                    <Badge tone={order.status === 'READY_FOR_PICKUP' ? 'success' : 'neutral'}>
-                      {order.status.toLowerCase().replace(/_/g, ' ')}
+                    {/*
+                      "pending" told the customer nothing. An unpaid order is waiting on them
+                      to come and pay for it, so it says that — the same thing an unpaid
+                      booking says.
+                    */}
+                    <Badge
+                      tone={
+                        order.status === 'READY_FOR_PICKUP'
+                          ? 'success'
+                          : order.status === 'PENDING'
+                            ? 'warning'
+                            : 'neutral'
+                      }
+                    >
+                      {order.status === 'PENDING'
+                        ? 'Pay at the store'
+                        : order.status === 'READY_FOR_PICKUP'
+                          ? 'Ready to collect'
+                          : order.status === 'PICKED_UP'
+                            ? 'Collected'
+                            : order.status.toLowerCase().replace(/_/g, ' ')}
                     </Badge>
                   </div>
                 </Card>

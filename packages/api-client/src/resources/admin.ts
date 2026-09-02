@@ -517,11 +517,33 @@ export class AdminProductsResource {
     return this.http.delete(`/admin/products/${encodeURIComponent(id)}`);
   }
 
-  orders(params: { status?: ProductOrderStatus; limit?: number } = {}): Promise<{
-    data: AdminProductOrderRow[];
-  }> {
-    return this.http.get('/admin/products/orders/all', { query: { ...params } });
+  /** Unwrapped like every other list here, so callers get an array. */
+  async orders(
+    params: { status?: ProductOrderStatus; limit?: number } = {},
+  ): Promise<AdminProductOrderRow[]> {
+    const { data } = await this.http.get<{ data: AdminProductOrderRow[] }>(
+      '/admin/products/orders/all',
+      { query: { ...params } },
+    );
+    return data;
   }
+
+  /**
+   * Money taken at the counter for an order.
+   *
+   * The sibling of `bookings.markPaid`, and needed for the same reason: with no gateway,
+   * nothing else can move an order out of PENDING. Idempotent — a second press returns the
+   * first payment rather than doubling the day's takings.
+   */
+  markOrderPaid(
+    id: string,
+    input: { method: 'CASH' | 'UPI' | 'CARD' | 'OTHER'; note?: string } = { method: 'CASH' },
+  ): Promise<{ paymentId: string; amountPaise: number; alreadyRecorded: boolean }> {
+    return this.http.post(`/admin/products/orders/${encodeURIComponent(id)}/mark-paid`, {
+      body: input,
+    });
+  }
+
   setOrderStatus(
     id: string,
     input: { status: 'READY_FOR_PICKUP' | 'PICKED_UP' | 'CANCELLED'; reason?: string },

@@ -463,7 +463,8 @@ export interface AdminProductOrderRow {
   /** null when no payment row exists yet. */
   paymentStatus: PaymentStatus | null;
   customerName: string;
-  customerPhone: string;
+  /** Null for an account that has been deleted, or one that never gave a number. */
+  customerPhone: string | null;
   createdAt: string;
   items: Array<{ name: string; qty: number; unitPricePaise: number }>;
 }

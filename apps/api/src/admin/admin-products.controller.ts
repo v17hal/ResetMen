@@ -8,12 +8,18 @@ import type { TokenClaims } from '../auth/token.service.js';
 import { AuditService } from '../common/audit.service.js';
 import { StoreIdHeader, StoreScopeService } from '../common/store-scope.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import { PaymentService } from '../payments/payment.service.js';
 import { ProductService } from '../products/product.service.js';
 import { AdminProductsService } from './admin-products.service.js';
 
 const orderListQuery = z.object({
   status: z.enum(['PENDING', 'PAID', 'READY_FOR_PICKUP', 'PICKED_UP', 'CANCELLED']).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+const markPaidRequest = z.object({
+  method: z.enum(['CASH', 'UPI', 'CARD', 'OTHER']).default('CASH'),
+  note: z.string().max(200).optional(),
 });
 
 @ApiTags('admin')
@@ -24,6 +30,7 @@ export class AdminProductsController {
   constructor(
     private readonly products: AdminProductsService,
     private readonly storefront: ProductService,
+    private readonly payments: PaymentService,
     private readonly audit: AuditService,
     private readonly scope: StoreScopeService,
   ) {}
@@ -149,6 +156,43 @@ export class AdminProductsController {
         query.limit,
       ),
     };
+  }
+
+  /**
+   * Money taken at the counter for an order.
+   *
+   * Same shape as the booking one, and for the same reason: there is no gateway, so an order
+   * is settled in person and this is the row that says so. It is what moves the order off
+   * the unpaid list, into revenue, and into a state that can be marked ready for pickup.
+   */
+  @Post('orders/:id/mark-paid')
+  @Roles('OWNER', 'MANAGER')
+  async markOrderPaid(
+    @CurrentAuth() auth: TokenClaims,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(markPaidRequest)) body: z.infer<typeof markPaidRequest>,
+    @StoreIdHeader() header?: string,
+  ) {
+    const storeId = await this.storeFor(auth, header);
+    const result = await this.payments.recordCounterOrderPayment({
+      productOrderId: id,
+      adminUserId: auth.sub,
+      method: body.method,
+      note: body.note,
+    });
+
+    if (!result.alreadyRecorded) {
+      await this.audit.record({
+        storeId,
+        adminUserId: auth.sub,
+        action: 'product_order.paid',
+        entityType: 'ProductOrder',
+        entityId: id,
+        after: result,
+      });
+    }
+
+    return result;
   }
 
   @Post('orders/:id/status')

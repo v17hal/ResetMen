@@ -1,6 +1,6 @@
 'use client';
 
-import type { TimelineBooking } from '@reset/api-client';
+import type { AdminProductOrderRow, TimelineBooking } from '@reset/api-client';
 import {
   Badge,
   Button,
@@ -17,7 +17,7 @@ import {
   formatTime,
   useToast,
 } from '@reset/ui';
-import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { errorMessage } from '@/lib/auth';
@@ -61,6 +61,7 @@ export default function PaymentsDuePage() {
   const [onlyUnpaid, setOnlyUnpaid] = useState(true);
   const [method, setMethod] = useState<Method>('CASH');
   const [confirming, setConfirming] = useState<TimelineBooking | null>(null);
+  const [cancellingOrder, setCancellingOrder] = useState<AdminProductOrderRow | null>(null);
 
   /**
    * Every day someone might still be rung about, not just today.
@@ -128,6 +129,50 @@ export default function PaymentsDuePage() {
     onError: (error: unknown) => toast.error(errorMessage(error)),
   });
 
+  /**
+   * Shop orders waiting to be paid for.
+   *
+   * They belong on this screen for the same reason bookings do: there is no gateway, so the
+   * money is collected in person and somebody has to chase it. They have no date, so they
+   * are not filtered by the day picker above — an order placed last Tuesday is still owed.
+   */
+  const unpaidOrders = useQuery({
+    queryKey: keys.productOrders('PENDING'),
+    queryFn: () => adminClient().products.orders({ status: 'PENDING', limit: 100 }),
+  });
+
+  const markOrderPaid = useMutation({
+    mutationFn: (order: AdminProductOrderRow) =>
+      adminClient().products.markOrderPaid(order.id, { method }),
+    onSuccess: (result, order) => {
+      if (result.alreadyRecorded) {
+        toast.show(`${order.publicId} was already marked paid.`);
+      } else {
+        toast.success(`${order.publicId} — ${formatMoney(result.amountPaise)} recorded.`);
+      }
+      void queryClient.invalidateQueries({ queryKey: ['products', 'orders'] });
+    },
+    onError: (error: unknown) => toast.error(errorMessage(error)),
+  });
+
+  const cancelOrder = useMutation({
+    mutationFn: (order: AdminProductOrderRow) =>
+      adminClient().products.setOrderStatus(order.id, {
+        status: 'CANCELLED',
+        reason: 'Cancelled by the store — payment not made',
+      }),
+    onSuccess: (_result, order) => {
+      toast.success(`${order.publicId} cancelled. The stock is back on the shelf.`);
+      setCancellingOrder(null);
+      void queryClient.invalidateQueries({ queryKey: ['products', 'orders'] });
+      void queryClient.invalidateQueries({ queryKey: keys.products });
+    },
+    onError: (error: unknown) => toast.error(errorMessage(error)),
+  });
+
+  const orderRows = unpaidOrders.data ?? [];
+  const ordersOutstanding = orderRows.reduce((sum, order) => sum + order.totalPaise, 0);
+
   // Cancelled and expired bookings are not money anybody is owed.
   const collectable = timeline.data
     .flatMap((station) => station.bookings)
@@ -194,14 +239,18 @@ export default function PaymentsDuePage() {
         </Button>
       </div>
 
-      <div className="flex gap-sm">
-        <Card className="flex-1">
-          <p className="text-body-sm text-text-muted">Outstanding</p>
+      <div className="flex flex-wrap gap-sm">
+        <Card className="min-w-[9rem] flex-1">
+          <p className="text-body-sm text-text-muted">Bookings outstanding</p>
           <p className="font-display text-h1 text-danger">{formatMoney(outstanding)}</p>
         </Card>
-        <Card className="flex-1">
-          <p className="text-body-sm text-text-muted">Collected</p>
+        <Card className="min-w-[9rem] flex-1">
+          <p className="text-body-sm text-text-muted">Bookings collected</p>
           <p className="font-display text-h1 text-success">{formatMoney(taken)}</p>
+        </Card>
+        <Card className="min-w-[9rem] flex-1">
+          <p className="text-body-sm text-text-muted">Shop orders unpaid</p>
+          <p className="font-display text-h1 text-danger">{formatMoney(ordersOutstanding)}</p>
         </Card>
       </div>
 
@@ -309,6 +358,116 @@ export default function PaymentsDuePage() {
           ]}
         />
       )}
+
+      <section className="flex flex-col gap-sm border-t border-border pt-base">
+        <div>
+          <h2 className="font-display text-h2">Shop orders</h2>
+          <p className="text-body-sm text-text-muted">
+            Products ordered in the app and not yet paid for. Each one is holding its stock
+            off the shelf until it is either paid for or cancelled. Not tied to the day
+            picker above — an order from last week is still owed.
+          </p>
+        </div>
+
+        {unpaidOrders.isPending && <SkeletonList rows={2} />}
+
+        {unpaidOrders.isError && (
+          <ErrorState
+            description={errorMessage(unpaidOrders.error)}
+            onRetry={() => void unpaidOrders.refetch()}
+          />
+        )}
+
+        {unpaidOrders.isSuccess && orderRows.length === 0 && (
+          <EmptyState
+            title="No unpaid orders"
+            description="Everything ordered in the shop has been settled."
+          />
+        )}
+
+        {unpaidOrders.isSuccess && orderRows.length > 0 && (
+          <DataTable
+            rows={orderRows}
+            rowKey={(row) => row.id}
+            columns={[
+              { key: 'code', header: 'Order', cell: (row) => row.publicId },
+              {
+                key: 'placed',
+                header: 'Placed',
+                hideOnMobile: true,
+                cell: (row) => formatDate(row.createdAt),
+              },
+              { key: 'customer', header: 'Customer', cell: (row) => row.customerName },
+              {
+                key: 'phone',
+                header: 'Phone',
+                cell: (row) =>
+                  row.customerPhone === null ? (
+                    <span className="text-text-muted">—</span>
+                  ) : (
+                    <a className="underline" href={`tel:${row.customerPhone}`}>
+                      {formatPhone(row.customerPhone)}
+                    </a>
+                  ),
+              },
+              {
+                key: 'items',
+                header: 'Items',
+                hideOnMobile: true,
+                cell: (row) => row.items.map((item) => `${item.qty}× ${item.name}`).join(', '),
+              },
+              {
+                key: 'amount',
+                header: 'Amount',
+                align: 'right',
+                cell: (row) => formatMoney(row.totalPaise),
+              },
+              {
+                key: 'action',
+                header: '',
+                align: 'right',
+                cell: (row) => (
+                  <div className="flex justify-end gap-xs">
+                    <Button
+                      size="sm"
+                      loading={markOrderPaid.isPending && markOrderPaid.variables?.id === row.id}
+                      onClick={() => markOrderPaid.mutate(row)}
+                    >
+                      Mark paid
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setCancellingOrder(row)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ),
+              },
+            ]}
+          />
+        )}
+      </section>
+
+      <ConfirmDialog
+        open={cancellingOrder !== null}
+        onOpenChange={(open) => {
+          if (!open) setCancellingOrder(null);
+        }}
+        title="Cancel this order?"
+        description={
+          cancellingOrder === null
+            ? undefined
+            : `${cancellingOrder.customerName} — ${formatMoney(cancellingOrder.totalPaise)}. The ` +
+              'stock goes back on the shelf, and they are not told automatically.'
+        }
+        confirmLabel="Yes, cancel it"
+        cancelLabel="Keep it"
+        destructive
+        loading={cancelOrder.isPending}
+        onConfirm={() => cancellingOrder !== null && cancelOrder.mutate(cancellingOrder)}
+      />
 
       <ConfirmDialog
         open={confirming !== null}

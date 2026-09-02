@@ -101,6 +101,90 @@ export class PaymentService {
   }
 
   /**
+   * The same thing, for a product order.
+   *
+   * Orders are created PENDING, and the only thing that has ever moved one to PAID is a
+   * captured gateway payment. There is no gateway. So no order could ever be paid, nothing
+   * could be marked ready for pickup — that transition refuses anything not already PAID —
+   * and half an hour later the abandonment job cancelled the order and put the stock back.
+   * The shop could take an order and could not, by any route, complete one.
+   *
+   * Idempotent for the same reason the booking version is: a second press at a busy counter
+   * is a double-tap, not a second payment.
+   */
+  async recordCounterOrderPayment(params: {
+    productOrderId: string;
+    adminUserId: string;
+    method: 'CASH' | 'UPI' | 'CARD' | 'OTHER';
+    note?: string;
+  }): Promise<{ paymentId: string; amountPaise: number; alreadyRecorded: boolean }> {
+    const order = await this.prisma.productOrder.findUnique({
+      where: { id: params.productOrderId },
+      include: { store: { include: { settings: { select: { currency: true } } } } },
+    });
+    if (order === null) throw AppError.notFound('Order');
+
+    if (order.status === 'CANCELLED') {
+      throw AppError.validation(
+        'This order was cancelled and its stock is back on the shelf. Take a new one.',
+      );
+    }
+
+    const existing = await this.prisma.payment.findFirst({
+      where: { productOrderId: order.id, status: 'CAPTURED' },
+    });
+    if (existing !== null) {
+      // The payment exists; the status might not, if an earlier attempt died between the
+      // two writes. Guarded on PENDING so this cannot walk a picked-up order backwards.
+      await this.prisma.productOrder.updateMany({
+        where: { id: order.id, status: 'PENDING' },
+        data: { status: 'PAID' },
+      });
+      return {
+        paymentId: existing.id,
+        amountPaise: existing.amountPaise,
+        alreadyRecorded: true,
+      };
+    }
+
+    const payment = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.payment.create({
+        data: {
+          storeId: order.storeId,
+          productOrderId: order.id,
+          gateway: 'COUNTER',
+          gatewayOrderId: `counter:${order.publicId}`,
+          amountPaise: order.totalPaise,
+          currency: order.store.settings?.currency ?? 'INR',
+          status: 'CAPTURED',
+          method: params.method,
+          rawPayload: {
+            recordedBy: params.adminUserId,
+            ...(params.note === undefined ? {} : { note: params.note }),
+          },
+        },
+      });
+
+      await tx.productOrder.updateMany({
+        where: { id: order.id, status: 'PENDING' },
+        data: { status: 'PAID' },
+      });
+
+      return created;
+    });
+
+    this.logger.log(
+      `Counter payment ${payment.id} recorded for order ${order.publicId} by ${params.adminUserId}`,
+    );
+
+    return {
+      paymentId: payment.id,
+      amountPaise: payment.amountPaise,
+      alreadyRecorded: false,
+    };
+  }
+
+  /**
    * Opens a checkout for a held booking or a pending product order.
    *
    * The amount is read from the row the server already wrote — never from the request.

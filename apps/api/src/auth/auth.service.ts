@@ -4,7 +4,6 @@ import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 
 import { AppError } from '../common/errors.js';
-import { BookingLifecycleService } from '../booking/booking-lifecycle.service.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { FirebaseTokenVerifier } from './firebase-token.verifier.js';
 import { TokenService } from './token.service.js';
@@ -23,7 +22,6 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
     private readonly firebase: FirebaseTokenVerifier,
-    private readonly lifecycle: BookingLifecycleService,
   ) {}
 
   /**
@@ -295,13 +293,34 @@ export class AuthService {
       select: { id: true },
     });
 
-    for (const booking of upcoming) {
-      await this.lifecycle
-        .transition(booking.id, 'CANCELLED', 'SYSTEM', null, 'Account deleted')
-        .catch((error: unknown) => {
-          // One stubborn booking must not stop the deletion the customer asked for.
-          this.logger.warn(`Could not cancel ${booking.id} during deletion: ${String(error)}`);
-        });
+    /**
+     * Cancelled here rather than through BookingLifecycleService.
+     *
+     * Injecting that service crashed the API on boot: it belongs to another module and
+     * AuthModule does not import it. Reaching across a module boundary to cancel a booking
+     * is also the wrong shape — deletion is an account concern, and the rows it releases are
+     * its own. No reward needs returning to a wallet that is being deleted with it.
+     */
+    if (upcoming.length > 0) {
+      const ids = upcoming.map((b) => b.id);
+      const now = new Date();
+
+      await this.prisma.$transaction([
+        this.prisma.booking.updateMany({
+          where: { id: { in: ids } },
+          data: { status: 'CANCELLED', cancelledAt: now, cancelReason: 'Account deleted' },
+        }),
+        this.prisma.bookingStatusHistory.createMany({
+          data: ids.map((id) => ({
+            bookingId: id,
+            fromStatus: 'CONFIRMED' as const,
+            toStatus: 'CANCELLED' as const,
+            actorType: 'SYSTEM' as const,
+            actorId: null,
+            reason: 'Account deleted',
+          })),
+        }),
+      ]);
     }
 
     if (upcoming.length > 0) {

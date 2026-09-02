@@ -2,7 +2,7 @@
 
 import { Button } from '@reset/ui';
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { errorMessage, useAuth } from '@/lib/auth';
 import { api } from '@/lib/client';
@@ -25,6 +25,22 @@ export interface SignInProps {
 export function SignIn({ reason, onSignedIn }: SignInProps) {
   const { refresh } = useAuth();
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Fetch the Firebase chunk before anyone clicks.
+   *
+   * A browser only allows `window.open` synchronously inside a user gesture. The click used
+   * to spend that gesture downloading this module — around 200 kB — and by the time the
+   * popup was asked for, the browser had stopped trusting it and blocked it. The second
+   * click always worked, because by then the module was cached.
+   *
+   * So it was not intermittent: the first attempt failed every time, for everyone, and the
+   * message told them to allow pop-ups for a site that had not really been blocked. Warming
+   * the module here means the click has nothing to wait for.
+   */
+  useEffect(() => {
+    void import('@/lib/firebase');
+  }, []);
 
   const signIn = useMutation({
     mutationFn: async () => {
@@ -61,7 +77,8 @@ export function SignIn({ reason, onSignedIn }: SignInProps) {
        */
       const known: Record<string, string> = {
         'auth/popup-blocked':
-          'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.',
+          'Your browser blocked the sign-in window. Tap Continue with Google again, or ' +
+          'allow pop-ups for this site.',
         'auth/unauthorized-domain':
           'This site is not on the Firebase authorised-domain list. Add it in Firebase console → Authentication → Settings → Authorised domains.',
         'auth/operation-not-allowed':

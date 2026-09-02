@@ -231,6 +231,49 @@ export async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   ).toBeLessThanOrEqual(overflow.client + 1);
 }
 
+/**
+ * A dialog has to be inside the window it opened in.
+ *
+ * Worth asserting rather than eyeballing. Centring a fixed box with `top-1/2 left-1/2` and
+ * a `-translate-1/2` breaks silently the moment anything else sets `transform` on the same
+ * element — an entry animation, for instance — because transform is one property and the
+ * last value wins outright. The box then sits with its top-left corner at the middle of the
+ * screen and its footer somewhere below the fold, and it still looks like a dialog in a
+ * screenshot of the top half.
+ *
+ * The measurement is what catches it: every edge inside the viewport, and the footer
+ * buttons actually on screen.
+ */
+export async function expectDialogFitsViewport(page: Page): Promise<void> {
+  const box = page.getByRole('dialog');
+  await expect(box).toBeVisible();
+
+  const rect = await box.evaluate((node) => {
+    const r = node.getBoundingClientRect();
+    return {
+      top: Math.round(r.top),
+      left: Math.round(r.left),
+      bottom: Math.round(r.bottom),
+      right: Math.round(r.right),
+      vw: window.innerWidth,
+      vh: window.innerHeight,
+    };
+  });
+
+  // One pixel of slack for sub-pixel rounding, and no more.
+  expect(rect.top, `dialog starts ${-rect.top}px above the window`).toBeGreaterThanOrEqual(-1);
+  expect(rect.left, `dialog starts ${-rect.left}px left of the window`).toBeGreaterThanOrEqual(-1);
+  expect(
+    rect.bottom,
+    `dialog runs ${rect.bottom - rect.vh}px past the bottom of a ${rect.vh}px window — ` +
+      'its footer is unreachable',
+  ).toBeLessThanOrEqual(rect.vh + 1);
+  expect(
+    rect.right,
+    `dialog runs ${rect.right - rect.vw}px past the right of a ${rect.vw}px window`,
+  ).toBeLessThanOrEqual(rect.vw + 1);
+}
+
 /** Anything tappable should meet the 44px target the design tokens promise. */
 export async function expectTouchTargets(page: Page, selector: string): Promise<void> {
   const small = await page.locator(selector).evaluateAll((nodes) =>

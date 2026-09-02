@@ -9,6 +9,7 @@ import {
   catalogue,
   createCustomer,
   deleteCustomer,
+  expectDialogFitsViewport,
   expectNoHorizontalOverflow,
   firstOpenDay,
   isoDate,
@@ -263,6 +264,46 @@ test.describe('Catalogue and capacity are readable by staff', () => {
     await page.goto(`${ADMIN}/audit`);
     await expect(page.getByRole('heading', { name: /audit/i })).toBeVisible({ timeout: 20_000 });
   });
+});
+
+/**
+ * Every form dialog in the panel, measured.
+ *
+ * The Add product dialog was reported as having no Save button on a normal screen. It had
+ * one; the box was hanging off the bottom of the window with the footer below the fold, and
+ * shrinking the browser appeared to fix it because less of the box then fell outside. Two
+ * separate faults did that — an uncapped height, and centring that a transform animation
+ * silently overrode — and the first was fixed on its own, which changed nothing a user
+ * could see.
+ *
+ * So it is asserted per screen rather than spot-checked, and on both layouts. A dialog off
+ * the bottom of the window is a screen staff cannot use at all.
+ */
+test.describe('Form dialogs open inside the window', () => {
+  test.use(STAFF_SESSION);
+
+  for (const [id, path, opener] of [
+    ['TC-100', '/products', /add product/i],
+    ['TC-101', '/catalog', /add service/i],
+    ['TC-102', '/capacity', /add station/i],
+    ['TC-103', '/rewards', /new campaign/i],
+    ['TC-104', '/staff', /add|new/i],
+  ] as const) {
+    test(`${id} ${path} — the dialog fits, and its buttons are reachable`, async ({ page }) => {
+      await page.goto(`${ADMIN}${path}`);
+
+      await page.getByRole('button', { name: opener }).first().click();
+      await expectDialogFitsViewport(page);
+
+      // The footer is the half that went missing. A visible dialog with an unreachable
+      // Save button is the exact thing that was reported as "no save button".
+      const save = page
+        .getByRole('dialog')
+        .getByRole('button', { name: /save|create|add|close these times/i })
+        .last();
+      await expect(save).toBeInViewport();
+    });
+  }
 });
 
 test.describe('Admin layout', () => {

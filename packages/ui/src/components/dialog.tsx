@@ -54,32 +54,42 @@ export function Dialog({
             // Wraps rather than overflowing, whatever is in the description.
             'break-words',
             /**
-             * Never taller than the window.
+             * Centred by `m-auto` inside a full-viewport inset, never by `transform`.
              *
-             * The centred variant had no height limit, so a form longer than the viewport
-             * centred itself and hung off both ends — taking the footer, and the Save
-             * button in it, somewhere unreachable. Shrinking the browser appeared to fix it
-             * because the form then fitted. Every form in the admin panel opens this way,
-             * so this was not one broken screen.
+             * The obvious way to centre a fixed box is `top-1/2 left-1/2` with a
+             * `-translate-1/2` to pull it back by half its own size. That is what this did,
+             * and it did not work, because `animate-scale-in` sets `transform: scale(...)`
+             * with `animation-fill-mode: both`. Transform is one property: the animation's
+             * value replaces the translate outright rather than combining with it, and the
+             * fill mode makes that permanent. So the box kept `left: 50%; top: 50%` with
+             * nothing pulling it back, and every centred dialog in the panel hung down and
+             * to the right from the middle of the screen with its footer off the bottom.
              *
-             * The box is capped and the body scrolls inside it; the title and the buttons
-             * stay put, which is the point of having a footer at all.
+             * A tall form made it obvious — the Save button was unreachable, and shrinking
+             * the window appeared to fix it because less of the box then fell below the
+             * fold. Capping the height was a real fix for a real second problem and did
+             * nothing about this one: a shorter box hanging from the centre is still
+             * hanging from the centre.
+             *
+             * `inset-0` + `m-auto` + `h-fit` centres on both axes using margins, which no
+             * transform can interfere with. The animation is then free to scale the box
+             * about its own middle, which is all it was ever meant to do.
              */
-            'max-h-[calc(100dvh-2rem)]',
             isSheet
               ? [
                   'inset-x-0 bottom-0 max-h-[85dvh] rounded-t-xl p-lg',
                   'data-[state=open]:animate-slide-up',
                   // Above the tab bar, and clear of the home indicator on a gesture phone.
                   'pb-[max(1.25rem,env(safe-area-inset-bottom))]',
-                  'sm:inset-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:data-[state=open]:animate-scale-in',
+                  'sm:inset-0 sm:m-auto sm:h-fit sm:max-h-[calc(100dvh-2rem)]',
+                  'sm:w-full sm:max-w-md sm:rounded-lg sm:data-[state=open]:animate-scale-in',
                 ]
               : [
                   // `max-w-[min(...)]` as well as the width: a long unbroken word — a
                   // booking code, an email — was widening the box past the viewport and
                   // pushing half the dialog and both buttons off the right of a phone.
-                  'left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-[min(28rem,calc(100vw-2rem))]',
-                  '-translate-x-1/2 -translate-y-1/2',
+                  'inset-0 m-auto h-fit max-h-[calc(100dvh-2rem)]',
+                  'w-[calc(100%-2rem)] max-w-[min(28rem,calc(100vw-2rem))]',
                   'rounded-lg p-lg data-[state=open]:animate-scale-in',
                 ],
             className,

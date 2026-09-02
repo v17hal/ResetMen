@@ -19,13 +19,21 @@ test('the viewport assertion fails on a dialog that is genuinely off-screen', as
   await page.getByRole('button', { name: /add product/i }).first().click();
   await expect(page.getByRole('dialog')).toBeVisible();
 
-  // Shove it down by 200px and pin it there, past anything the animation does.
-  await page
-    .getByRole('dialog')
-    .evaluate((node) => {
-      (node as HTMLElement).style.setProperty('margin-top', '400px', 'important');
-      (node as HTMLElement).style.setProperty('margin-bottom', '0', 'important');
-    });
+  /**
+   * Put the top edge on the bottom of the window, whichever variant this is.
+   *
+   * The first version of this shifted the box with \`margin-top\`, which does nothing to the
+   * phone layout: a bottom sheet is pinned by \`bottom: 0\`, so it stayed exactly where it
+   * was, the assertion rightly passed, and the self-check failed for saying it should not
+   * have. Overriding the offsets themselves works on a margin-centred box and a pinned
+   * sheet alike.
+   */
+  await page.getByRole('dialog').evaluate((node) => {
+    const style = (node as HTMLElement).style;
+    style.setProperty('top', '100vh', 'important');
+    style.setProperty('bottom', 'auto', 'important');
+    style.setProperty('margin', '0', 'important');
+  });
 
   let failed = false;
   try {

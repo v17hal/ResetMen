@@ -107,6 +107,24 @@ A backup on the same disk survives a bad migration. It does not survive the disk
 
 ## Updating
 
+There is no CI publishing images yet, so the server builds its own from the checkout:
+
+```bash
+git pull --ff-only
+docker compose -f infra/docker-compose.build.yml --env-file infra/.env.prod build
+docker compose -f infra/docker-compose.prod.yml  --env-file infra/.env.prod \
+  run --rm api npx prisma migrate deploy
+docker compose -f infra/docker-compose.prod.yml  --env-file infra/.env.prod up -d
+```
+
+Build through `docker-compose.build.yml` rather than a `docker build` command line. Every
+`NEXT_PUBLIC_*` value is inlined into the browser bundle at build time, and passing them by
+hand is how this deployment twice shipped a site whose sign-in did not work — one
+`--build-arg` resolved to an empty string, the build succeeded and the container was
+healthy. That file reads them from `.env.prod` and refuses to build if any is missing.
+
+Once images are published to a registry, this becomes a `pull`:
+
 ```bash
 # Pin the new tag in .env.prod, then:
 docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod pull

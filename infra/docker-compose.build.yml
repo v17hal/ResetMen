@@ -1,0 +1,55 @@
+# Building the images on the box that runs them.
+#
+# The README describes pulling tagged images from a registry, which is the right shape once
+# there is CI. There is not yet, so the server builds its own and this file is what it builds
+# from:
+#
+#   docker compose -f infra/docker-compose.build.yml --env-file infra/.env.prod build
+#   docker compose -f infra/docker-compose.prod.yml  --env-file infra/.env.prod up -d
+#
+# The point of this file is the build args.
+#
+# Next inlines every NEXT_PUBLIC_* value into the browser bundle at build time, so they are
+# decided here and cannot be supplied later by the running container. Passing them by hand on
+# a `docker build` command line is how this deployment twice shipped a site whose sign-in did
+# not work: one `--build-arg` resolved to an empty string, the build succeeded, the container
+# was healthy, and Firebase had no API key. A healthy container is not a working site.
+#
+# `:?` rather than a default on the Firebase values, deliberately. An empty key produces a
+# site that looks fine until somebody tries to sign in; a build that refuses to start is a
+# problem you have before you deploy rather than after.
+
+name: reset
+
+services:
+  api:
+    image: reset-api:latest
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+
+  web:
+    image: reset-web:latest
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.next
+      args:
+        APP: web
+        # Derived from the domain Caddy already routes, so the two cannot drift apart.
+        NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?set API_DOMAIN}
+        NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY:?set NEXT_PUBLIC_FIREBASE_API_KEY — without it nobody can sign in}
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:?set NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID:?set NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+        NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID:?set NEXT_PUBLIC_FIREBASE_APP_ID}
+        NEXT_PUBLIC_FIREBASE_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_SENDER_ID:?set NEXT_PUBLIC_FIREBASE_SENDER_ID}
+
+  admin:
+    image: reset-admin:latest
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.next
+      args:
+        APP: admin
+        # Staff sign in with an email and password against our own API, not Firebase, so the
+        # admin bundle needs the API URL and nothing else.
+        NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?set API_DOMAIN}

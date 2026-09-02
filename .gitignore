@@ -52,3 +52,8 @@ infra/.env.prod
 
 # Generated from the running app; regenerate with `pnpm gen:api`.
 docs/openapi.json
+
+# QA run output: videos, traces and the HTML report are artefacts of a run, not source.
+qa/.artifacts/
+qa/report/
+qa/videos/

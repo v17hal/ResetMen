@@ -4,6 +4,8 @@ packages:
   - "apps/web"
   - "apps/admin"
   - "packages/*"
+  # Browser-driven system and acceptance tests. Not shipped; not a dependency of anything.
+  - "qa"
 
 # Prisma and esbuild need their postinstall scripts to function at all
 # (engine download, native binary). pnpm 10 blocks build scripts by default.
@@ -15,3 +17,6 @@ onlyBuiltDependencies:
   # Native image codecs. Without its build script sharp resolves but has no binary, and the
   # failure surfaces as a module-not-found at the first upload rather than at install.
   - sharp
+  # Downloads the browser it drives; without its script Playwright resolves and cannot run.
+  - "@playwright/test"
+  - playwright-core

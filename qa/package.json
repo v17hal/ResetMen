@@ -1,0 +1,14 @@
+{
+  "name": "@reset/qa",
+  "private": true,
+  "version": "0.1.0",
+  "description": "System integration and acceptance tests, driven through a real browser.",
+  "scripts": {
+    "test": "playwright test",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.1",
+    "@playwright/test": "^1.49.1"
+  }
+}

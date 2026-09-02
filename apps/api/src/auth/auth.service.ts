@@ -271,10 +271,33 @@ export class AuthService {
    */
   async requestDeletion(userId: string): Promise<{ scheduledFor: string }> {
     const purgeAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    /**
+     * The details go now; the row stays for the records that point at it.
+     *
+     * Only `deletedAt` used to be set, so everything was still there — and signing in again
+     * found the same row and handed back the same name and phone number. Someone who had
+     * just deleted their account was shown their old number as if nothing had happened,
+     * which is both alarming and, under the DPDP Act, wrong.
+     *
+     * Clearing `firebaseUid` is what makes the next sign-in a genuinely new account: there
+     * is nothing left for it to match on, so a fresh row is created. Bookings and payments
+     * still reference the old one, which is why it cannot simply be deleted — they are
+     * financial records and the store has to keep them.
+     */
     await this.prisma.user.update({
       where: { id: userId },
-      data: { deletedAt: new Date() },
+      data: {
+        deletedAt: new Date(),
+        firebaseUid: null,
+        email: null,
+        phone: null,
+        name: null,
+        dateOfBirth: null,
+      },
     });
+
+    this.logger.log(`Account ${userId} deleted; records retained until ${purgeAt.toISOString()}`);
     return { scheduledFor: purgeAt.toISOString() };
   }
 }

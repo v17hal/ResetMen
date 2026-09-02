@@ -154,7 +154,7 @@ export default function AccountPage() {
           maxLength={14}
           onChange={(event) => setPhone(event.target.value)}
           autoComplete="tel"
-          placeholder="94044 91801"
+          placeholder="10-digit mobile number"
           hint="Optional — lets the store reach you about your booking."
         />
 
@@ -164,12 +164,24 @@ export default function AccountPage() {
           value={dateOfBirth}
           onChange={(event) => setDateOfBirth(event.target.value)}
           autoComplete="bday"
-          // No future birthdays, and nobody under 13 — the age below which consent is a
-          // parent's to give under the DPDP Act.
+          /**
+           * Bounded at both ends.
+           *
+           * There was no `min`, so the year spinner ran back to the year 1, and the `max`
+           * of "thirteen years ago" greys out the months after it in that year — which was
+           * read as "October to December are missing from the calendar". They are not
+           * missing; they are the part of 2013 that would make someone under thirteen.
+           *
+           * That bound is the DPDP Act, not a preference: below thirteen the consent is a
+           * parent's to give, and this form has no way to ask a parent. Raising it is a
+           * decision about handling children's data, so it is left where it is and the hint
+           * now says why rather than leaving a disabled calendar to explain itself.
+           */
+          min="1920-01-01"
           max={new Date(new Date().setFullYear(new Date().getFullYear() - 13))
             .toISOString()
             .slice(0, 10)}
-          hint="Optional — the store sends a birthday treat."
+          hint="Optional — the store sends a birthday treat. Must be 13 or older."
         />
 
         <Select

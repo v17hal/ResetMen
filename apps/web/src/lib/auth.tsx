@@ -119,7 +119,9 @@ export function errorMessage(error: unknown, fallback = 'Something went wrong.')
       case 'STORE_CLOSED':
         return 'The store is closed then. Try another day.';
       case 'UNAUTHENTICATED':
-        return 'Please sign in again.';
+        // "again" is wrong for the commonest case by far — someone who has not signed in
+        // yet, on the booking screen, being told to do something over that they never did.
+        return error.detail ?? 'Please sign in to continue.';
       default:
         return error.detail ?? fallback;
     }

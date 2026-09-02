@@ -98,13 +98,18 @@ function Checkout() {
 
   const pay = useMutation({
     mutationFn: async () => {
+      // Made here, not on mount. `holdKey` is stable for the life of the screen, so a
+      // double-tap replays the same booking rather than making a second one.
+      const booked = hold ?? (await createHold.mutateAsync());
+      setHold(booked);
+
       // Nothing to charge: the store takes money at the counter, so the hold came back
       // already CONFIRMED. Asking for a payment order here is what produced "this booking
       // is already paid for" on a booking that had just been made successfully.
-      if (hold?.paymentRequired === false) return;
+      if (booked.paymentRequired === false) return booked;
 
       const order = await api().payments.createOrder(
-        { bookingId: hold!.bookingId },
+        { bookingId: booked.bookingId },
         orderKey.current,
       );
 
@@ -125,9 +130,11 @@ function Checkout() {
       await api()
         .payments.verify(result)
         .catch(() => undefined);
+
+      return booked;
     },
-    onSuccess: () => {
-      router.replace(`/confirmation/${hold!.bookingId}`);
+    onSuccess: (booked) => {
+      router.replace(`/confirmation/${booked?.bookingId ?? hold?.bookingId ?? ''}`);
     },
     onError: (caught) => {
       // Closing the sheet is a decision, not a failure. The hold survives; saying "payment
@@ -140,14 +147,17 @@ function Checkout() {
     },
   });
 
-  // Hold the slot as soon as the screen opens. Deciding whether to apply a reward should
-  // not cost the customer the time they picked.
-  useEffect(() => {
-    if (serviceId !== '' && startsAt !== '' && hold === null && !createHold.isPending) {
-      createHold.mutate();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serviceId, startsAt]);
+  /**
+   * Nothing is booked by arriving here.
+   *
+   * The slot used to be held the moment this screen opened, so that deciding about a reward
+   * could not cost someone their time. That reasoning belonged to a checkout with a payment
+   * step to wait for. With payment taken at the counter the hold is confirmed immediately,
+   * which meant *opening* this page booked the slot: browsing to checkout and changing your
+   * mind left a real booking on the counter's list for a customer who never pressed Book.
+   *
+   * The booking is now made by the button, which is where the customer thinks it happens.
+   */
 
   if (serviceId === '' || startsAt === '') {
     return (
@@ -248,12 +258,16 @@ function Checkout() {
             size="lg"
             fullWidth
             loading={createHold.isPending || pay.isPending}
-            disabled={hold === null}
+            // Ready as soon as there is a price to show. It used to wait for a hold that
+            // was made on mount, which is why it stayed dead after signing in until the
+            // page was reloaded.
+            disabled={quote.data === undefined}
             onClick={() => pay.mutate()}
           >
             {/* "Pay" is a promise the screen cannot keep while payment happens at the
                 counter — the button confirms a booking and takes no money. */}
-            {hold?.paymentRequired === false
+            {/* Payments are off, so this button books and takes no money. */}
+            {store.data?.paymentsEnabled === false
               ? 'Book'
               : quote.data === undefined
                 ? 'Pay'
@@ -265,7 +279,7 @@ function Checkout() {
       <p className="text-caption text-text-muted">
         {/* Said before booking, not after. Someone expecting to pay online should learn
             otherwise while they can still change their mind. */}
-        {hold?.paymentRequired === false && 'Pay at the counter. '}
+        {store.data?.paymentsEnabled === false && 'Pay at the counter. '}
         Free cancellation up to {Math.round((store.data?.cancellationWindowMinutes ?? 120) / 60)}{' '}
         hours before your slot.
       </p>

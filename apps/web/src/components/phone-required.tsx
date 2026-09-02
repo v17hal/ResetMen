@@ -87,7 +87,7 @@ export function PhoneRequired({ onSaved }: { onSaved?: () => void }) {
           onKeyDown={(event) => {
             if (event.key === 'Enter') submit();
           }}
-          placeholder="98765 43210"
+          placeholder="10-digit mobile number"
           className="min-h-touch w-full rounded-md border border-border bg-surface px-base text-body text-text placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         />
       </label>

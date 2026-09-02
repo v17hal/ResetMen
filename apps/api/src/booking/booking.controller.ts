@@ -68,9 +68,21 @@ export class BookingController {
    */
   @Post('hold')
   @UseGuards(OptionalCustomerGuard, RateLimitGuard)
-  // Per customer where there is one, falling back to per-IP for a guest hold. Keyed only
-  // by address, one person's twenty holds were the whole store's twenty.
-  @RateLimited({ limit: 20, windowSeconds: 3600, by: 'user' })
+  /**
+   * Loose enough that a real customer never meets it.
+   *
+   * Twenty an hour was written when a hold was cheap and speculative. It became the most
+   * common way to break the app: a slot taken a second earlier answers 409, the customer
+   * tries another and another, and somewhere around the twentieth attempt the store stops
+   * accepting bookings from them for an hour — for doing nothing wrong. It survived an app
+   * restart, so there was no way out.
+   *
+   * The abuse this guarded against is now covered properly: one customer cannot hold two
+   * overlapping slots, an anonymous hold is refused before it takes anything, and a booking
+   * without a phone number is refused outright. What is left is a backstop against a script,
+   * and two hundred an hour is far past anything a person does with a booking form.
+   */
+  @RateLimited({ limit: 200, windowSeconds: 3600, by: 'user' })
   async hold(
     @Body(new ZodValidationPipe(holdRequest)) body: z.infer<typeof holdRequest>,
     @OptionalUser() userId: string | null,

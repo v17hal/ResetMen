@@ -51,16 +51,22 @@ export function Dialog({
         <RadixDialog.Content
           className={cn(
             'fixed z-50 flex flex-col gap-base bg-surface shadow-overlay focus:outline-none',
+            // Wraps rather than overflowing, whatever is in the description.
+            'break-words',
             isSheet
               ? [
-                  'inset-x-0 bottom-0 max-h-[85vh] rounded-t-xl p-lg',
+                  'inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-xl p-lg',
                   'data-[state=open]:animate-slide-up',
                   // Above the tab bar, and clear of the home indicator on a gesture phone.
                   'pb-[max(1.25rem,env(safe-area-inset-bottom))]',
                   'sm:inset-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:data-[state=open]:animate-scale-in',
                 ]
               : [
-                  'left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2',
+                  // `max-w-[min(...)]` as well as the width: a long unbroken word — a
+                  // booking code, an email — was widening the box past the viewport and
+                  // pushing half the dialog and both buttons off the right of a phone.
+                  'left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-[min(28rem,calc(100vw-2rem))]',
+                  '-translate-x-1/2 -translate-y-1/2',
                   'rounded-lg p-lg data-[state=open]:animate-scale-in',
                 ],
             className,
@@ -130,6 +136,10 @@ export function ConfirmDialog({
       onOpenChange={onOpenChange}
       title={title}
       description={description}
+      // A bottom sheet on a phone: full width, nothing to run off the edge, and the buttons
+      // land under the thumb rather than in the middle of the screen. Reverts to a centred
+      // box from `sm` upwards.
+      variant="sheet"
       footer={
         <>
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>

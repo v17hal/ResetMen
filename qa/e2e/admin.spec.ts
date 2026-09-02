@@ -282,15 +282,26 @@ test.describe('Catalogue and capacity are readable by staff', () => {
 test.describe('Form dialogs open inside the window', () => {
   test.use(STAFF_SESSION);
 
-  for (const [id, path, opener] of [
-    ['TC-100', '/products', /add product/i],
-    ['TC-101', '/catalog', /add service/i],
-    ['TC-102', '/capacity', /add station/i],
-    ['TC-103', '/rewards', /new campaign/i],
-    ['TC-104', '/staff', /add|new/i],
+  /**
+   * `tab` is the one several of these screens need first — Catalog opens on Services and
+   * Rewards on Streaks, so the button that opens the dialog does not exist until the right
+   * tab is selected. TC-103 failed on that before it ever reached the measurement, which is
+   * a fault in the test and worth saying so rather than quietly routing around.
+   */
+  for (const [id, path, opener, tab] of [
+    ['TC-100', '/products', /add product/i, null],
+    ['TC-101', '/catalog', /add service/i, null],
+    ['TC-102', '/capacity', /add closure/i, /^closures$/i],
+    ['TC-103', '/rewards', /new campaign/i, /scratch campaigns/i],
+    ['TC-104', '/catalog', /add group/i, /^add-ons$/i],
+    ['TC-105', '/staff', /add|new/i, null],
   ] as const) {
     test(`${id} ${path} — the dialog fits, and its buttons are reachable`, async ({ page }) => {
       await page.goto(`${ADMIN}${path}`);
+
+      if (tab !== null) {
+        await page.getByRole('tab', { name: tab }).click();
+      }
 
       await page.getByRole('button', { name: opener }).first().click();
       await expectDialogFitsViewport(page);

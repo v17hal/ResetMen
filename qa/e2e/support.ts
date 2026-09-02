@@ -248,17 +248,42 @@ export async function expectDialogFitsViewport(page: Page): Promise<void> {
   const box = page.getByRole('dialog');
   await expect(box).toBeVisible();
 
-  const rect = await box.evaluate((node) => {
-    const r = node.getBoundingClientRect();
-    return {
-      top: Math.round(r.top),
-      left: Math.round(r.left),
-      bottom: Math.round(r.bottom),
-      right: Math.round(r.right),
-      vw: window.innerWidth,
-      vh: window.innerHeight,
-    };
-  });
+  const measure = () =>
+    box.evaluate((node) => {
+      const r = node.getBoundingClientRect();
+      return {
+        top: Math.round(r.top),
+        left: Math.round(r.left),
+        bottom: Math.round(r.bottom),
+        right: Math.round(r.right),
+        vw: window.innerWidth,
+        vh: window.innerHeight,
+      };
+    });
+
+  /**
+   * Measured once the entry animation has finished, not while it is running.
+   *
+   * A dialog counts as visible the instant it mounts, which on the phone layout is while
+   * the sheet is still sliding up from below the fold. Measuring there reports an overflow
+   * that corrects itself a moment later — a true number describing nothing. The first
+   * version of this assertion did that and failed all six phone cases on an animation.
+   *
+   * Polled rather than slept: a box that genuinely hangs off the bottom never settles
+   * inside, so the real fault still fails, and this neither slows down on a fast machine
+   * nor turns flaky on a slow one.
+   */
+  await expect
+    .poll(
+      async () => {
+        const r = await measure();
+        return Math.max(-r.top, -r.left, r.bottom - r.vh, r.right - r.vw);
+      },
+      { timeout: 5_000, message: 'the dialog never settled inside the window' },
+    )
+    .toBeLessThanOrEqual(1);
+
+  const rect = await measure();
 
   // One pixel of slack for sub-pixel rounding, and no more.
   expect(rect.top, `dialog starts ${-rect.top}px above the window`).toBeGreaterThanOrEqual(-1);

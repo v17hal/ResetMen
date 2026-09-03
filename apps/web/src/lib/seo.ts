@@ -21,12 +21,26 @@ const REVALIDATE_SECONDS = 300;
 /** The canonical origin. Every absolute URL in metadata is built from this one value. */
 export const SITE_URL = 'https://resetmen.in';
 
+/**
+ * The API origin *and* its version prefix.
+ *
+ * `NEXT_PUBLIC_API_URL` is an origin only — `https://api.resetmen.in`, no path. Every
+ * caller in the app goes through `ResetClient`, which appends `/api/v1` itself
+ * (packages/api-client/src/http.ts). This module does not use that client, because it is a
+ * browser module holding a token store, so it has to add the prefix itself.
+ *
+ * It did not, and the cost was the whole feature: every server read hit a URL one path
+ * segment short, the API answered 404 to all of them, and the service pages — which quite
+ * correctly turn a 404 from the catalogue into a 404 page — served 404 to customers. The
+ * homepage silently fell back to its hard-coded defaults, which looked close enough to
+ * working to pass a glance at the HTML.
+ */
 function apiBase(): string {
   const url = process.env.NEXT_PUBLIC_API_URL;
   if (url === undefined || url === '') {
     throw new Error('NEXT_PUBLIC_API_URL is not set.');
   }
-  return url;
+  return `${url.replace(/\/+$/, '')}/api/v1`;
 }
 
 /**

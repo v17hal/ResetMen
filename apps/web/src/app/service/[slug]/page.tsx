@@ -3,8 +3,7 @@ import { notFound } from 'next/navigation';
 
 import {
   SITE_URL,
-  getHome,
-  getService,
+  getServiceResult,
   getStore,
   jsonLd,
   rupees,
@@ -28,31 +27,29 @@ interface Params {
   params: Promise<{ slug: string }>;
 }
 
-/** Rebuilt every ten minutes, so a price change in the admin panel reaches search results. */
-export const revalidate = 600;
-
 /**
- * Build the five treatment pages ahead of time.
+ * Rendered per request, never at build time.
  *
- * They are the pages worth ranking, so they should answer instantly rather than waiting on
- * an API round trip — time to first byte is a ranking input and, more to the point, the
- * thing between a customer and a price.
+ * These were prerendered with `generateStaticParams`, which was wrong for a reason that
+ * only shows up in production: the build runs inside a Docker container that has no route
+ * to the running API. Every fetch failed, and the pages were generated — and shipped — as
+ * permanent 404s. Nothing in the build said so; it exited 0 with five broken pages.
  *
- * `dynamicParams` stays at its default, so a service added in the admin panel still renders
- * on demand instead of 404ing until the next deploy.
+ * The individual `fetch` calls still cache for five minutes, so this costs one API round
+ * trip per page per five minutes rather than one per visitor. Prerendering can come back
+ * the day the build has a route to the API, and not before.
  */
-export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
-  const home = await getHome();
-  return (home?.services ?? []).map((service) => ({ slug: service.slug }));
-}
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
-  const [service, store] = await Promise.all([getService(slug), getStore()]);
+  const [result, store] = await Promise.all([getServiceResult(slug), getStore()]);
 
-  if (service === null) {
-    return { title: 'Service not found' };
-  }
+  // Fall back to the site defaults rather than a wrong title. A page that cannot describe
+  // itself is a lost opportunity; a page titled "not found" that renders fine is a lie to
+  // both the customer and the crawler.
+  if (!('service' in result)) return {};
+  const service = result.service;
 
   /**
    * The title carries the treatment, the town and the price.
@@ -88,11 +85,17 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function ServicePage({ params }: Params) {
   const { slug } = await params;
-  const [service, store] = await Promise.all([getService(slug), getStore()]);
+  const [result, store] = await Promise.all([getServiceResult(slug), getStore()]);
 
-  // A slug that is not a service is a 404, not an empty page that returns 200. A soft 404
-  // gets indexed and then reported as a crawl error.
-  if (service === null) notFound();
+  // A slug that is not a service is a 404. A slug we could not ask about is not — that
+  // renders the page and lets the browser fetch it, exactly as it did before.
+  if ('missing' in result) notFound();
+
+  const service = 'service' in result ? result.service : null;
+
+  if (service === null) {
+    return <ServiceDetail slug={slug} initialData={null} />;
+  }
 
   const url = `${SITE_URL}/service/${service.slug}`;
 

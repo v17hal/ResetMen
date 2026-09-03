@@ -12,7 +12,14 @@ import { SITE_URL, getHome, getStore, jsonLd, rupees, withLocality } from '@/lib
  * nothing on the page for Google to rank and no path from here to anything else.
  */
 
-export const revalidate = 600;
+/**
+ * Rendered per request, never at build time.
+ *
+ * The build container has no route to the API, so a build-time prerender produces a page
+ * with no catalogue on it — which is what this change set was written to stop. The fetches
+ * inside still cache for five minutes.
+ */
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   const [home, store] = await Promise.all([getHome(), getStore()]);

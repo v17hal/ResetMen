@@ -62,6 +62,36 @@ export function getService(slug: string): Promise<ServiceDetail | null> {
 }
 
 /**
+ * The same read, but able to tell "no such service" from "could not ask".
+ *
+ * These are not the same thing and treating them as one took the five service pages down.
+ * The page called `notFound()` whenever the fetch returned nothing, and the fetch returns
+ * nothing both when the API says 404 and when it cannot be reached at all. During the
+ * Docker build it could not be reached — the build container has no route to the running
+ * API — so every service page was generated as a permanent 404 and shipped that way.
+ *
+ * A missing service is a 404. A failed request is a reason to render the page anyway and
+ * let the browser fetch it, which is what the page did before any of this.
+ */
+export async function getServiceResult(
+  slug: string,
+): Promise<{ service: ServiceDetail } | { missing: true } | { unavailable: true }> {
+  try {
+    const response = await fetch(
+      `${apiBase()}/catalog/services/${encodeURIComponent(slug)}`,
+      { next: { revalidate: REVALIDATE_SECONDS }, headers: { accept: 'application/json' } },
+    );
+
+    if (response.status === 404) return { missing: true };
+    if (!response.ok) return { unavailable: true };
+
+    return { service: (await response.json()) as ServiceDetail };
+  } catch {
+    return { unavailable: true };
+  }
+}
+
+/**
  * The town the shop is in, for titles and descriptions.
  *
  * Read from the store record rather than hard-coded, and omitted entirely when it is not

@@ -13,13 +13,24 @@ import '../theme/app_theme.dart';
 import '../theme/reset_tokens.dart';
 import '../widgets/common.dart';
 import 'confirmation_screen.dart';
+import 'phone_required_sheet.dart';
 import 'sign_in_sheet.dart';
 
-/// Confirm and pay.
+/// Confirm and book.
 ///
-/// The hold is created the moment this screen opens, not when Pay is pressed: deciding
-/// whether to apply a reward should not cost someone the time they picked. Sign-in happens
-/// in a sheet underneath the running countdown, so the hold survives it.
+/// Nothing is booked until the button is pressed. The hold used to be created the moment
+/// this screen opened, on the theory that deciding about a reward should not cost someone
+/// their slot. With payment at the counter that reasoning inverts: the API confirms the
+/// booking outright, so opening the screen *was* booking. A customer who signed in, entered
+/// their number and then thought better of it already had an appointment, and only found
+/// out by reloading. The same fault was reported on the web checkout and fixed there.
+///
+/// It also left signed-out customers stuck. The API refuses an anonymous booking when
+/// payments are off, so the hold failed with a 401 before the sign-in sheet was ever
+/// offered, and the button stayed disabled because it required a hold that could never
+/// exist.
+///
+/// So the order is: sign in, give a number if the store has none, then book.
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({
     super.key,
@@ -67,7 +78,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       if (mounted && _hold != null) setState(() {});
     });
 
-    unawaited(_start());
+    unawaited(_loadQuote());
   }
 
   @override
@@ -83,11 +94,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return '$prefix-${bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join()}';
   }
 
-  Future<void> _start() async {
-    await _loadQuote();
-    await _createHold();
-  }
-
   Future<void> _loadQuote() async {
     try {
       final quote = await ref.read(repositoryProvider).quote(
@@ -98,10 +104,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       if (mounted) setState(() => _quote = quote);
     } catch (error) {
       if (mounted) setState(() => _error = friendlyMessage(error));
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _createHold() async {
+  /// Creates the booking. Returns null when it could not be created.
+  ///
+  /// Re-entrant on purpose: a hold already taken is returned rather than a second one made,
+  /// so a customer who is asked for a phone number and comes back does not end up with two
+  /// appointments.
+  Future<Hold?> _createHold() async {
+    final existing = _hold;
+    if (existing != null) return existing;
+
     try {
       final hold = await ref.read(repositoryProvider).hold(
             serviceId: widget.serviceId,
@@ -111,29 +127,45 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             idempotencyKey: _holdKey,
           );
       if (mounted) setState(() => _hold = hold);
-    } catch (error) {
-      if (!mounted) return;
+      return hold;
+    } on ResetApiException catch (error) {
+      if (!mounted) return null;
+
+      // The store has no number for this account. Answerable right here, so ask rather than
+      // showing the sentence and stopping.
+      if (error.needsPhone) {
+        final saved = await showPhoneRequiredSheet(context, reason: error.detail);
+        if (!saved || !mounted) {
+          setState(() => _error = friendlyMessage(error));
+          return null;
+        }
+        return _createHold();
+      }
+
       setState(() => _error = friendlyMessage(error));
 
-      // The slot went while they were deciding. Send them back to pick another rather than
-      // leaving them staring at an error on a dead screen.
-      if (error is ResetApiException && error.isSlotGone) {
+      // The slot went while they were deciding — either to somebody else, or to a booking
+      // of their own that overlaps it. `friendlyMessage` shows the server's own words,
+      // which say which. Either way the answer is another time.
+      if (error.isSlotGone) {
         await Future<void>.delayed(const Duration(milliseconds: 2200));
         if (mounted) Navigator.of(context).pop();
       }
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      return null;
+    } catch (error) {
+      if (mounted) setState(() => _error = friendlyMessage(error));
+      return null;
     }
   }
 
-  Future<void> _pay() async {
-    final hold = _hold;
-    if (hold == null) return;
-
+  Future<void> _book() async {
+    // Signing in first, not after. With payment at the counter the API refuses an anonymous
+    // booking outright, so attempting one and then offering the sheet meant the customer
+    // met a 401 they had done nothing to deserve.
     if (ref.read(sessionProvider).valueOrNull == null) {
       final signedIn = await showSignInSheet(
         context,
-        reason: 'Your slot is held while you do this.',
+        reason: 'So we can send you your booking and your entry code.',
       );
       if (!signedIn || !mounted) return;
     }
@@ -145,6 +177,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     try {
       final repository = ref.read(repositoryProvider);
+
+      // Everything up to here was reversible. This is the line that books.
+      final hold = await _createHold();
+      if (hold == null || !mounted) {
+        setState(() => _paying = false);
+        return;
+      }
 
       // Nothing to charge: the store takes money at the counter, so the hold came back
       // already CONFIRMED. Asking for a payment order here is what produced "this booking
@@ -195,7 +234,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       if (!mounted) return;
       setState(() {
         _paying = false;
-        _error = friendlyMessage(error, 'The payment did not go through.');
+        _error = friendlyMessage(error, 'The booking did not go through.');
       });
     }
   }
@@ -240,6 +279,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final theme = Theme.of(context);
     final session = ref.watch(sessionProvider);
     final quote = _quote;
+
+    /// Read from the store, not from a hold. The hold no longer exists when this is first
+    /// painted, and defaulting it to "payments on" put the price on a button that takes no
+    /// money and promised a checkout that never comes.
+    final paymentsEnabled = ref.watch(storeProvider).valueOrNull?.paymentsEnabled ?? false;
 
     final wallet = session.valueOrNull == null
         ? const AsyncValue<List<WalletReward>>.data([])
@@ -296,13 +340,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 PrimaryButton(
                   // "Pay" is a promise the screen cannot keep while payment happens at the
                   // counter — the button confirms a booking and takes no money.
-                  label: switch ((_hold?.paymentRequired ?? true, quote)) {
+                  label: switch ((paymentsEnabled, quote)) {
                     (false, _) => 'Book',
                     (true, null) => 'Pay',
                     (true, final q?) => 'Pay ${formatMoney(q.payablePaise)}',
                   },
                   loading: _paying,
-                  onPressed: _hold == null ? null : _pay,
+                  // Enabled once there is something to book. It used to require a hold,
+                  // which is the thing this button now creates — so while the hold was
+                  // failing, the only control that could recover was disabled.
+                  onPressed: quote == null ? null : _book,
                 ),
 
                 const SizedBox(height: ResetTokens.spaceSm),
@@ -310,7 +357,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   [
                     // Said before confirming, not after. Someone expecting to pay in the
                     // app should learn otherwise while they can still change their mind.
-                    if (!(_hold?.paymentRequired ?? true)) 'Pay at the counter.',
+                    if (!paymentsEnabled) 'Pay at the counter.',
                     'Free cancellation up to '
                         '${((ref.watch(storeProvider).valueOrNull?.cancellationWindowMinutes ?? 120) / 60).round()} '
                         'hours before your slot.',

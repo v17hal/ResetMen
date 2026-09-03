@@ -21,13 +21,25 @@ import { Providers } from './providers';
  */
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  /**
+   * Written around what people search for, not around the brand.
+   *
+   * "Quick", "head", "body" and "dry" are the words in the client's own keyword list, and
+   * they are all true of the shop: ten to thirty minutes, no oil unless the Premium gel is
+   * chosen, and no appointment needed. Nobody searches "book your reset", which is what the
+   * title said for the site's whole life.
+   *
+   * No `keywords` meta tag. Google has ignored it since 2009 and Bing treats it as a spam
+   * signal; the words have to be in the title, the description and the page or they do
+   * nothing at all.
+   */
   title: {
-    default: 'RESET — Head & Body Massage, Wellness and Grooming for Men',
+    default: 'Quick Head & Body Massage in Pune — RESET Wellness for Men',
     template: '%s · RESET',
   },
   description:
-    'Walk-in head, neck, shoulder and full-body dry massage from ₹49. Pick a treatment, ' +
-    'choose your time, and walk straight in — no waiting, no membership.',
+    'Quick dry massage for men in Pune — head, neck, shoulder and full body, from ₹49. ' +
+    'Ten to thirty minutes, no appointment needed. Pick a time and walk straight in.',
   applicationName: 'RESET',
   appleWebApp: { capable: true, title: 'RESET', statusBarStyle: 'default' },
   alternates: { canonical: '/' },
@@ -43,15 +55,15 @@ export const metadata: Metadata = {
     siteName: 'RESET',
     locale: 'en_IN',
     url: SITE_URL,
-    title: 'RESET — Head & Body Massage, Wellness and Grooming for Men',
+    title: 'Quick Head & Body Massage in Pune — RESET Wellness for Men',
     description:
-      'Walk-in head, neck, shoulder and full-body dry massage from ₹49. Book a time and ' +
-      'walk straight in.',
+      'Quick dry massage for men in Pune — head, neck, shoulder and full body, from ₹49. ' +
+      'Pick a time and walk straight in.',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'RESET — Head & Body Massage, Wellness and Grooming for Men',
-    description: 'Walk-in massage and grooming from ₹49. Book a time and walk straight in.',
+    title: 'Quick Head & Body Massage in Pune — RESET Wellness for Men',
+    description: 'Quick dry massage for men in Pune, from ₹49. Walk straight in.',
   },
   robots: {
     index: true,

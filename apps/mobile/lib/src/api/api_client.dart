@@ -16,12 +16,25 @@ class ResetApiException implements Exception {
     required this.status,
     required this.title,
     this.detail,
+    this.meta = const {},
   });
 
   final ErrorCode? code;
   final int status;
   final String title;
   final String? detail;
+
+  /// The machine-readable half of a problem response.
+  ///
+  /// `VALIDATION_FAILED` covers everything from a malformed date to a missing phone number,
+  /// so the code alone cannot tell the app which one happened. The server says which field
+  /// is at fault in here; without reading it the app could only show the sentence and leave
+  /// the customer to work out what to do about it.
+  final Map<String, dynamic> meta;
+
+  /// The store has no number to ring. Answerable in the app, so it is worth detecting.
+  bool get needsPhone =>
+      code == ErrorCode.validationFailed && meta['field'] == 'phone';
 
   bool get isSlotGone =>
       code == ErrorCode.slotTaken || code == ErrorCode.slotUnavailable;
@@ -167,6 +180,10 @@ class ResetApiClient {
           status: (decoded['status'] as num?)?.toInt() ?? response.statusCode,
           title: decoded['title'] as String? ?? 'Request failed',
           detail: decoded['detail'] as String?,
+          meta: switch (decoded['meta']) {
+            final Map<String, dynamic> meta => meta,
+            _ => const <String, dynamic>{},
+          },
         );
       }
     } catch (_) {

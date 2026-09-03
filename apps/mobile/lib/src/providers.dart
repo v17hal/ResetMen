@@ -78,6 +78,22 @@ final homeProvider =
   return ref.watch(repositoryProvider).home(segmentId: segmentId);
 });
 
+/// The retail shelf.
+///
+/// Kept alive across tab switches — stock changes rarely and a refetch on every visit to
+/// the Shop tab is a spinner for nothing. Pull to refresh, or placing an order, invalidates
+/// it.
+final productsProvider = FutureProvider<List<Product>>(
+  (ref) => ref.watch(repositoryProvider).products(),
+);
+
+/// Orders this customer has placed. Empty for a signed-out visitor rather than an error:
+/// the shelf is worth browsing before signing in.
+final productOrdersProvider = FutureProvider<List<ProductOrder>>((ref) async {
+  if (ref.watch(sessionProvider).valueOrNull == null) return const <ProductOrder>[];
+  return ref.watch(repositoryProvider).productOrders();
+});
+
 final serviceProvider = FutureProvider.family<ServiceDetail, String>(
   (ref, idOrSlug) => ref.watch(repositoryProvider).service(idOrSlug),
 );

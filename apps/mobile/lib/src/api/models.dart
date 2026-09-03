@@ -468,6 +468,7 @@ class Booking {
     required this.id,
     required this.publicId,
     required this.status,
+    required this.isPaid,
     required this.serviceName,
     required this.startsAt,
     required this.endsAt,
@@ -481,6 +482,14 @@ class Booking {
   final String id;
   final String publicId;
   final BookingStatus? status;
+
+  /// Whether the store has taken the money yet.
+  ///
+  /// There is no gateway, so a booking is made unpaid and settled at the counter. The API
+  /// has always sent this and the app has never read it, so an unpaid booking was shown
+  /// exactly like a settled one — no prompt to pay, and nothing explaining why the entry
+  /// code had not appeared.
+  final bool isPaid;
   final String serviceName;
   final DateTime startsAt;
   final DateTime endsAt;
@@ -496,6 +505,7 @@ class Booking {
         id: _str(json['id']),
         publicId: _str(json['publicId']),
         status: BookingStatus.tryParse(json['status'] as String?),
+        isPaid: json['isPaid'] as bool? ?? false,
         serviceName: _str(json['serviceName']),
         startsAt: _instant(json['startsAt']),
         endsAt: _instant(json['endsAt']),
@@ -509,10 +519,17 @@ class Booking {
         checkinPayload: json['checkinPayload'] as String?,
       );
 
+  /// Written to the offline cache and read back through [Booking.fromJson].
+  ///
+  /// Every field the constructor requires has to be here. `isPaid` defaults to false when
+  /// absent, so leaving it out would make a settled booking read as unpaid the moment the
+  /// phone lost signal — and tell the customer to go and pay for something they had
+  /// already paid for.
   Map<String, dynamic> toCacheJson() => {
         'id': id,
         'publicId': publicId,
         'status': status?.wire,
+        'isPaid': isPaid,
         'serviceName': serviceName,
         'startsAt': startsAt.toIso8601String(),
         'endsAt': endsAt.toIso8601String(),
@@ -681,3 +698,111 @@ List<T> _list<T>(Object? raw, T Function(Map<String, dynamic>) fromJson) =>
         .whereType<Map<String, dynamic>>()
         .map(fromJson)
         .toList();
+
+// ── Shop ────────────────────────────────────────────────────────────────────
+//
+// The retail shelf. Mirrors `packages/types/src/products.ts` field for field — the app had
+// no shop at all, so every one of these is new rather than adjusted.
+
+/// One item on the shelf.
+class Product {
+  const Product({
+    required this.id,
+    required this.name,
+    required this.slug,
+    required this.description,
+    required this.images,
+    required this.pricePaise,
+    required this.mrpPaise,
+    required this.inStock,
+    required this.sku,
+  });
+
+  final String id;
+  final String name;
+  final String slug;
+  final String? description;
+  final List<String> images;
+  final int pricePaise;
+
+  /// The struck-through price, when there is one to strike through.
+  final int? mrpPaise;
+
+  /// A flag, not a count. The API deliberately does not expose how many are left — a
+  /// competitor should not be able to read the shelf.
+  final bool inStock;
+  final String? sku;
+
+  bool get hasDiscount => mrpPaise != null && mrpPaise! > pricePaise;
+
+  factory Product.fromJson(Map<String, dynamic> json) => Product(
+        id: _str(json['id']),
+        name: _str(json['name']),
+        slug: _str(json['slug']),
+        description: json['description'] as String?,
+        images: ((json['images'] as List?) ?? const [])
+            .whereType<String>()
+            .toList(),
+        pricePaise: _int(json['pricePaise']),
+        mrpPaise: (json['mrpPaise'] as num?)?.toInt(),
+        inStock: json['inStock'] as bool? ?? false,
+        sku: json['sku'] as String?,
+      );
+}
+
+/// One line of an order, priced as it was when the order was placed.
+class ProductOrderLine {
+  const ProductOrderLine({
+    required this.productId,
+    required this.name,
+    required this.unitPricePaise,
+    required this.qty,
+    required this.linePaise,
+  });
+
+  final String productId;
+  final String name;
+  final int unitPricePaise;
+  final int qty;
+  final int linePaise;
+
+  factory ProductOrderLine.fromJson(Map<String, dynamic> json) => ProductOrderLine(
+        productId: _str(json['productId']),
+        name: _str(json['name']),
+        unitPricePaise: _int(json['unitPricePaise']),
+        qty: _int(json['qty']),
+        linePaise: _int(json['linePaise']),
+      );
+}
+
+/// An order placed in the app and collected at the counter.
+class ProductOrder {
+  const ProductOrder({
+    required this.id,
+    required this.publicId,
+    required this.status,
+    required this.totalPaise,
+    required this.createdAt,
+    required this.items,
+  });
+
+  final String id;
+  final String publicId;
+  final ProductOrderStatus? status;
+  final int totalPaise;
+  final DateTime createdAt;
+  final List<ProductOrderLine> items;
+
+  /// Placed and not yet paid for. There is no gateway, so this is where every order starts
+  /// and where it stays until somebody settles it at the counter.
+  bool get awaitingPayment => status == ProductOrderStatus.pending;
+
+  factory ProductOrder.fromJson(Map<String, dynamic> json) => ProductOrder(
+        id: _str(json['id']),
+        publicId: _str(json['publicId']),
+        status: ProductOrderStatus.tryParse(json['status'] as String?),
+        totalPaise: _int(json['totalPaise']),
+        createdAt: _instant(json['createdAt']),
+        items: _list(json['items'], ProductOrderLine.fromJson),
+      );
+}

@@ -29,14 +29,14 @@ export async function generateMetadata(): Promise<Metadata> {
     null,
   );
 
-  const title = withLocality('Head & Body Massage for Men', store);
+  const title = withLocality('Quick Head & Body Massage for Men', store);
   const from = cheapest === null ? '₹49' : rupees(cheapest);
 
   return {
     title: `${title} — walk-in from ${from}`,
     description:
-      `Head, neck, shoulder and full-body dry massage from ${from}. Pick a treatment, ` +
-      'choose your time, and walk straight in — no waiting, no membership.',
+      `Quick dry massage for men — head, neck, shoulder and full body from ${from}. ` +
+      'Ten to thirty minutes, no appointment needed. Pick a time and walk straight in.',
     alternates: { canonical: '/' },
   };
 }

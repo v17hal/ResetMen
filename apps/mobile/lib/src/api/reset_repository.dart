@@ -163,6 +163,46 @@ class ResetRepository {
         .toList();
   }
 
+  // ── Shop ──────────────────────────────────────────────────────────────────
+  //
+  // Both lists come back wrapped in `{ data }` and are unwrapped here, the same way the
+  // bookings list is, so screens receive a list rather than an envelope.
+
+  Future<List<Product>> products() async {
+    final json = await _api.get<Map<String, dynamic>>('/products');
+    return ((json['data'] as List?) ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(Product.fromJson)
+        .toList();
+  }
+
+  /// Places an order. Stock leaves the shelf here, not at payment.
+  ///
+  /// The idempotency key matters more than usual: a retry without one takes the last tub of
+  /// balm off the shelf twice.
+  Future<ProductOrder> createProductOrder({
+    required Map<String, int> quantities,
+    required String idempotencyKey,
+  }) async =>
+      ProductOrder.fromJson(await _api.post<Map<String, dynamic>>(
+        '/orders',
+        body: {
+          'items': [
+            for (final entry in quantities.entries)
+              {'productId': entry.key, 'qty': entry.value},
+          ],
+        },
+        idempotencyKey: idempotencyKey,
+      ));
+
+  Future<List<ProductOrder>> productOrders() async {
+    final json = await _api.get<Map<String, dynamic>>('/orders');
+    return ((json['data'] as List?) ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(ProductOrder.fromJson)
+        .toList();
+  }
+
   Future<Booking> booking(String id) async =>
       Booking.fromJson(await _api.get<Map<String, dynamic>>('/bookings/$id'));
 

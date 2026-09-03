@@ -5,12 +5,16 @@ import 'account_screen.dart';
 import 'bookings_screen.dart';
 import 'home_screen.dart';
 import 'rewards_screen.dart';
+import 'shop_screen.dart';
 
 /// The tab shell.
 ///
-/// Four destinations, each with its own [Navigator] so pushing a service and then switching
+/// Five destinations, each with its own [Navigator] so pushing a service and then switching
 /// tabs does not lose the stack — someone who taps Rewards mid-browse comes back to exactly
 /// where they were.
+///
+/// Shop sits between Visits and Rewards. The website has had one throughout and the app had
+/// none, so the shelf was simply unreachable on Android.
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
@@ -20,7 +24,7 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   int _index = 0;
-  final _navigators = List.generate(4, (_) => GlobalKey<NavigatorState>());
+  final _navigators = List.generate(5, (_) => GlobalKey<NavigatorState>());
 
   static const _destinations = [
     NavigationDestination(
@@ -32,6 +36,11 @@ class _AppShellState extends ConsumerState<AppShell> {
       icon: Icon(Icons.confirmation_number_outlined),
       selectedIcon: Icon(Icons.confirmation_number),
       label: 'Visits',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.shopping_bag_outlined),
+      selectedIcon: Icon(Icons.shopping_bag),
+      label: 'Shop',
     ),
     NavigationDestination(
       icon: Icon(Icons.card_giftcard_outlined),
@@ -69,8 +78,9 @@ class _AppShellState extends ConsumerState<AppShell> {
           children: [
             _TabNavigator(navigatorKey: _navigators[0], child: const HomeScreen()),
             _TabNavigator(navigatorKey: _navigators[1], child: const BookingsScreen()),
-            _TabNavigator(navigatorKey: _navigators[2], child: const RewardsScreen()),
-            _TabNavigator(navigatorKey: _navigators[3], child: const AccountScreen()),
+            _TabNavigator(navigatorKey: _navigators[2], child: const ShopScreen()),
+            _TabNavigator(navigatorKey: _navigators[3], child: const RewardsScreen()),
+            _TabNavigator(navigatorKey: _navigators[4], child: const AccountScreen()),
           ],
         ),
         bottomNavigationBar: NavigationBar(

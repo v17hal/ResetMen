@@ -62,6 +62,20 @@ export default function ShopPage() {
         orderKey.current,
       );
 
+      /**
+       * With payment at the counter there is no checkout to open.
+       *
+       * This used to run the payment path unconditionally. In production that meant: the
+       * order was created and the stock came off the shelf, the payment endpoint reported
+       * itself simulated because no Razorpay keys exist, and `simulateSuccess` — which
+       * refuses to run in production, correctly — returned a 500. The customer was shown an
+       * error for an order that had in fact been placed, and the shelf was short by
+       * whatever they had bought.
+       *
+       * The booking flow has always skipped payment the same way. This is that.
+       */
+      if (store.data?.paymentsEnabled !== true) return order;
+
       const payment = await api().payments.createOrder(
         { productOrderId: order.id },
         `${orderKey.current}-pay`,
@@ -85,7 +99,11 @@ export default function ShopPage() {
       return order;
     },
     onSuccess: () => {
-      toast.success('Paid. We will text you when it is ready to collect.');
+      toast.success(
+        store.data?.paymentsEnabled === true
+          ? 'Paid. We will text you when it is ready to collect.'
+          : 'Ordered. Pay at the store when you collect it.',
+      );
       setCart(new Map());
       // A fresh key, or a second order would replay the first one's response.
       orderKey.current = `order-${crypto.randomUUID()}`;

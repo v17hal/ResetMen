@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../api/generated/reset_enums.dart';
 import '../api/models.dart';
 import '../format.dart';
 import '../providers.dart';
@@ -185,7 +186,15 @@ class _BookingList extends ConsumerWidget {
                         ],
                       ),
                     ),
-                    BookingStatusBadge(booking.status),
+                    // An unpaid booking is CONFIRMED as far as the slot is concerned, so
+                    // the status badge alone said "Confirmed" on something the store had
+                    // not settled and would not honour yet. The same distinction the web
+                    // list makes.
+                    if (booking.isPaid || booking.status == BookingStatus.cancelled)
+                      BookingStatusBadge(booking.status)
+                    else
+                      ResetBadge('Awaiting confirmation',
+                          color: Theme.of(context).warningColor),
                   ],
                 ),
                 const SizedBox(height: ResetTokens.spaceSm),

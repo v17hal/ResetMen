@@ -142,29 +142,42 @@ class _ConfirmationScreenState extends ConsumerState<ConfirmationScreen> {
                     textAlign: TextAlign.center,
                   ),
                 ] else ...[
+                  /// Paid or not, which is not the same question as booked or not.
+                  ///
+                  /// This used to read the store's payment setting rather than the
+                  /// booking's own state, so it said "someone will call you to take
+                  /// payment" to a customer who had already paid at the counter, and
+                  /// claimed "you're booked" under a missing entry code. The API sends
+                  /// `isPaid` per booking; the app now reads it, and the words match the web
+                  /// confirmation screen exactly.
                   Center(
                     child: Container(
                       width: 56,
                       height: 56,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: theme.successColor.withValues(alpha: 0.15),
+                        color: (booking.isPaid ? theme.successColor : theme.warningColor)
+                            .withValues(alpha: 0.15),
                       ),
-                      child: Icon(Icons.check, color: theme.successColor, size: 30),
+                      child: Icon(
+                        booking.isPaid ? Icons.check : Icons.schedule,
+                        color: booking.isPaid ? theme.successColor : theme.warningColor,
+                        size: 30,
+                      ),
                     ),
                   ),
                   const SizedBox(height: ResetTokens.spaceBase),
                   Text(
-                    "You're booked",
+                    booking.isPaid ? "You're booked" : 'Awaiting confirmation',
                     style: ResetTokens.display,
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: ResetTokens.spaceXs),
                   Text(
-                    (store?.paymentsEnabled ?? true)
+                    booking.isPaid
                         ? 'Show this at the counter when you arrive.'
-                        : 'Your slot is held. Someone from the team will call you to '
-                            'confirm and take payment.',
+                        : 'Your slot is held. The store will call you to confirm and take '
+                            'payment, and your entry code appears here once it is settled.',
                     style: ResetTokens.body.copyWith(color: theme.mutedColor),
                     textAlign: TextAlign.center,
                   ),

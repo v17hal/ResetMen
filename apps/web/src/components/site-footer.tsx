@@ -36,7 +36,8 @@ export async function SiteFooter() {
           {/* Not an h1 — the page already has one. */}
           <p className="font-display text-h3">RESET{city === null ? '' : ` ${city}`}</p>
           <p className="text-text-muted">
-            Head, neck, shoulder and full-body dry massage, wellness and grooming for men.
+            Quick dry massage and wellness for men — head, neck, shoulder and full body.
+            Ten to thirty minutes, walk straight in.
           </p>
         </div>
 

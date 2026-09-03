@@ -1,261 +1,142 @@
-'use client';
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 
-import type { AddonGroupDto } from '@reset/api-client';
 import {
-  Button,
-  ErrorState,
-  Skeleton,
-  formatDuration,
-  formatMoney,
-} from '@reset/ui';
-import { useQuery } from '@tanstack/react-query';
-import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
-
-import { ServiceImage } from '@/components/service-look';
-import { errorMessage } from '@/lib/auth';
-import { api } from '@/lib/client';
+  SITE_URL,
+  getHome,
+  getService,
+  getStore,
+  jsonLd,
+  rupees,
+  withLocality,
+} from '@/lib/seo';
+import { ServiceDetail } from './service-detail';
 
 /**
- * Service detail and add-on selection.
+ * A service page, rendered on the server.
  *
- * The running total shown here is a local sum of catalog prices, purely so the number moves
- * as options are ticked. It is never what gets charged — the server re-prices the whole
- * basket at `/bookings/quote` and again at hold, and that figure is the one on the
- * checkout screen.
+ * This was a client component that fetched its own service after hydration, so every one of
+ * these URLs served the same 13KB shell with the same site-wide title and no mention of the
+ * treatment it was about. Five treatments, five identical pages as far as a crawler was
+ * concerned — and identical pages get collapsed into one.
+ *
+ * These are the pages worth ranking. "Head massage in <city>" is a search with intent
+ * behind it; "book your reset" is not a search at all.
  */
-export default function ServicePage() {
-  const params = useParams<{ slug: string }>();
-  const router = useRouter();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const service = useQuery({
-    queryKey: ['service', params.slug],
-    queryFn: () => api().catalog.service(params.slug),
-  });
-
-  const totals = useMemo(() => {
-    if (service.data === undefined) return { price: 0, minutes: 0 };
-
-    const options = service.data.addonGroups
-      .flatMap((group) => group.options)
-      .filter((option) => selected.has(option.id));
-
-    return {
-      price: service.data.pricePaise + options.reduce((sum, o) => sum + o.priceDeltaPaise, 0),
-      minutes:
-        service.data.durationMinutes +
-        options.reduce((sum, o) => sum + o.durationDeltaMinutes, 0),
-    };
-  }, [service.data, selected]);
-
-  if (service.isError) {
-    return (
-      <div className="p-base">
-        <ErrorState
-          title="Could not load this service"
-          description={errorMessage(service.error)}
-          onRetry={() => void service.refetch()}
-        />
-      </div>
-    );
-  }
-
-  if (service.isPending) {
-    return (
-      <div className="flex flex-col gap-base p-base" aria-busy>
-        <Skeleton className="h-48 w-full" />
-        <Skeleton className="h-8 w-2/3" />
-        <Skeleton className="h-24 w-full" />
-      </div>
-    );
-  }
-
-  const invalidGroups = service.data.addonGroups.filter((group) => {
-    const chosen = group.options.filter((option) => selected.has(option.id)).length;
-    return chosen < group.minSelect || chosen > group.maxSelect;
-  });
-
-  function goToSlots(): void {
-    const query = new URLSearchParams({ serviceId: service.data!.id });
-    for (const id of selected) query.append('addon', id);
-    router.push(`/slots?${query.toString()}`);
-  }
-
-  return (
-    <div className="flex flex-col">
-      {/* Always shown. Without a photo the icon fills the same frame, so the page opens on
-          the thing being sold rather than on bare text. */}
-      <ServiceImage
-        name={service.data.name}
-        imageUrl={service.data.imageUrl}
-        className="h-[200px] w-full"
-        rounded="sm:rounded-b-lg"
-      />
-
-      <div className="flex flex-col gap-lg p-base">
-        <header className="flex flex-col gap-sm">
-          <Link href="/" className="text-body-sm text-primary underline underline-offset-4">
-            ← All services
-          </Link>
-          <h1 className="font-display text-h1">{service.data.name}</h1>
-          <div className="flex flex-wrap items-center gap-md">
-            <span className="font-display text-[26px]">
-              {formatMoney(service.data.pricePaise)}
-            </span>
-            <span className="text-body-sm text-text-muted">
-              {formatDuration(service.data.durationMinutes)}
-            </span>
-          </div>
-          {service.data.description !== null && (
-            <p className="text-body text-text-muted">{service.data.description}</p>
-          )}
-        </header>
-
-        {service.data.addonGroups.map((group) => (
-          <AddonGroup
-            key={group.id}
-            group={group}
-            selected={selected}
-            onChange={setSelected}
-          />
-        ))}
-      </div>
-
-      {/* Sticky summary. Sits above the tab bar rather than under it. */}
-      <div className="sticky bottom-[calc(var(--reset-layout-bottom-nav-height)+env(safe-area-inset-bottom))] z-20 border-t border-border bg-surface p-base sm:bottom-0">
-        <div className="mx-auto flex max-w-content items-center gap-base">
-          <div className="flex flex-col">
-            <span className="font-mono text-h2">{formatMoney(totals.price)}</span>
-            <span className="text-caption text-text-muted">
-              {formatDuration(totals.minutes)} total
-            </span>
-          </div>
-
-          <Button
-            size="lg"
-            className="flex-1"
-            disabled={invalidGroups.length > 0}
-            onClick={goToSlots}
-          >
-            {invalidGroups.length > 0
-              ? `Choose ${invalidGroups[0]!.name}`
-              : 'Choose a time'}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
+interface Params {
+  params: Promise<{ slug: string }>;
 }
 
-function AddonGroup({
-  group,
-  selected,
-  onChange,
-}: {
-  group: AddonGroupDto;
-  selected: Set<string>;
-  onChange: (next: Set<string>) => void;
-}) {
-  const single = group.maxSelect === 1;
-  const chosen = group.options.filter((option) => selected.has(option.id)).length;
+/** Rebuilt every ten minutes, so a price change in the admin panel reaches search results. */
+export const revalidate = 600;
 
-  function toggle(id: string): void {
-    const next = new Set(selected);
+/**
+ * Build the five treatment pages ahead of time.
+ *
+ * They are the pages worth ranking, so they should answer instantly rather than waiting on
+ * an API round trip — time to first byte is a ranking input and, more to the point, the
+ * thing between a customer and a price.
+ *
+ * `dynamicParams` stays at its default, so a service added in the admin panel still renders
+ * on demand instead of 404ing until the next deploy.
+ */
+export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
+  const home = await getHome();
+  return (home?.services ?? []).map((service) => ({ slug: service.slug }));
+}
 
-    if (single) {
-      // A single-select group behaves like a radio: picking one clears the rest of the
-      // group rather than silently exceeding maxSelect.
-      for (const option of group.options) next.delete(option.id);
-      if (!selected.has(id)) next.add(id);
-    } else if (next.has(id)) {
-      next.delete(id);
-    } else if (chosen < group.maxSelect) {
-      next.add(id);
-    } else {
-      return;
-    }
+export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  const { slug } = await params;
+  const [service, store] = await Promise.all([getService(slug), getStore()]);
 
-    onChange(next);
+  if (service === null) {
+    return { title: 'Service not found' };
   }
 
+  /**
+   * The title carries the treatment, the town and the price.
+   *
+   * A price in the title is unusual advice and right here: these are impulse purchases at
+   * ₹49 to ₹299, the number is the offer, and it is what makes somebody click one result
+   * over another. The template appends "· RESET" so the brand is still there.
+   */
+  const title = `${withLocality(service.name + ' Massage', store)} — from ${rupees(service.pricePaise)}`;
+
+  const description =
+    service.description !== null && service.description.trim() !== ''
+      ? `${service.description.trim()} ${rupees(service.pricePaise)}, ${service.durationMinutes} minutes. Book a time and walk straight in.`
+      : `${service.name} — ${rupees(service.pricePaise)} for ${service.durationMinutes} minutes. ` +
+        'Book a time and walk straight in.';
+
+  const url = `${SITE_URL}/service/${service.slug}`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: 'website',
+      url,
+      title,
+      description,
+      ...(service.imageUrl === null ? {} : { images: [service.imageUrl] }),
+    },
+    twitter: { card: 'summary_large_image', title, description },
+  };
+}
+
+export default async function ServicePage({ params }: Params) {
+  const { slug } = await params;
+  const [service, store] = await Promise.all([getService(slug), getStore()]);
+
+  // A slug that is not a service is a 404, not an empty page that returns 200. A soft 404
+  // gets indexed and then reported as a crawl error.
+  if (service === null) notFound();
+
+  const url = `${SITE_URL}/service/${service.slug}`;
+
+  /**
+   * The treatment, as an offer.
+   *
+   * `Service` with an `Offer` is what can earn a price in the search result. The price is
+   * the one the catalogue holds — it is re-quoted server-side at booking, so this is the
+   * advertised "from", which is exactly what `lowPrice` means.
+   */
+  const serviceLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Service',
+    '@id': `${url}#service`,
+    name: service.name,
+    ...(service.description === null ? {} : { description: service.description }),
+    serviceType: 'Massage',
+    provider: { '@id': `${SITE_URL}/#business` },
+    ...(store?.city == null ? {} : { areaServed: { '@type': 'City', name: store.city } }),
+    offers: {
+      '@type': 'Offer',
+      price: (service.pricePaise / 100).toFixed(2),
+      priceCurrency: 'INR',
+      availability: 'https://schema.org/InStock',
+      url,
+    },
+  };
+
+  const breadcrumbs = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Treatments', item: SITE_URL },
+      { '@type': 'ListItem', position: 2, name: service.name, item: url },
+    ],
+  };
+
   return (
-    <fieldset className="flex flex-col gap-sm">
-      <legend className="flex w-full items-baseline justify-between gap-sm">
-        <span className="font-display text-h2">{group.name}</span>
-        <span className="text-caption text-text-muted">
-          {group.minSelect > 0
-            ? `Choose ${group.minSelect === group.maxSelect ? group.minSelect : `${group.minSelect}–${group.maxSelect}`}`
-            : single
-              ? 'Optional'
-              : `Up to ${group.maxSelect}`}
-        </span>
-      </legend>
-
-      <ul className="flex flex-col gap-sm">
-        {group.options.map((option) => {
-          const isSelected = selected.has(option.id);
-          const atLimit = !single && !isSelected && chosen >= group.maxSelect;
-
-          return (
-            <li key={option.id}>
-              <button
-                type="button"
-                role={single ? 'radio' : 'checkbox'}
-                aria-checked={isSelected}
-                disabled={atLimit}
-                onClick={() => toggle(option.id)}
-                className={[
-                  'flex min-h-touch w-full items-center gap-base rounded-md border p-base text-left',
-                  'transition-colors duration-micro ease-standard',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-                  isSelected
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border bg-surface hover:bg-surface2',
-                  atLimit ? 'opacity-50' : '',
-                ].join(' ')}
-              >
-                <span
-                  aria-hidden
-                  className={[
-                    'grid h-5 w-5 shrink-0 place-items-center border',
-                    single ? 'rounded-full' : 'rounded-sm',
-                    isSelected ? 'border-primary bg-primary' : 'border-border',
-                  ].join(' ')}
-                >
-                  {isSelected && (
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path
-                        d="M2.5 6.5L5 9l4.5-5.5"
-                        stroke="var(--reset-color-primary-fg)"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  )}
-                </span>
-
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-body">{option.name}</span>
-                  {option.durationDeltaMinutes > 0 && (
-                    <span className="block text-caption text-text-muted">
-                      +{option.durationDeltaMinutes} min
-                    </span>
-                  )}
-                </span>
-
-                <span className="shrink-0 font-mono text-body-sm">
-                  {option.priceDeltaPaise === 0
-                    ? 'Free'
-                    : `+${formatMoney(option.priceDeltaPaise)}`}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </fieldset>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLd([serviceLd, breadcrumbs]) }}
+      />
+      <ServiceDetail slug={slug} initialData={service} />
+    </>
   );
 }

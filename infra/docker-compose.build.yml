@@ -42,6 +42,9 @@ services:
         NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID:?set NEXT_PUBLIC_FIREBASE_PROJECT_ID}
         NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID:?set NEXT_PUBLIC_FIREBASE_APP_ID}
         NEXT_PUBLIC_FIREBASE_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_SENDER_ID:?set NEXT_PUBLIC_FIREBASE_SENDER_ID}
+        # Optional, and empty until Search Console issues one. `:-` rather than `:?`: an
+        # unverified site should still build and deploy.
+        NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: ${NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION:-}
 
   admin:
     image: reset-admin:latest

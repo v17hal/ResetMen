@@ -58,6 +58,25 @@ export const metadata: Metadata = {
     follow: true,
     googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
   },
+  /**
+   * Search Console ownership, waiting for a token.
+   *
+   * Verifying the property is what lets somebody submit the sitemap and ask Google to crawl
+   * a page rather than wait to be found, and it is the only place the crawl errors and the
+   * queries people actually typed are visible. It needs the shop's own Google account, so
+   * the token is supplied at build time rather than committed.
+   *
+   * Left out of the tag entirely when unset — an empty `content` on a verification meta is
+   * read as a failed attempt rather than as no attempt.
+   */
+  ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION === undefined ||
+  process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION === ''
+    ? {}
+    : {
+        verification: {
+          google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+        },
+      }),
 };
 
 export const viewport: Viewport = {

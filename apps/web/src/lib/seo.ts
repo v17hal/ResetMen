@@ -50,10 +50,12 @@ function apiBase(): string {
  * should cost the page its rich title, not return a 500 — a crawler that meets an error
  * page drops the URL, which is a far worse outcome than a generic description.
  */
-async function read<T>(path: string): Promise<T | null> {
+async function read<T>(path: string, cache?: 'no-store'): Promise<T | null> {
   try {
     const response = await fetch(`${apiBase()}${path}`, {
-      next: { revalidate: REVALIDATE_SECONDS },
+      ...(cache === 'no-store'
+        ? { cache: 'no-store' as const }
+        : { next: { revalidate: REVALIDATE_SECONDS } }),
       headers: { accept: 'application/json' },
     });
     if (!response.ok) return null;
@@ -63,8 +65,19 @@ async function read<T>(path: string): Promise<T | null> {
   }
 }
 
+/**
+ * Never cached at build time.
+ *
+ * The address, phone and hours are what the structured data and the footer are built from,
+ * and they are edited in the database rather than in the code. A build-time cache entry
+ * pinned the old values into the image: the phone number was added, the API returned it
+ * immediately, and the site kept publishing a business with no phone because the fetch had
+ * been answered once, during the build, before the number existed.
+ *
+ * One small request per render is the right price for facts that must be current.
+ */
 export function getStore(): Promise<StoreDto | null> {
-  return read<StoreDto>('/catalog/store');
+  return read<StoreDto>('/catalog/store', 'no-store');
 }
 
 export function getHome(): Promise<HomeDto | null> {
@@ -80,9 +93,12 @@ export function getService(slug: string): Promise<ServiceDetail | null> {
  *
  * These are not the same thing and treating them as one took the five service pages down.
  * The page called `notFound()` whenever the fetch returned nothing, and the fetch returns
- * nothing both when the API says 404 and when it cannot be reached at all. During the
- * Docker build it could not be reached — the build container has no route to the running
- * API — so every service page was generated as a permanent 404 and shipped that way.
+ * nothing both when the API says 404 and when it cannot be reached at all.
+ *
+ * The 404s turned out to be self-inflicted — the reads were missing the `/api/v1` prefix,
+ * so the API answered 404 to every one of them and the pages faithfully published that.
+ * The distinction is still worth keeping: an API that is briefly down should cost a page
+ * its server-rendered content, not unpublish it.
  *
  * A missing service is a 404. A failed request is a reason to render the page anyway and
  * let the browser fetch it, which is what the page did before any of this.

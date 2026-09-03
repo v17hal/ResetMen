@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
 import { BottomNav } from '@/components/bottom-nav';
+import { SiteFooter } from '@/components/site-footer';
 import { SiteJsonLd } from '@/components/site-json-ld';
 import { SITE_URL } from '@/lib/seo';
 import { fontVariables } from './fonts';
@@ -94,7 +95,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <div className="mx-auto min-h-dvh w-full max-w-content pb-[calc(var(--reset-layout-bottom-nav-height)+env(safe-area-inset-bottom))] sm:pb-0">
             <main id="main">{children}</main>
           </div>
-          <BottomNav />
+          <SiteFooter />
+        <BottomNav />
         </Providers>
       </body>
     </html>

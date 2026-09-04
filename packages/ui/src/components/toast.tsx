@@ -71,13 +71,45 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }, []);
 
+  /** Never more than this many at once, oldest dropped first. */
+  const MAX_VISIBLE = 3;
+
   const show = useCallback<ToastContextValue['show']>(
     (message, options = {}) => {
       const tone = options.tone ?? 'info';
       const duration = options.duration ?? (tone === 'error' ? 0 : 4000);
       const id = nextId.current++;
 
-      setToasts((current) => [...current, { id, tone, message, duration }]);
+      setToasts((current) => {
+        /**
+         * The same message twice is one message.
+         *
+         * Errors never auto-dismiss, which is right for something like a failed refund that
+         * nobody should be able to miss. On a form it was a trap: pressing Save four times
+         * with a bad email produced four identical, permanent notices that stacked down the
+         * screen and covered the very fields being corrected. A tester reported the form as
+         * unusable, and they were right.
+         *
+         * Repeating a message that is already on screen tells the reader nothing they
+         * cannot already see, so the existing one is kept and moved to the end instead.
+         */
+        const withoutDuplicate = current.filter((toast) => toast.message !== message);
+        const next = [...withoutDuplicate, { id, tone, message, duration }];
+
+        // A hard ceiling as well, for different messages in quick succession. Beyond three
+        // the newest are the ones worth reading, and the screen is worth more than the
+        // backlog.
+        const dropped = next.slice(0, Math.max(0, next.length - MAX_VISIBLE));
+        for (const toast of dropped) {
+          const timer = timers.current.get(toast.id);
+          if (timer !== undefined) {
+            clearTimeout(timer);
+            timers.current.delete(toast.id);
+          }
+        }
+
+        return next.slice(-MAX_VISIBLE);
+      });
 
       if (duration > 0) {
         timers.current.set(

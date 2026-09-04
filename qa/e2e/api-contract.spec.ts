@@ -276,3 +276,104 @@ test.describe('Shop contract', () => {
     expect(cancelled.ok(), 'the test must return the stock it took').toBeTruthy();
   });
 });
+
+test.describe('Serving a booking', () => {
+  /** Books a slot for a fresh customer and returns its ids. */
+  async function book(request: Parameters<typeof createCustomer>[0], slotIndex: number) {
+    customer = await createCustomer(request);
+    await setPhone(request, customer);
+
+    const { services } = await catalogue(request);
+    const head = services.find((s) => s.name === 'Head')!;
+    const { slots } = await firstOpenDay(request, head.id);
+
+    const made = await request.post(`${API}/bookings/hold`, {
+      headers: { Authorization: `Bearer ${customer.accessToken}` },
+      data: { serviceId: head.id, startsAt: slots[slotIndex]!.startsAt, addonIds: [] },
+    });
+    expect(made.ok(), await made.text()).toBeTruthy();
+    return (await made.json()) as { bookingId: string; publicId: string };
+  }
+
+  test('TC-207 an unpaid booking cannot be served', async ({ request }) => {
+    const { bookingId } = await book(request, 4);
+    const token = await adminToken(request);
+
+    /**
+     * The hole this closes: the check-in scanner has always refused an unpaid booking, and
+     * the status dropdown beside it did not. Staff could take a booking straight to
+     * CHECKED_IN or COMPLETED and hand over a free treatment, and it would never appear on
+     * Payments due again.
+     */
+    for (const status of ['CHECKED_IN', 'IN_PROGRESS', 'COMPLETED']) {
+      const response = await request.post(`${API}/admin/bookings/${bookingId}/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { status },
+      });
+
+      expect(response.status(), `${status} on an unpaid booking should be refused`).toBe(422);
+      expect((await response.json()).detail).toMatch(/paid/i);
+    }
+
+    // Marking a no-show must still work — it is the likeliest outcome for an unpaid booking.
+    const noShow = await request.post(`${API}/admin/bookings/${bookingId}/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { status: 'NO_SHOW' },
+    });
+    expect(noShow.ok(), 'NO_SHOW must stay available on an unpaid booking').toBeTruthy();
+  });
+
+  test('TC-208 a booking cannot be completed before it starts', async ({ request }) => {
+    const { bookingId } = await book(request, 5);
+    const token = await adminToken(request);
+
+    await request.post(`${API}/admin/bookings/${bookingId}/mark-paid`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { method: 'CASH' },
+    });
+
+    // Early check-in is fine — people arrive early.
+    const checkIn = await request.post(`${API}/admin/bookings/${bookingId}/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { status: 'CHECKED_IN' },
+    });
+    expect(checkIn.ok(), 'checking somebody in early is legitimate').toBeTruthy();
+
+    /**
+     * Completing it is not. A future booking marked COMPLETED matched neither the
+     * "upcoming" nor the "completed" filter, so it disappeared from the customer's app
+     * entirely — paid for, and visible nowhere they could look.
+     */
+    const completed = await request.post(`${API}/admin/bookings/${bookingId}/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { status: 'COMPLETED' },
+    });
+    expect(completed.status(), 'completing a future booking should be refused').toBe(422);
+    expect((await completed.json()).detail).toMatch(/has not started/i);
+  });
+
+  test('TC-209 a served booking stays visible to the customer', async ({ request }) => {
+    const { bookingId } = await book(request, 6);
+    const token = await adminToken(request);
+
+    await request.post(`${API}/admin/bookings/${bookingId}/mark-paid`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { method: 'CASH' },
+    });
+    await request.post(`${API}/admin/bookings/${bookingId}/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { status: 'CHECKED_IN' },
+    });
+
+    // Checked in and still to come: it belongs in "upcoming", and must be in exactly one
+    // list rather than falling between them.
+    const upcoming = await (
+      await request.get(`${API}/bookings?status=upcoming`, {
+        headers: { Authorization: `Bearer ${customer!.accessToken}` },
+      })
+    ).json();
+
+    const ids = (upcoming.data as Array<{ id: string }>).map((b) => b.id);
+    expect(ids, 'a checked-in future booking belongs under upcoming').toContain(bookingId);
+  });
+});

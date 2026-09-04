@@ -1,3 +1,5 @@
+import { formatPhone } from '@reset/ui';
+
 import { getStore, locality, openingHoursSpecification } from '@/lib/seo';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -61,8 +63,10 @@ export async function SiteFooter() {
           {store.phone !== null && store.phone.trim() !== '' && (
             <div className="flex flex-col">
               <span className="text-caption uppercase tracking-wide text-text-muted">Call</span>
+              {/* Grouped for reading aloud and dialling: +91 94044 91801. The href keeps
+                  the unspaced E.164 number, which is what a dialler wants. */}
               <a href={`tel:${store.phone}`} className="underline underline-offset-2">
-                {store.phone}
+                {formatPhone(store.phone)}
               </a>
             </div>
           )}
@@ -73,7 +77,9 @@ export async function SiteFooter() {
               <span>{openLine}</span>
               {closedDays.length > 0 && (
                 <span className="text-text-muted">
-                  Closed {closedDays.map((day) => DAY_NAMES[day.dayOfWeek]).join(', ')}
+                  {/* "Closed on Mondays" — a standing weekly closure, not one shut Monday. */}
+                  Closed on{' '}
+                  {closedDays.map((day) => `${DAY_NAMES[day.dayOfWeek]}s`).join(', ')}
                 </span>
               )}
             </div>

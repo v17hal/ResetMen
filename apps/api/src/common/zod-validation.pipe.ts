@@ -14,6 +14,7 @@ import { AppError } from './errors.js';
 export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
   constructor(private readonly schema: ZodSchema<T>) {}
 
+
   transform(value: unknown): T {
     const result = this.schema.safeParse(value);
 
@@ -23,12 +24,32 @@ export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
         message: issue.message,
       }));
 
-      throw AppError.validation(
-        fields.map((f) => `${f.path}: ${f.message}`).join('; '),
-        { fields },
-      );
+      /**
+       * A sentence, not a field dump.
+       *
+       * This used to send `email: Invalid email`, which is how a developer reads a Zod
+       * issue and not how anybody else reads anything. It went straight to the customer,
+       * prefixed with a field name they never saw a label for.
+       *
+       * The structured `fields` array still goes in the meta, where clients that want to
+       * highlight a particular input can find it — that is what it is for.
+       */
+      const readable =
+        fields.length === 1
+          ? sentence(fields[0]!.message)
+          : fields.map((f) => sentence(f.message)).join(' ');
+
+      throw AppError.validation(readable, { fields });
     }
 
     return result.data;
   }
+}
+
+/** Capitalised and full-stopped, so several can be read as one paragraph. */
+function sentence(message: string): string {
+  const trimmed = message.trim();
+  if (trimmed === '') return 'That value is not valid.';
+  const capitalised = trimmed[0]!.toUpperCase() + trimmed.slice(1);
+  return /[.!?]$/.test(capitalised) ? capitalised : `${capitalised}.`;
 }

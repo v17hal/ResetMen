@@ -244,6 +244,37 @@ function RuleDialog({ rule, onClose }: { rule: AdminAllocationRuleRow | 'new' | 
     form.endsAtLocal > form.startsAtLocal &&
     (form.recurrence === 'ONE_OFF' ? form.dateFrom !== '' : form.daysOfWeek.length > 0);
 
+  /**
+   * Why Save is greyed out, in words.
+   *
+   * Staff reported the Save button as broken. It was doing exactly what it was written to
+   * do — the name field is above the fold and Save additionally waits for a preview — and
+   * the screen said none of that. A disabled control with no explanation is
+   * indistinguishable from a bug, and it gets reported as one, which is what happened.
+   *
+   * The preview requirement is worth keeping: reserving stations can wipe out availability
+   * for a service nobody was thinking about, and this is the only place that is visible
+   * before customers find it. It just has to say so.
+   */
+  const blocker =
+    form.name.trim() === ''
+      ? 'Give the rule a name — the field is at the top of this form.'
+      : form.stationIds.length === 0
+        ? 'Pick at least one station.'
+        : form.serviceIds.length === 0
+          ? 'Pick at least one service.'
+          : form.endsAtLocal <= form.startsAtLocal
+            ? 'The window has to end after it starts.'
+            : form.recurrence === 'ONE_OFF' && form.dateFrom === ''
+              ? 'Pick the date this rule applies to.'
+              : form.daysOfWeek.length === 0 && form.recurrence !== 'ONE_OFF'
+                ? 'Pick at least one day of the week.'
+                : preview === null
+                  ? 'Press Preview first. A rule can quietly remove availability for a ' +
+                    'service you were not thinking about, and this is the only place that ' +
+                    'shows up before a customer finds it.'
+                  : null;
+
   const conflicts = preview?.conflicts ?? [];
   const wipeouts = (preview?.effects ?? []).filter(
     (effect) => effect.slotsBefore > 0 && effect.slotsAfter === 0,
@@ -416,6 +447,11 @@ function RuleDialog({ rule, onClose }: { rule: AdminAllocationRuleRow | 'new' | 
           <p role="alert" className="text-body-sm text-danger">
             {error}
           </p>
+        )}
+
+        {/* Says what is standing between this form and a saved rule. */}
+        {blocker !== null && error === null && (
+          <p className="text-body-sm text-text-muted">{blocker}</p>
         )}
 
         {preview !== null && (

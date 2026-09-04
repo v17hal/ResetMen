@@ -138,7 +138,10 @@ export class BookingLifecycleService {
     actorId: string | null,
     reason?: string,
   ) {
-    const booking = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
+    const booking = await this.prisma.booking.findUniqueOrThrow({
+      where: { id: bookingId },
+      include: { payments: { where: { status: 'CAPTURED' }, select: { id: true } } },
+    });
 
     if (booking.status === to) return { status: to, changed: false };
 
@@ -146,6 +149,45 @@ export class BookingLifecycleService {
       throw AppError.validation(
         `Cannot move a booking from ${booking.status} to ${to}.`,
         { from: booking.status, to, allowed: ALLOWED_TRANSITIONS[booking.status] },
+      );
+    }
+
+    /**
+     * Serving a customer requires the money to be in first.
+     *
+     * The check-in scanner has always refused an unpaid booking. This path — the status
+     * dropdown in the admin panel — did not, so a member of staff could take a booking
+     * straight to CHECKED_IN or COMPLETED without anyone paying for it. That is a free
+     * treatment given away by a UI control, and it does not show up as a discrepancy
+     * anywhere: the booking simply reads Completed and never appears on Payments due.
+     *
+     * NO_SHOW and CANCELLED stay open on an unpaid booking, because those are exactly the
+     * outcomes an unpaid booking is likely to have.
+     */
+    const SERVICE_STARTED: readonly BookingStatus[] = ['CHECKED_IN', 'IN_PROGRESS', 'COMPLETED'];
+
+    if (SERVICE_STARTED.includes(to) && booking.payments.length === 0) {
+      throw AppError.validation(
+        `${booking.publicId} has not been paid for. Take payment and mark it paid on ` +
+          'Payments due first.',
+        { publicId: booking.publicId, needs: 'payment' },
+      );
+    }
+
+    /**
+     * A treatment cannot finish before it starts.
+     *
+     * Marking a future booking COMPLETED took it out of the customer's app altogether: it
+     * no longer matched "upcoming", and "completed" only lists bookings whose time has
+     * passed. The booking existed, was paid for, and appeared nowhere the customer could
+     * look. Checking somebody in early is fine — people arrive early — so only the two
+     * states that claim the work is under way or finished are held back.
+     */
+    if ((to === 'IN_PROGRESS' || to === 'COMPLETED') && booking.startsAt.getTime() > Date.now()) {
+      throw AppError.validation(
+        `${booking.publicId} has not started yet — it is booked for ` +
+          `${booking.startsAt.toISOString()}. It cannot be marked ${to.toLowerCase()} before then.`,
+        { publicId: booking.publicId, startsAt: booking.startsAt.toISOString() },
       );
     }
 
@@ -203,7 +245,21 @@ export class BookingLifecycleService {
       ...(params.status === 'upcoming'
         ? { status: { in: ['CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS'] }, startsAt: { gte: now } }
         : params.status === 'completed'
-          ? { status: { in: ['COMPLETED', 'CHECKED_IN'] }, startsAt: { lt: now } }
+          ? {
+              /**
+               * A completed booking is history whenever it happened.
+               *
+               * This used to require `startsAt < now` for every status in the list, so a
+               * booking completed before its start time matched neither filter and vanished
+               * from the customer's app. The guard in `transition` now prevents that state
+               * arising; this makes the listing robust to it however it arises, including
+               * for the bookings already in that state.
+               */
+              OR: [
+                { status: 'COMPLETED' },
+                { status: { in: ['CHECKED_IN', 'IN_PROGRESS'] }, startsAt: { lt: now } },
+              ],
+            }
           : params.status === 'cancelled'
             ? { status: { in: ['CANCELLED', 'NO_SHOW', 'EXPIRED'] } }
             : // Held bookings are an implementation detail of the checkout flow and would

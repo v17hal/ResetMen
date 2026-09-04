@@ -312,7 +312,19 @@ test.describe('Serving a booking', () => {
       });
 
       expect(response.status(), `${status} on an unpaid booking should be refused`).toBe(422);
-      expect((await response.json()).detail).toMatch(/paid/i);
+
+      /**
+       * Only CHECKED_IN is refused *for being unpaid*.
+       *
+       * The booking is still CONFIRMED — the refusals leave it where it was — and the state
+       * machine will not go CONFIRMED → IN_PROGRESS or → COMPLETED at all, so those two are
+       * stopped a step earlier and say so. Demanding the payment wording for all three
+       * asserted an implementation detail rather than the behaviour, and failed on a
+       * refusal that was entirely correct.
+       */
+      if (status === 'CHECKED_IN') {
+        expect((await response.json()).detail).toMatch(/paid/i);
+      }
     }
 
     // Marking a no-show must still work — it is the likeliest outcome for an unpaid booking.

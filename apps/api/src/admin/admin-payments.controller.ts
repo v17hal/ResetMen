@@ -112,17 +112,42 @@ export class AdminPaymentsController {
   ) {
     const storeId = await this.storeFor(auth, header);
 
-    const result = await this.payments.refund({
-      paymentId: id,
-      amountPaise: body.amountPaise,
-      reason: body.reason,
-      adminId: auth.sub,
+    /**
+     * Which kind of refund this is, decided here rather than by whoever is at the counter.
+     *
+     * A payment taken through the gateway is refunded through the gateway; one taken in
+     * cash is handed back in cash and recorded. Staff should not have to know which, and
+     * asking them would eventually get it wrong — so the payment itself says.
+     *
+     * Before this, the counter case had no path at all: `refund` requires a
+     * `gatewayPaymentId` that a counter payment never has, so every attempt was answered
+     * with "No gateway payment is recorded against this order" and nothing could be
+     * refunded in a shop that takes all of its money in person.
+     */
+    const payment = await this.prisma.payment.findUniqueOrThrow({
+      where: { id },
+      select: { gateway: true },
     });
+
+    const result =
+      payment.gateway === 'COUNTER'
+        ? await this.payments.recordCounterRefund({
+            paymentId: id,
+            amountPaise: body.amountPaise,
+            reason: body.reason,
+            adminId: auth.sub,
+          })
+        : await this.payments.refund({
+            paymentId: id,
+            amountPaise: body.amountPaise,
+            reason: body.reason,
+            adminId: auth.sub,
+          });
 
     await this.audit.record({
       storeId,
       adminUserId: auth.sub,
-      action: 'payment.refunded',
+      action: payment.gateway === 'COUNTER' ? 'payment.refunded_at_counter' : 'payment.refunded',
       entityType: 'Payment',
       entityId: id,
       after: result,

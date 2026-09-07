@@ -571,6 +571,106 @@ export class PaymentService {
   }
 
   /**
+   * Money handed back across the counter.
+   *
+   * The gateway refund path above cannot run here, and refuses to try: it needs a
+   * `gatewayPaymentId`, and a counter payment has none because no gateway was involved. The
+   * result was that with payment taken in cash — which is how this shop works — no refund
+   * could be recorded at all. The button was there and it could never succeed.
+   *
+   * This records what actually happened: a member of staff gave the money back. No gateway
+   * is called because there is nothing to call. Everything else is identical to a gateway
+   * refund — the same Refund row, the same effect on the payment's status, the same figures
+   * in the reports — so a cash refund and a card refund are counted the same way.
+   *
+   * Deliberately not idempotent the way Mark paid is. Refunding twice is a decision, not a
+   * double-tap: partial refunds are legitimate and the remaining balance is checked below,
+   * so a second refund is either intentional or refused for being over the amount.
+   */
+  async recordCounterRefund(params: {
+    paymentId: string;
+    adminId: string;
+    amountPaise?: number;
+    reason?: string;
+  }) {
+    const payment = await this.prisma.payment.findUniqueOrThrow({
+      where: { id: params.paymentId },
+      include: { refunds: true },
+    });
+
+    if (payment.gateway !== 'COUNTER') {
+      throw new AppError(
+        'PAYMENT_NOT_REFUNDABLE',
+        409,
+        'Not a counter payment',
+        'This was taken through a gateway. Refund it through the gateway so the customer ' +
+          'gets their money back the way they paid.',
+      );
+    }
+
+    if (payment.status !== 'CAPTURED' && payment.status !== 'PARTIALLY_REFUNDED') {
+      throw new AppError(
+        'PAYMENT_NOT_REFUNDABLE',
+        409,
+        'Nothing to refund',
+        `This payment is ${payment.status.toLowerCase()}.`,
+      );
+    }
+
+    const alreadyRefunded = payment.refunds
+      .filter((r) => r.status !== 'FAILED')
+      .reduce((sum, r) => sum + r.amountPaise, 0);
+    const remaining = payment.amountPaise - alreadyRefunded;
+    const amountPaise = params.amountPaise ?? remaining;
+
+    if (amountPaise <= 0 || amountPaise > remaining) {
+      throw new AppError(
+        'PAYMENT_NOT_REFUNDABLE',
+        422,
+        'Refund amount is out of range',
+        `At most ₹${(remaining / 100).toFixed(2)} can still be refunded.`,
+        { remainingPaise: remaining },
+      );
+    }
+
+    const totalRefunded = alreadyRefunded + amountPaise;
+
+    const [refund] = await this.prisma.$transaction([
+      this.prisma.refund.create({
+        data: {
+          paymentId: payment.id,
+          // No gateway reference, because there is no gateway. The row still records who
+          // did it and why, which is what the money needs to be answerable to.
+          gatewayRefundId: null,
+          amountPaise,
+          // Cash over a counter is done the moment it is handed over. There is nothing
+          // pending about it.
+          status: 'PROCESSED',
+          reason: params.reason ?? null,
+          initiatedBy: params.adminId,
+        },
+      }),
+      this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: totalRefunded >= payment.amountPaise ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
+        },
+      }),
+    ]);
+
+    this.logger.log(
+      `Counter refund of ${amountPaise} paise against payment ${payment.id} by ${params.adminId}`,
+    );
+
+    return {
+      refundId: refund.id,
+      amountPaise,
+      status: refund.status,
+      remainingPaise: payment.amountPaise - totalRefunded,
+    };
+  }
+
+  /**
    * Capture discovered by the reconciliation job rather than announced by a webhook.
    *
    * Same path as every other capture — the job's job is only to notice, not to invent a

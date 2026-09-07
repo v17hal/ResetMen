@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { phone } from './auth.js';
 import { instant, paise, uuid } from './common.js';
 
 export const bookingStatus = z.enum([
@@ -42,7 +43,15 @@ export type HoldRequest = z.infer<typeof holdRequest>;
 /** Staff-created booking. Without this the engine's picture of the store drifts from
  *  reality within a day — see docs/10-open-questions.md#q4. */
 export const walkInRequest = holdRequest.extend({
-  customerPhone: z.string().optional(),
+  /**
+   * The same rule every other phone field uses.
+   *
+   * This was a bare string, so the walk-in form at the counter accepted anything at all —
+   * "abc", six digits, a landline. Those numbers are the only way to reach a walk-in
+   * customer, and a booking with an unreachable number is a booking nobody can chase for
+   * payment. Optional still: a walk-in who will not give a number is the staff's call.
+   */
+  customerPhone: phone.optional(),
   customerName: z.string().max(80).optional(),
   notes: z.string().max(500).optional(),
 });

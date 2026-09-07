@@ -317,9 +317,21 @@ export class AdminCapacityResource {
    * more expensive service — the opposite of what the owner intended, and invisible until a
    * customer complains they cannot book.
    */
-  previewAllocationRule(
-    input: AllocationRuleInput & { date: string },
-  ): Promise<AllocationRulePreview> {
+  /**
+   * The rule goes in a `rule` object, not spread across the body.
+   *
+   * This took the whole feature down. The route reads `body.rule`, `body.date` and
+   * `body.excludeRuleId`; this method sent the rule's fields flat alongside the date, so
+   * every preview was answered with `422 Required` naming a field called "rule" that no
+   * form has. And because Save waits for a successful preview, no allocation rule could be
+   * created through the admin panel at all — the button was reported as broken and it was,
+   * one layer further down than it looked.
+   */
+  previewAllocationRule(input: {
+    rule: AllocationRuleInput;
+    date: string;
+    excludeRuleId?: string;
+  }): Promise<AllocationRulePreview> {
     return this.http.post('/admin/allocation-rules/preview', { body: input });
   }
 

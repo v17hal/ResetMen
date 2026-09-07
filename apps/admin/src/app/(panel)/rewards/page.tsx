@@ -114,7 +114,7 @@ function StreakRules() {
   const remove = useMutation({
     mutationFn: (id: string) => adminClient().rewards.deleteStreakRule(id),
     onSuccess: () => {
-      toast.success('Rule deleted.');
+      toast.success('Rule turned off. Nobody new can earn it.');
       void queryClient.invalidateQueries({ queryKey: keys.streakRules });
       setDeleting(null);
     },
@@ -225,11 +225,20 @@ function StreakRules() {
             key: 'actions',
             header: '',
             align: 'right',
-            cell: (row) => (
-              <Button variant="ghost" size="sm" className="text-danger" onClick={() => setDeleting(row)}>
-                Delete
-              </Button>
-            ),
+            /**
+             * "Turn off", because that is what the button does.
+             *
+             * It was labelled Delete and the rule stayed in the list afterwards, marked
+             * Off — so it read as a button that did nothing, and was reported as one. The
+             * behaviour is right: rewards already earned point at this rule, and erasing it
+             * would leave them describing nothing. Only the word was wrong.
+             */
+            cell: (row) =>
+              row.isActive ? (
+                <Button variant="ghost" size="sm" onClick={() => setDeleting(row)}>
+                  Turn off
+                </Button>
+              ) : null,
           },
         ]}
       />
@@ -325,9 +334,14 @@ function StreakRules() {
         onOpenChange={(open) => {
           if (!open) setDeleting(null);
         }}
-        title={`Delete "${deleting?.name ?? ''}"?`}
-        description="Rewards already earned under it are kept. Nobody new can earn it."
-        confirmLabel="Delete"
+        title={`Turn off "${deleting?.name ?? ''}"?`}
+        description={
+          'Nobody new can earn it. Rewards already earned under it are kept, and the rule ' +
+          'stays in this list marked Off so those rewards still make sense — edit it to turn ' +
+          'it back on.'
+        }
+        confirmLabel="Yes, turn it off"
+        cancelLabel="Leave it on"
         destructive
         loading={remove.isPending}
         onConfirm={() => deleting !== null && remove.mutate(deleting.id)}

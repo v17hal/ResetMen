@@ -1160,7 +1160,7 @@ function Addons() {
                         className="text-danger"
                         onClick={() => setRemoving(option)}
                       >
-                        Remove
+                        Turn off
                       </Button>
                     )}
                   </div>

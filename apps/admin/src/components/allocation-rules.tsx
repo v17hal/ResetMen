@@ -214,8 +214,9 @@ function RuleDialog({ rule, onClose }: { rule: AdminAllocationRuleRow | 'new' | 
   const runPreview = useMutation({
     mutationFn: () =>
       adminClient().capacity.previewAllocationRule({
-        ...payload,
+        rule: payload,
         date: form.recurrence === 'ONE_OFF' ? form.dateFrom : todayLocal(),
+        ...(existing === null ? {} : { excludeRuleId: existing.id }),
       }),
     onSuccess: setPreview,
     onError: (caught) => setError(errorMessage(caught)),

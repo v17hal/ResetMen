@@ -389,3 +389,66 @@ test.describe('Serving a booking', () => {
     expect(ids, 'a checked-in future booking belongs under upcoming').toContain(bookingId);
   });
 });
+
+test.describe('Refunds', () => {
+  test('TC-210 money taken at the counter can be given back', async ({ request }) => {
+    customer = await createCustomer(request);
+    await setPhone(request, customer);
+
+    const { services } = await catalogue(request);
+    const head = services.find((s) => s.name === 'Head')!;
+    const { slots } = await firstOpenDay(request, head.id);
+
+    const made = await request.post(`${API}/bookings/hold`, {
+      headers: { Authorization: `Bearer ${customer.accessToken}` },
+      data: { serviceId: head.id, startsAt: slots[7]!.startsAt, addonIds: [] },
+    });
+    expect(made.ok(), await made.text()).toBeTruthy();
+    const { bookingId } = (await made.json()) as { bookingId: string };
+
+    const token = await adminToken(request);
+
+    const paid = await request.post(`${API}/admin/bookings/${bookingId}/mark-paid`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { method: 'CASH' },
+    });
+    expect(paid.ok()).toBeTruthy();
+    const { paymentId, amountPaise } = (await paid.json()) as {
+      paymentId: string;
+      amountPaise: number;
+    };
+
+    /**
+     * A counter payment has no gateway reference, and the gateway refund path requires one.
+     * So every refund attempt used to be answered "No gateway payment is recorded against
+     * this order" — in a shop that takes all of its money in person, nothing could ever be
+     * refunded.
+     */
+    const partial = await request.post(`${API}/admin/payments/${paymentId}/refund`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { amountPaise: Math.floor(amountPaise / 2), reason: 'QA partial refund' },
+    });
+    expect(partial.ok(), await partial.text()).toBeTruthy();
+
+    const afterPartial = await partial.json();
+    expect(afterPartial.status).toBe('PROCESSED');
+    expect(afterPartial.remainingPaise).toBe(amountPaise - Math.floor(amountPaise / 2));
+
+    // The rest, then nothing left to give back.
+    const rest = await request.post(`${API}/admin/payments/${paymentId}/refund`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { reason: 'QA remainder' },
+    });
+    expect(rest.ok(), await rest.text()).toBeTruthy();
+    expect((await rest.json()).remainingPaise).toBe(0);
+
+    const overdrawn = await request.post(`${API}/admin/payments/${paymentId}/refund`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { amountPaise: 100, reason: 'QA over-refund' },
+    });
+    expect(
+      overdrawn.status(),
+      'refunding more than was taken must be refused',
+    ).toBeGreaterThanOrEqual(400);
+  });
+});

@@ -35,6 +35,20 @@ services:
 
   db-init:
     image: ${API_IMAGE:-ghcr.io/reset/api:latest}
+    # Never on an ordinary `up`.
+    #
+    # This runs `prisma db push --accept-data-loss` against whatever database it is pointed
+    # at. On a first install that is the point; on a running shop it is a loaded gun. Without
+    # a profile, `docker-compose up -d` starts it along with everything else, and the only
+    # reason it has not fired is that every deploy so far happened to name its services.
+    #
+    # It would also take the station-overlap constraint with it. That constraint is raw SQL
+    # rather than part of the Prisma schema, so a push has no idea it should exist and will
+    # reconcile it away — silently removing the one guarantee that stops two customers being
+    # given the same bed.
+    #
+    #   docker-compose --profile init up db-init      # deliberately, on a fresh database
+    profiles: ["init"]
     env_file: [.env.prod]
     environment:
       NODE_ENV: production

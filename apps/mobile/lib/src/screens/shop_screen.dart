@@ -97,9 +97,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
       ref.invalidate(productOrdersProvider);
       ref.invalidate(productsProvider);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ordered. Pay at the store when you collect it.')),
-      );
+      showMessage(context, 'Ordered. Pay at the store when you collect it.');
     } catch (error) {
       if (!mounted) return;
       setState(() => _placing = false);
@@ -115,8 +113,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
         return;
       }
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(friendlyMessage(error))));
+      showMessage(context, friendlyMessage(error));
     }
   }
 

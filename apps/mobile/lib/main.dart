@@ -37,6 +37,9 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  // Before anything renders: a release build aimed at a laptop is not shippable.
+  assertApiUrlIsShippable();
+
   runApp(
     ProviderScope(
       overrides: [

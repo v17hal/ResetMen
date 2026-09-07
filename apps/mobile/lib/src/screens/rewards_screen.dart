@@ -257,14 +257,11 @@ class _ScratchCardTileState extends ConsumerState<_ScratchCardTile> {
       ref.invalidate(walletProvider);
 
       if (mounted && result.rewardLabel != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('You won ${result.rewardLabel}!')),
-        );
+        showMessage(context, 'You won ${result.rewardLabel}!');
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyMessage(error))));
+        showMessage(context, friendlyMessage(error));
       }
     } finally {
       if (mounted) setState(() => _busy = false);

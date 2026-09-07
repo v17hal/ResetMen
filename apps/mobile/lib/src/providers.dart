@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'api/api_client.dart';
@@ -27,6 +28,31 @@ const apiBaseUrl = String.fromEnvironment(
   'API_URL',
   defaultValue: 'http://10.0.2.2:4000',
 );
+
+/// Refuses to start a release build that is still pointed at a developer's machine.
+///
+/// `10.0.2.2` is the emulator's alias for the host, and it is the right default for
+/// `flutter run`. In a release APK it is a phone reaching for a laptop that is not there:
+/// the home screen renders empty, every other screen shows an error, and nothing says why —
+/// the app looks comprehensively broken when the only thing wrong is one missing build flag.
+///
+/// That APK was built and handed to a tester. CI passes the define; a hand-run
+/// `flutter build apk --release` does not, and nothing anywhere objected.
+///
+/// Failing loudly on the first frame is worth more than a working-looking app that cannot
+/// reach its server. It can only fire on a release build that genuinely points at a local
+/// address, which is always a mistake.
+void assertApiUrlIsShippable() {
+  if (!kReleaseMode) return;
+
+  final local = RegExp(r'(10\.0\.2\.2|127\.0\.0\.1|localhost|0\.0\.0\.0)');
+  if (local.hasMatch(apiBaseUrl)) {
+    throw StateError(
+      'This release build points at $apiBaseUrl, which is a developer machine. '
+      'Rebuild with --dart-define=API_URL=https://api.resetmen.in',
+    );
+  }
+}
 
 /// Explicit variable types on these three, not just on the `Provider<...>` call.
 ///

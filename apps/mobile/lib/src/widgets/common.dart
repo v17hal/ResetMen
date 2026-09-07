@@ -516,3 +516,17 @@ class PrimaryButton extends StatelessWidget {
     );
   }
 }
+
+/// One message at a time.
+///
+/// `ScaffoldMessenger` queues snackbars rather than replacing them, so pressing Save four
+/// times with the same mistake shows the same sentence four times in a row and the customer
+/// waits through all of it. The web app had the same fault in a worse form — its notices
+/// never auto-dismissed and buried the fields being corrected — and this is the same
+/// decision on this side: a repeat of a message already on screen tells the reader nothing
+/// they cannot already see.
+void showMessage(BuildContext context, String message) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
+}

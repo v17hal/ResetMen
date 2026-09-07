@@ -68,13 +68,11 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           );
       ref.invalidate(sessionProvider);
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Saved.')));
+        showMessage(context, 'Saved.');
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyMessage(error))));
+        showMessage(context, friendlyMessage(error));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -122,14 +120,11 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       await ref.read(repositoryProvider).deleteAccount();
       await _signOut();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Your account will be deleted.')),
-        );
+        showMessage(context, 'Your account will be deleted.');
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyMessage(error))));
+        showMessage(context, friendlyMessage(error));
       }
     }
   }

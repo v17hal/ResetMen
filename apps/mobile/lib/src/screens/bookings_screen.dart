@@ -279,14 +279,11 @@ class _BookingList extends ConsumerWidget {
       ref.invalidate(bookingsProvider('upcoming'));
       ref.invalidate(bookingsProvider('cancelled'));
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cancelled. The slot is free again.')),
-        );
+        showMessage(context, 'Cancelled. The slot is free again.');
       }
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyMessage(error))));
+        showMessage(context, friendlyMessage(error));
       }
     }
   }

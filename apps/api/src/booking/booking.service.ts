@@ -47,6 +47,8 @@ export interface HoldRequest extends QuoteRequest {
   readonly startsAt: string;
   readonly source: 'APP' | 'WEB' | 'ADMIN_WALKIN';
   readonly idempotencyKey?: string;
+  /** The Terms version the customer ticked. Null for walk-ins and older app builds. */
+  readonly termsVersion?: string | null;
 }
 
 export interface HoldDto {
@@ -284,6 +286,8 @@ export class BookingService {
             payablePaise: quote.payablePaise,
             appliedRewardId: quote.appliedReward?.id ?? null,
             idempotencyKey: request.idempotencyKey ?? null,
+            termsVersion: request.termsVersion ?? null,
+            termsAcceptedAt: (request.termsVersion ?? null) === null ? null : new Date(),
             addons: {
               create: quote.addons.map((addon) => ({
                 addonOptionId: addon.id,

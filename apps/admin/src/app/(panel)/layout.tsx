@@ -7,7 +7,11 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
+import { useQuery } from '@tanstack/react-query';
+
 import { useAuth } from '@/lib/auth';
+import { adminClient } from '@/lib/client';
+import { keys } from '@/lib/queries';
 
 interface NavItem {
   href: string;
@@ -16,6 +20,8 @@ interface NavItem {
   minimum: AdminRole;
   /** Counter work, shown first and kept together. */
   group: 'counter' | 'manage' | 'insight';
+  /** Shows a count beside the link. */
+  badge?: 'support';
 }
 
 const NAV: readonly NavItem[] = [
@@ -25,6 +31,9 @@ const NAV: readonly NavItem[] = [
   // Sits with the counter, not with Payments: this is a list of people to ring today, and
   // whoever is on the desk does the ringing. Payments (insight) is the gateway ledger.
   { href: '/payments-due', label: 'Payments due', minimum: 'STAFF', group: 'counter' },
+  // Replaced the phone number on the site (client request 11/09/2026), so it belongs with
+  // the counter: whoever used to answer the phone answers these.
+  { href: '/help', label: 'Help desk', minimum: 'STAFF', group: 'counter', badge: 'support' },
   // No "all bookings" entry: the API exposes the day by station (timeline) and a customer's
   // history (customers/:id), but no cross-customer booking list. A nav item pointing at a
   // screen that cannot be built is worse than its absence — the CSV export covers the
@@ -35,6 +44,7 @@ const NAV: readonly NavItem[] = [
   { href: '/capacity', label: 'Capacity', minimum: 'MANAGER', group: 'manage' },
   { href: '/rewards', label: 'Rewards', minimum: 'MANAGER', group: 'manage' },
   { href: '/products', label: 'Products', minimum: 'MANAGER', group: 'manage' },
+  { href: '/banners', label: 'Home banners', minimum: 'MANAGER', group: 'manage' },
 
   { href: '/payments', label: 'Payments', minimum: 'MANAGER', group: 'insight' },
   { href: '/reports', label: 'Reports', minimum: 'MANAGER', group: 'insight' },
@@ -53,6 +63,18 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [navOpen, setNavOpen] = useState(false);
+
+  /**
+   * Unanswered questions, beside "Help desk". Polled, because a question is only as fast
+   * as someone noticing it — and nobody opens a screen to check that nothing is there.
+   * Declared before the early returns below: hooks cannot come after them.
+   */
+  const unread = useQuery({
+    queryKey: keys.supportUnread,
+    queryFn: () => adminClient().support.unreadCount(),
+    enabled: session !== null,
+    refetchInterval: 30_000,
+  });
 
   useEffect(() => {
     if (!loading && session === null) router.replace('/login');
@@ -123,6 +145,14 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
                           )}
                         >
                           {item.label}
+                          {item.badge === 'support' && (unread.data ?? 0) > 0 && (
+                            <span
+                              className="ml-auto min-w-6 rounded-full bg-primary px-xs text-center text-caption text-primary-fg"
+                              aria-label={`${unread.data} unanswered`}
+                            >
+                              {unread.data}
+                            </span>
+                          )}
                         </Link>
                       </li>
                     );

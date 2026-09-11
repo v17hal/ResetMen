@@ -85,22 +85,27 @@ class _ServiceScreenState extends ConsumerState<ServiceScreen> {
                     ),
                     const SizedBox(height: ResetTokens.spaceBase),
 
-                    Text(data.name, style: ResetTokens.h1),
+                    ServiceName(
+                      name: data.name,
+                      emoji: data.emoji,
+                      badge: data.badge,
+                      style: ResetTokens.h1,
+                    ),
+                    if (data.tagline != null) ...[
+                      const SizedBox(height: ResetTokens.spaceXs),
+                      Text(
+                        data.tagline!,
+                        style: ResetTokens.body.copyWith(color: theme.mutedColor),
+                      ),
+                    ],
                     const SizedBox(height: ResetTokens.spaceSm),
-                    Row(
-                      children: [
-                        Text(
-                          formatMoney(data.pricePaise),
-                          style: ResetTokens.display.copyWith(fontSize: 26),
-                        ),
-                        const SizedBox(width: ResetTokens.spaceMd),
-                        Icon(Icons.schedule, size: 16, color: theme.mutedColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          formatDuration(data.durationMinutes),
-                          style: ResetTokens.bodySm.copyWith(color: theme.mutedColor),
-                        ),
-                      ],
+                    ServicePriceRow(
+                      service: data,
+                      durationMinutes: data.durationMinutes,
+                      priceStyle: ResetTokens.display.copyWith(fontSize: 26),
+                      metaStyle: ResetTokens.bodySm,
+                      iconSize: 16,
+                      spacing: ResetTokens.spaceMd,
                     ),
 
                     if (data.description != null) ...[

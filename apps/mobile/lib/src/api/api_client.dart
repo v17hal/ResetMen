@@ -36,6 +36,12 @@ class ResetApiException implements Exception {
   bool get needsPhone =>
       code == ErrorCode.validationFailed && meta['field'] == 'phone';
 
+  /// The Terms & Conditions changed between this screen loading them and the booking being
+  /// made. Recorded against text the customer never saw, the agreement would mean nothing,
+  /// so the API refuses — and the app can answer it by showing the new text and asking again.
+  bool get termsOutdated =>
+      code == ErrorCode.validationFailed && meta['field'] == 'termsVersion';
+
   bool get isSlotGone =>
       code == ErrorCode.slotTaken || code == ErrorCode.slotUnavailable;
 

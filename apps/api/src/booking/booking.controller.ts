@@ -15,6 +15,7 @@ import {
   holdRequest,
   quoteRequest,
   rescheduleRequest,
+  TERMS,
 } from '@reset/types';
 import type { z } from 'zod';
 
@@ -111,6 +112,20 @@ export class BookingController {
       );
     }
 
+    /**
+     * Agreement to text nobody was shown is not agreement.
+     *
+     * A client holding an older copy of the Terms — an app that has not updated, a tab
+     * left open across a change — is refused rather than recorded against the current
+     * version. The screen shows the new text and asks again.
+     */
+    if (body.termsVersion !== undefined && body.termsVersion !== TERMS.version) {
+      throw AppError.validation(
+        'Our Terms & Conditions have been updated. Please read them again and tick the box to continue.',
+        { field: 'termsVersion', currentVersion: TERMS.version },
+      );
+    }
+
     const hold = await this.bookings.hold({
       storeId: await this.scope.resolve(header),
       serviceId: body.serviceId,
@@ -120,6 +135,7 @@ export class BookingController {
       rewardId: body.rewardId,
       source: 'WEB',
       idempotencyKey,
+      termsVersion: body.termsVersion ?? null,
     });
 
     /**

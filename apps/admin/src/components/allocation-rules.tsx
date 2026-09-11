@@ -2,7 +2,6 @@
 
 import type { AdminAllocationRuleRow, AllocationRulePreview } from '@reset/api-client';
 import {
-  Badge,
   Button,
   Card,
   Checkbox,
@@ -22,6 +21,8 @@ import { useEffect, useState } from 'react';
 import { errorMessage } from '@/lib/auth';
 import { adminClient } from '@/lib/client';
 import { keys, useServices, useStations } from '@/lib/queries';
+
+import { Toggle } from './toggle';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -43,6 +44,24 @@ export function AllocationRules() {
     queryFn: () => adminClient().capacity.allocationRules(),
   });
 
+  /** To flag a rule that points at a service customers can no longer book. */
+  const services = useServices();
+
+  const toggle = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      adminClient().capacity.setAllocationRuleActive(id, isActive),
+    onSuccess: (rule) => {
+      toast.success(
+        rule.isActive
+          ? `"${rule.name}" is on.`
+          : `"${rule.name}" is off. It changes nothing until you turn it back on.`,
+      );
+      void queryClient.invalidateQueries({ queryKey: keys.allocationRules });
+      void queryClient.invalidateQueries({ queryKey: ['timeline'] });
+    },
+    onError: (caught) => toast.error(errorMessage(caught)),
+  });
+
   const remove = useMutation({
     mutationFn: (id: string) => adminClient().capacity.deleteAllocationRule(id),
     onSuccess: () => {
@@ -57,6 +76,18 @@ export function AllocationRules() {
   if (rules.isError) {
     return <ErrorState description={errorMessage(rules.error)} onRetry={() => void rules.refetch()} />;
   }
+
+  /**
+   * A rule reserving stations "for Head" does nothing for the Head customers book if it
+   * points at a different, unpublished Head — and it still takes the stations away from
+   * everything else. The names alone cannot show that, so the list says it.
+   */
+  const liveServices = services.data === undefined ? null : new Map(services.data.map((s) => [s.id, s]));
+  const serviceNote = (id: string): string => {
+    if (liveServices === null) return '';
+    const live = liveServices.get(id);
+    return live === undefined ? ' (deleted)' : live.isActive ? '' : ' (not published)';
+  };
 
   return (
     <div className="flex flex-col gap-base">
@@ -89,7 +120,16 @@ export function AllocationRules() {
                 <span className="font-medium">{row.name}</span>
                 <span className="text-caption text-text-muted">
                   {row.mode === 'EXCLUSIVE_TO' ? 'Reserved for' : 'Kept clear of'}{' '}
-                  {row.services.map((service) => service.name).join(', ')}
+                  {row.services.map((service, index) => {
+                    const note = serviceNote(service.id);
+                    return (
+                      <span key={service.id} className={note === '' ? undefined : 'font-medium text-warning'}>
+                        {index > 0 && ', '}
+                        {service.name}
+                        {note}
+                      </span>
+                    );
+                  })}
                 </span>
               </div>
             ),
@@ -119,9 +159,16 @@ export function AllocationRules() {
           },
           {
             key: 'active',
-            header: '',
+            header: 'On / off',
             align: 'right',
-            cell: (row) => (row.isActive ? null : <Badge>Off</Badge>),
+            cell: (row) => (
+              <Toggle
+                checked={row.isActive}
+                label={row.name}
+                disabled={toggle.isPending && toggle.variables?.id === row.id}
+                onChange={(isActive) => toggle.mutate({ id: row.id, isActive })}
+              />
+            ),
           },
           {
             key: 'actions',
@@ -431,6 +478,9 @@ function RuleDialog({ rule, onClose }: { rule: AdminAllocationRuleRow | 'new' | 
             <Checkbox
               key={service.id}
               label={service.name}
+              // Two services can share a name — a test "Head" beside the real one. The
+              // category and publish state are what tell them apart.
+              hint={`${service.category.name}${service.isActive ? '' : ' · not published — customers cannot book it'}`}
               checked={form.serviceIds.includes(service.id)}
               onChange={(event) =>
                 setForm((c) => ({

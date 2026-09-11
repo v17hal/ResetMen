@@ -58,7 +58,15 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
    * ₹49 to ₹299, the number is the offer, and it is what makes somebody click one result
    * over another. The template appends "· RESET" so the brand is still there.
    */
-  const title = `${withLocality(service.name + ' Massage', store)} — from ${rupees(service.pricePaise)}`;
+  //
+  // The tagline goes in too. The client renamed "Head" to "Tension Relief" — a better menu
+  // name and a worse search term, since nobody types "tension relief pune". "Tension
+  // Relief – Head Massage in Pune" keeps the brand name and the phrase people search.
+  const subject =
+    service.tagline === null
+      ? `${service.name} Massage`
+      : `${service.name} – ${service.tagline} Massage`;
+  const title = `${withLocality(subject, store)} — from ${rupees(service.pricePaise)}`;
 
   const description =
     service.description !== null && service.description.trim() !== ''
@@ -111,6 +119,7 @@ export default async function ServicePage({ params }: Params) {
     '@type': 'Service',
     '@id': `${url}#service`,
     name: service.name,
+    ...(service.tagline === null ? {} : { alternateName: `${service.tagline} massage` }),
     ...(service.description === null ? {} : { description: service.description }),
     serviceType: 'Massage',
     provider: { '@id': `${SITE_URL}/#business` },

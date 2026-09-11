@@ -232,7 +232,7 @@ class _BookingList extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: ResetTokens.spaceXs),
                     child: Text(
-                      'Too close to your slot to cancel in the app — call the store.',
+                      'Too close to your slot to cancel in the app — message us from Help.',
                       style: ResetTokens.caption.copyWith(color: theme.mutedColor),
                     ),
                   ),

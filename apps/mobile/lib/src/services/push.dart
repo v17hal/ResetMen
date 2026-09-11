@@ -20,6 +20,15 @@ class PushService {
   final FirebaseMessaging _messaging;
   final FlutterLocalNotificationsPlugin _local;
 
+  /// Where a tapped notification goes. Replaced on every [start], so the listeners — which
+  /// are attached only once — always call the current one.
+  void Function(String deepLink)? _onOpen;
+  bool _listening = false;
+  String? _token;
+
+  /// The token last handed to the API, so signing out can tell it to stop using this one.
+  String? get token => _token;
+
   /// Android 13+ posts nothing without this channel existing first.
   static const _channel = AndroidNotificationChannel(
     'reset_bookings',
@@ -29,47 +38,57 @@ class PushService {
   );
 
   /// Called after sign-in. Returns the FCM token to register with the API, or null.
+  ///
+  /// Called again after every later sign-in, which is safe. The listeners are attached the
+  /// first time only — attaching them twice drew every foreground reminder twice — and the
+  /// notification that launched the app is acted on once, not replayed each time somebody
+  /// signs in on the same run.
   Future<String?> start({required void Function(String deepLink) onOpen}) async {
+    _onOpen = onOpen;
+
     try {
       // Asked for after sign-in rather than on first launch. A permission prompt before
       // anyone knows what the app does is the fastest way to get it denied permanently.
       final settings = await _messaging.requestPermission();
       if (settings.authorizationStatus == AuthorizationStatus.denied) return null;
 
-      await _local.initialize(
-        const InitializationSettings(
-          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-        ),
-        onDidReceiveNotificationResponse: (response) {
-          final payload = response.payload;
-          if (payload != null && payload.isNotEmpty) onOpen(payload);
-        },
-      );
+      if (!_listening) {
+        await _local.initialize(
+          const InitializationSettings(
+            android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          ),
+          onDidReceiveNotificationResponse: (response) => _open(response.payload),
+        );
 
-      await _local
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(_channel);
+        await _local
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.createNotificationChannel(_channel);
 
-      // Foreground messages are not shown by the system, so they are drawn here. Without
-      // this, a reminder that arrives while the app is open is silently dropped.
-      FirebaseMessaging.onMessage.listen(_show);
+        // Foreground messages are not shown by the system, so they are drawn here. Without
+        // this, a reminder that arrives while the app is open is silently dropped.
+        FirebaseMessaging.onMessage.listen(_show);
 
-      // Tapped while the app was backgrounded.
-      FirebaseMessaging.onMessageOpenedApp.listen((message) {
-        final link = message.data['deepLink'];
-        if (link is String && link.isNotEmpty) onOpen(link);
-      });
+        // Tapped while the app was backgrounded.
+        FirebaseMessaging.onMessageOpenedApp
+            .listen((message) => _open(message.data['deepLink']));
 
-      // Tapped while the app was closed entirely — this is the message that launched it.
-      final initial = await _messaging.getInitialMessage();
-      final link = initial?.data['deepLink'];
-      if (link is String && link.isNotEmpty) onOpen(link);
+        _listening = true;
 
-      return await _messaging.getToken();
+        // Tapped while the app was closed entirely — this is the message that launched it.
+        final initial = await _messaging.getInitialMessage();
+        _open(initial?.data['deepLink']);
+      }
+
+      return _token = await _messaging.getToken();
     } catch (error) {
       debugPrint('Push unavailable: $error');
       return null;
     }
+  }
+
+  void _open(Object? link) {
+    if (link is String && link.isNotEmpty) _onOpen?.call(link);
   }
 
   /// Fires when FCM rotates the token — roughly on reinstall or app-data clear. The server

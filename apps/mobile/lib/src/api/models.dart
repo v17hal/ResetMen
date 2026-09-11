@@ -15,6 +15,16 @@ import 'generated/reset_enums.dart';
 int _int(Object? value) => (value as num?)?.toInt() ?? 0;
 String _str(Object? value, [String fallback = '']) => value as String? ?? fallback;
 
+/// An optional string where blank means absent.
+///
+/// The menu's presentation fields are free text typed into the admin panel. An empty one
+/// must not draw an empty pill or a blank line under a name — the server trims these
+/// already, and this is the same rule applied on arrival so the screens never have to ask.
+String? _optStr(Object? value) {
+  final trimmed = (value as String?)?.trim();
+  return trimmed == null || trimmed.isEmpty ? null : trimmed;
+}
+
 /// Parses an API instant, and records the store's offset on the way through.
 ///
 /// `DateTime.parse` returns a correct instant but discards the offset, which is fine for
@@ -111,7 +121,47 @@ class Category {
       );
 }
 
-class ServiceSummary {
+/// How the menu dresses a service up — client request of 11/09/2026.
+///
+/// The client writes the menu as "💆‍♂️ Tension Relief — Head, Neck & Shoulder — ₹49 ~~₹149~~",
+/// on paper and on WhatsApp, and wanted the app to read the same. Shared by the list row and
+/// the detail page so both interpret the fields identically.
+///
+/// Every field is optional. A service nobody has dressed up renders exactly as it did
+/// before any of this existed.
+mixin ServicePresentation {
+  int get pricePaise;
+
+  /// Sits before the name, on the same line.
+  String? get emoji;
+
+  /// One line under the name — "Head, Neck & Shoulder". The client's names ("Tension
+  /// Relief", "Power Reset") deliberately do not say where on the body; this does.
+  String? get tagline;
+
+  /// The struck-through "was" price, as the server sent it. Read [wasPricePaise] instead.
+  int? get compareAtPricePaise;
+
+  /// "BESTSELLER" and the like. Free text from the admin panel, drawn as a pill.
+  String? get badge;
+
+  /// The "was" price, only when it is genuinely higher than the price.
+  ///
+  /// The server already sends null otherwise. Checking again costs nothing and means a
+  /// price cut that forgot to clear the old figure can never draw "₹99, was ₹99".
+  int? get wasPricePaise {
+    final was = compareAtPricePaise;
+    return was != null && was > pricePaise ? was : null;
+  }
+
+  /// Whole percent off, or 0 when there is nothing to compare against.
+  int get percentOff {
+    final was = wasPricePaise;
+    return was == null ? 0 : discountPercent(pricePaise, was);
+  }
+}
+
+class ServiceSummary with ServicePresentation {
   ServiceSummary({
     required this.id,
     required this.name,
@@ -121,6 +171,10 @@ class ServiceSummary {
     required this.pricePaise,
     required this.durationMinutes,
     required this.categoryId,
+    this.emoji,
+    this.tagline,
+    this.compareAtPricePaise,
+    this.badge,
   });
 
   final String id;
@@ -128,9 +182,18 @@ class ServiceSummary {
   final String slug;
   final String? description;
   final String? imageUrl;
+  @override
   final int pricePaise;
   final int durationMinutes;
   final String categoryId;
+  @override
+  final String? emoji;
+  @override
+  final String? tagline;
+  @override
+  final int? compareAtPricePaise;
+  @override
+  final String? badge;
 
   factory ServiceSummary.fromJson(Map<String, dynamic> json) => ServiceSummary(
         id: _str(json['id']),
@@ -141,6 +204,38 @@ class ServiceSummary {
         pricePaise: _int(json['pricePaise']),
         durationMinutes: _int(json['durationMinutes']),
         categoryId: _str(json['categoryId']),
+        emoji: _optStr(json['emoji']),
+        tagline: _optStr(json['tagline']),
+        compareAtPricePaise: (json['compareAtPricePaise'] as num?)?.toInt(),
+        badge: _optStr(json['badge']),
+      );
+}
+
+/// One slide in the home carousel — client request of 11/09/2026, "like the Yes Madam app".
+class HomeBanner {
+  const HomeBanner({
+    required this.id,
+    required this.imageUrl,
+    required this.altText,
+    required this.serviceSlug,
+  });
+
+  final String id;
+  final String imageUrl;
+
+  /// Read out by TalkBack. The picture carries the offer, so without this a screen-reader
+  /// user hears nothing where everyone else sees the headline deal.
+  final String altText;
+
+  /// Where a tap goes. Null for a banner that is only a picture — and for one whose service
+  /// has since been unpublished, which the server nulls rather than linking to a dead page.
+  final String? serviceSlug;
+
+  factory HomeBanner.fromJson(Map<String, dynamic> json) => HomeBanner(
+        id: _str(json['id']),
+        imageUrl: _str(json['imageUrl']),
+        altText: _str(json['altText']),
+        serviceSlug: _optStr(json['serviceSlug']),
       );
 }
 
@@ -150,6 +245,7 @@ class HomeData {
     required this.activeSegmentId,
     required this.categories,
     required this.services,
+    this.banners = const [],
   });
 
   final List<Segment> segments;
@@ -157,11 +253,21 @@ class HomeData {
   final List<Category> categories;
   final List<ServiceSummary> services;
 
+  /// In the order the admin set. Empty when there are none — and when the server predates
+  /// banners altogether, so this build still opens against an API that has not been
+  /// deployed yet.
+  final List<HomeBanner> banners;
+
   factory HomeData.fromJson(Map<String, dynamic> json) => HomeData(
         segments: _list(json['segments'], Segment.fromJson),
         activeSegmentId: json['activeSegmentId'] as String?,
         categories: _list(json['categories'], Category.fromJson),
         services: _list(json['services'], ServiceSummary.fromJson),
+        // A slide with no picture is a blank rectangle that swipes; dropped here rather
+        // than drawn.
+        banners: _list(json['banners'], HomeBanner.fromJson)
+            .where((banner) => banner.imageUrl.isNotEmpty)
+            .toList(),
       );
 
   List<ServiceSummary> servicesIn(String categoryId) =>
@@ -215,7 +321,7 @@ class AddonGroup {
       );
 }
 
-class ServiceDetail {
+class ServiceDetail with ServicePresentation {
   ServiceDetail({
     required this.id,
     required this.name,
@@ -224,15 +330,28 @@ class ServiceDetail {
     required this.pricePaise,
     required this.durationMinutes,
     required this.addonGroups,
+    this.emoji,
+    this.tagline,
+    this.compareAtPricePaise,
+    this.badge,
   });
 
   final String id;
   final String name;
   final String? description;
   final String? imageUrl;
+  @override
   final int pricePaise;
   final int durationMinutes;
   final List<AddonGroup> addonGroups;
+  @override
+  final String? emoji;
+  @override
+  final String? tagline;
+  @override
+  final int? compareAtPricePaise;
+  @override
+  final String? badge;
 
   factory ServiceDetail.fromJson(Map<String, dynamic> json) => ServiceDetail(
         id: _str(json['id']),
@@ -242,6 +361,43 @@ class ServiceDetail {
         pricePaise: _int(json['pricePaise']),
         durationMinutes: _int(json['durationMinutes']),
         addonGroups: _list(json['addonGroups'], AddonGroup.fromJson),
+        emoji: _optStr(json['emoji']),
+        tagline: _optStr(json['tagline']),
+        compareAtPricePaise: (json['compareAtPricePaise'] as num?)?.toInt(),
+        badge: _optStr(json['badge']),
+      );
+}
+
+/// The Terms & Conditions ticked at checkout — client request of 11/09/2026, and a legal
+/// one.
+///
+/// Fetched, not bundled. The wording lives once, in `packages/types/src/terms.ts`; an APK
+/// carrying its own copy would go on showing the old text for as long as people put off
+/// updating, while their bookings recorded them as agreeing to the new one.
+class Terms {
+  const Terms({
+    required this.version,
+    required this.title,
+    required this.clauses,
+    required this.agreement,
+  });
+
+  /// Sent back with the booking, so the row records exactly which text was agreed to. The
+  /// API refuses a version that is no longer current.
+  final String version;
+  final String title;
+  final List<String> clauses;
+
+  /// The checkbox label.
+  final String agreement;
+
+  factory Terms.fromJson(Map<String, dynamic> json) => Terms(
+        version: _str(json['version']),
+        title: _str(json['title'], 'Terms & Conditions'),
+        clauses: ((json['clauses'] as List?) ?? const [])
+            .whereType<String>()
+            .toList(),
+        agreement: _str(json['agreement'], 'I agree to the Terms & Conditions'),
       );
 }
 
@@ -804,5 +960,115 @@ class ProductOrder {
         totalPaise: _int(json['totalPaise']),
         createdAt: _instant(json['createdAt']),
         items: _list(json['items'], ProductOrderLine.fromJson),
+      );
+}
+
+// ── Help ────────────────────────────────────────────────────────────────────
+//
+// Questions to the store, answered from the admin panel — client request of 11/09/2026.
+// The phone number came off every surface and this is what replaced it. Mirrors
+// `apps/api/src/support/support.service.ts` field for field.
+//
+// Status and author stay strings rather than enums. They are not in the generated enum file
+// (`pnpm gen:api` owns that, and editing it by hand is how the app and server drift), and
+// each is only ever asked one yes-or-no question — which the getters below answer.
+
+/// The booking a question is about, when the customer picked one.
+class SupportBookingRef {
+  const SupportBookingRef({
+    required this.id,
+    required this.publicId,
+    required this.startsAt,
+    required this.serviceName,
+  });
+
+  final String id;
+  final String publicId;
+  final DateTime startsAt;
+  final String serviceName;
+
+  factory SupportBookingRef.fromJson(Map<String, dynamic> json) => SupportBookingRef(
+        id: _str(json['id']),
+        publicId: _str(json['publicId']),
+        startsAt: _instant(json['startsAt']),
+        serviceName: _str(json['serviceName']),
+      );
+}
+
+/// One question, as the list shows it.
+class SupportThreadSummary {
+  SupportThreadSummary.fromJson(Map<String, dynamic> json)
+      : id = _str(json['id']),
+        publicId = _str(json['publicId']),
+        subject = _str(json['subject']),
+        status = _str(json['status'], 'OPEN'),
+        lastMessageAt = _instant(json['lastMessageAt']),
+        lastMessageBy = _str(json['lastMessageBy'], 'CUSTOMER'),
+        createdAt = _instant(json['createdAt']),
+        unread = json['unread'] as bool? ?? false,
+        preview = _str(json['preview']),
+        booking = switch (json['booking']) {
+          final Map<String, dynamic> booking => SupportBookingRef.fromJson(booking),
+          _ => null,
+        };
+
+  final String id;
+
+  /// `HLP-7Q2K4M` — what someone quotes if they do ring in after all.
+  final String publicId;
+  final String subject;
+
+  /// `OPEN` or `CLOSED`.
+  final String status;
+  final DateTime lastMessageAt;
+
+  /// `CUSTOMER` or `STAFF`.
+  final String lastMessageBy;
+  final DateTime createdAt;
+
+  /// The store has replied and the customer has not opened it since. Cleared by the server
+  /// the moment the conversation is fetched.
+  final bool unread;
+  final String preview;
+  final SupportBookingRef? booking;
+
+  bool get isClosed => status == 'CLOSED';
+
+  /// The ball is in the customer's court — the list calls this "Replied".
+  bool get hasReply => !isClosed && lastMessageBy == 'STAFF';
+}
+
+/// One question and every message in it, oldest first.
+class SupportThread extends SupportThreadSummary {
+  SupportThread.fromJson(super.json)
+      : messages = _list(json['messages'], SupportMessage.fromJson),
+        super.fromJson();
+
+  final List<SupportMessage> messages;
+}
+
+class SupportMessage {
+  const SupportMessage({
+    required this.id,
+    required this.author,
+    required this.body,
+    required this.createdAt,
+  });
+
+  final String id;
+
+  /// `CUSTOMER` or `STAFF`. Staff names are deliberately not sent — the customer is talking
+  /// to RESET, not to whoever happened to be on the desk.
+  final String author;
+  final String body;
+  final DateTime createdAt;
+
+  bool get fromStore => author == 'STAFF';
+
+  factory SupportMessage.fromJson(Map<String, dynamic> json) => SupportMessage(
+        id: _str(json['id']),
+        author: _str(json['author'], 'CUSTOMER'),
+        body: _str(json['body']),
+        createdAt: _instant(json['createdAt']),
       );
 }

@@ -5,6 +5,7 @@ import type {
   AdminStatusChange,
   AllocationRuleInput,
   AllocationRulePreview,
+  BannerInput,
   BlackoutInput,
   BlockCustomerInput,
   BookingDetail,
@@ -38,6 +39,7 @@ import type {
   AdminAddonGroupRow,
   AdminAddonOptionRow,
   AdminAllocationRuleRow,
+  AdminBannerRow,
   AdminBlackoutRow,
   AdminCampaignRow,
   AdminCategoryRow,
@@ -49,11 +51,14 @@ import type {
   AdminServiceCoverage,
   AdminServiceRow,
   AdminStationRow,
+  AdminSupportDetail,
+  AdminSupportRow,
   AuditEntry,
   DashboardDto,
   HoldResponse,
   MediaAsset,
   Page,
+  StationEarningsReport,
   TimelineDto,
 } from '../models.js';
 
@@ -308,6 +313,12 @@ export class AdminCapacityResource {
   }
   deleteAllocationRule(id: string): Promise<void> {
     return this.http.delete(`/admin/allocation-rules/${encodeURIComponent(id)}`);
+  }
+  /** On or off without re-previewing. Returns the updated row. */
+  setAllocationRuleActive(id: string, isActive: boolean): Promise<AdminAllocationRuleRow> {
+    return this.http.put(`/admin/allocation-rules/${encodeURIComponent(id)}/active`, {
+      body: { isActive },
+    });
   }
 
   /**
@@ -587,13 +598,17 @@ export class AdminReportsResource {
   retention(range: { from: string; to: string }): Promise<RetentionReport> {
     return this.http.get('/admin/reports/retention', { query: { ...range } });
   }
+  /** Earnings per station, for incentives. */
+  stations(range: { from: string; to: string }): Promise<StationEarningsReport> {
+    return this.http.get('/admin/reports/stations', { query: { ...range } });
+  }
 
   /**
    * CSV text, not a blob. Audited server-side — an export is customer names and phone
    * numbers leaving the system, and the DPDP Act requires knowing who took one.
    */
   exportCsv(params: {
-    report: 'revenue' | 'utilisation' | 'no-show' | 'retention' | 'bookings';
+    report: 'revenue' | 'utilisation' | 'no-show' | 'retention' | 'bookings' | 'stations';
     from: string;
     to: string;
   }): Promise<string> {
@@ -601,6 +616,51 @@ export class AdminReportsResource {
       query: { ...params },
       headers: { Accept: 'text/csv' },
     });
+  }
+}
+
+/** Home-screen banners. Upload the image through `media.upload` first. */
+export class AdminBannersResource {
+  constructor(private readonly http: HttpClient) {}
+
+  async list(): Promise<AdminBannerRow[]> {
+    const { data } = await this.http.get<{ data: AdminBannerRow[] }>('/admin/banners');
+    return data;
+  }
+  create(input: BannerInput): Promise<AdminBannerRow> {
+    return this.http.post('/admin/banners', { body: input });
+  }
+  update(id: string, input: BannerInput): Promise<AdminBannerRow> {
+    return this.http.put(`/admin/banners/${encodeURIComponent(id)}`, { body: input });
+  }
+  remove(id: string): Promise<{ deleted: boolean }> {
+    return this.http.delete(`/admin/banners/${encodeURIComponent(id)}`);
+  }
+}
+
+/** Help desk, staff side. Every role can answer. */
+export class AdminSupportResource {
+  constructor(private readonly http: HttpClient) {}
+
+  async list(status: 'OPEN' | 'CLOSED' | 'ALL' = 'OPEN'): Promise<AdminSupportRow[]> {
+    const { data } = await this.http.get<{ data: AdminSupportRow[] }>('/admin/support', {
+      query: { status },
+    });
+    return data;
+  }
+  async unreadCount(): Promise<number> {
+    const { count } = await this.http.get<{ count: number }>('/admin/support/unread-count');
+    return count;
+  }
+  /** Opening a conversation clears it from the unread count. */
+  get(id: string): Promise<AdminSupportDetail> {
+    return this.http.get(`/admin/support/${encodeURIComponent(id)}`);
+  }
+  reply(id: string, body: string): Promise<AdminSupportDetail> {
+    return this.http.post(`/admin/support/${encodeURIComponent(id)}/messages`, { body: { body } });
+  }
+  setStatus(id: string, status: 'OPEN' | 'CLOSED'): Promise<AdminSupportDetail> {
+    return this.http.put(`/admin/support/${encodeURIComponent(id)}/status`, { body: { status } });
   }
 }
 

@@ -202,14 +202,6 @@ export default function ConfirmationPage() {
         <Card className="w-full text-left">
           <p className="text-caption text-text-muted">Where</p>
           <p className="text-body">{store.data.address}</p>
-          {store.data.phone !== null && (
-            <a
-              href={`tel:${store.data.phone}`}
-              className="text-body-sm text-primary underline underline-offset-4"
-            >
-              {store.data.phone}
-            </a>
-          )}
         </Card>
       )}
 
@@ -224,6 +216,11 @@ export default function ConfirmationPage() {
         </Link>
         <Link href="/" className="text-body-sm text-primary underline underline-offset-4">
           Book something else
+        </Link>
+        {/* Help in place of the phone number — client request 11/09/2026. Not inside the
+            address card: a store with no address on file lost the only way to ask. */}
+        <Link href="/help" className="text-body-sm text-primary underline underline-offset-4">
+          Questions? Message us
         </Link>
       </div>
     </div>

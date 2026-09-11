@@ -6,9 +6,11 @@ import '../format.dart';
 import '../providers.dart';
 import '../theme/app_theme.dart';
 import '../theme/reset_tokens.dart';
+import '../widgets/banner_carousel.dart';
 import '../widgets/common.dart';
 import '../widgets/complete_profile_banner.dart';
 import '../widgets/service_tile.dart';
+import 'help_screen.dart';
 import 'service_screen.dart';
 
 /// Home.
@@ -46,8 +48,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// catalogue rather than per row.
   bool _anyNamed(HomeData data) {
     final q = _query.toLowerCase();
-    return data.services.any((s) => s.name.toLowerCase().contains(q));
+    return data.services.any((s) => _named(s, q));
   }
+
+  /// Whether the name — or the line under it — contains [q].
+  ///
+  /// The tagline counts as part of the name. The client's names do not say where on the
+  /// body a treatment works ("Tension Relief"); the tagline does ("Head, Neck & Shoulder"),
+  /// and someone typing "head" is looking for exactly that service.
+  static bool _named(ServiceSummary service, String q) =>
+      service.name.toLowerCase().contains(q) ||
+      (service.tagline?.toLowerCase().contains(q) ?? false);
 
   /// Names first, descriptions only as a fallback.
   ///
@@ -58,13 +69,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _matches(ServiceSummary service, {required bool namedHits}) {
     if (_query.isEmpty) return true;
     final q = _query.toLowerCase();
-    if (service.name.toLowerCase().contains(q)) return true;
+    if (_named(service, q)) return true;
     return !namedHits && (service.description?.toLowerCase().contains(q) ?? false);
   }
 
-  void _open(ServiceSummary service) {
+  void _open(ServiceSummary service) => _openSlug(service.slug);
+
+  void _openSlug(String slug) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => ServiceScreen(idOrSlug: service.slug)),
+      MaterialPageRoute<void>(builder: (_) => ServiceScreen(idOrSlug: slug)),
+    );
+  }
+
+  void _openHelp() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const HelpScreen()),
     );
   }
 
@@ -77,13 +96,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: () async => ref.invalidate(homeProvider(_segmentId)),
+          onRefresh: () async {
+            ref.invalidate(homeProvider(_segmentId));
+            // The help dot rides along: pulling down is how someone asks "anything new?".
+            ref.invalidate(supportThreadsProvider);
+          },
           // Not `home.when`: that shows the error screen the moment a refresh fails, even
           // though the catalogue already on screen is perfectly readable. Someone who loses
           // signal was shown the menu as if nothing had happened, and reported the silence
           // as the bug. Stale data is kept and labelled instead.
+          //
+          // `valueOrNull`, not `value`: on an error with nothing loaded before, `value`
+          // rethrows the error rather than returning null, so a cold start with no signal
+          // threw out of this switch instead of reaching the error branch below.
           child: switch (home) {
-            AsyncValue(:final value?) => _catalog(
+            AsyncValue(valueOrNull: final value?) => _catalog(
                 context,
                 theme,
                 value,
@@ -164,17 +191,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Book your reset', style: ResetTokens.h1),
-                const SizedBox(height: 2),
-                Text(
-                  'Pick a service, choose a time, walk straight in.',
-                  style: ResetTokens.bodySm.copyWith(color: theme.mutedColor),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Book your reset', style: ResetTokens.h1),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Pick a service, choose a time, walk straight in.',
+                            style: ResetTokens.bodySm.copyWith(color: theme.mutedColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _HelpButton(onPressed: _openHelp),
+                  ],
                 ),
                 const SizedBox(height: ResetTokens.spaceBase),
                 SearchField(
                   controller: _search,
                   onChanged: (value) => setState(() => _query = value.trim()),
                 ),
+                // Under the search rather than above it: the search is how regulars reach
+                // the thing they always book, and it should not move when an offer is
+                // added. Hidden while a search is typed — the matches are what matter then,
+                // and a picture above them pushes the first result off a small screen.
+                if (_query.isEmpty)
+                  BannerCarousel(
+                    banners: data.banners,
+                    onOpen: _openSlug,
+                    padding: const EdgeInsets.only(top: ResetTokens.spaceBase),
+                  ),
+                const SizedBox(height: ResetTokens.spaceBase),
                 const CompleteProfileBanner(),
               ],
             ),
@@ -249,7 +300,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: _query.isEmpty
                 ? const EmptyState(
                     title: 'Nothing bookable yet',
-                    message: 'Please call the store to make a booking.',
+                    message: 'Ask us through Help and we will sort it out.',
                   )
                 : EmptyState(
                     title: 'No match for "$_query"',
@@ -349,27 +400,28 @@ class _ServiceRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    service.name,
+                  ServiceName(
+                    name: service.name,
+                    emoji: service.emoji,
+                    badge: service.badge,
                     style: ResetTokens.h2.copyWith(fontSize: 17),
                     maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
+                  if (service.tagline != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      service.tagline!,
+                      style: ResetTokens.bodySm.copyWith(color: theme.mutedColor),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                   const SizedBox(height: ResetTokens.spaceXs),
-                  Row(
-                    children: [
-                      Text(
-                        formatMoney(service.pricePaise),
-                        style: ResetTokens.h2.copyWith(fontSize: 18),
-                      ),
-                      const SizedBox(width: ResetTokens.spaceSm),
-                      Icon(Icons.schedule, size: 13, color: theme.mutedColor),
-                      const SizedBox(width: 3),
-                      Text(
-                        formatDuration(service.durationMinutes),
-                        style: ResetTokens.caption.copyWith(color: theme.mutedColor),
-                      ),
-                    ],
+                  ServicePriceRow(
+                    service: service,
+                    durationMinutes: service.durationMinutes,
+                    priceStyle: ResetTokens.h2.copyWith(fontSize: 18),
+                    metaStyle: ResetTokens.caption,
                   ),
                   if (service.description != null) ...[
                     const SizedBox(height: ResetTokens.spaceXs),
@@ -415,6 +467,34 @@ class _ServiceRow extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Help, from the top of the menu.
+///
+/// Where a phone icon would usually sit — this is what replaced the phone number. The dot
+/// says the store has answered something; nobody should have to open the You tab to find
+/// out a reply is waiting for them.
+class _HelpButton extends ConsumerWidget {
+  const _HelpButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final unread = ref.watch(supportUnreadCountProvider);
+
+    return IconButton(
+      tooltip: unread > 0 ? 'Help — new reply' : 'Help',
+      onPressed: onPressed,
+      icon: Badge(
+        isLabelVisible: unread > 0,
+        smallSize: 9,
+        backgroundColor: theme.colorScheme.primary,
+        child: const Icon(Icons.support_agent),
       ),
     );
   }

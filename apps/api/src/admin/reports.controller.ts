@@ -75,6 +75,16 @@ export class ReportsController {
     return this.reports.retention(await this.storeFor(auth, header), query);
   }
 
+  /** Earnings per station, for incentives. */
+  @Get('stations')
+  async stations(
+    @CurrentAuth() auth: TokenClaims,
+    @Query(new ZodValidationPipe(reportRange)) query: z.infer<typeof reportRange>,
+    @StoreIdHeader() header?: string,
+  ) {
+    return this.reports.stations(await this.storeFor(auth, header), query);
+  }
+
   /**
    * CSV download.
    *

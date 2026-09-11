@@ -99,6 +99,14 @@ export interface ServiceListItem {
   pricePaise: number;
   durationMinutes: number;
   categoryId: string;
+  /** "💆‍♂️" — shown before the name. Display only (client request 11/09/2026). */
+  emoji: string | null;
+  /** "Head, Neck & Shoulder" — one line under the name. */
+  tagline: string | null;
+  /** The struck-through "was" price. The API sends null unless it is above `pricePaise`. */
+  compareAtPricePaise: number | null;
+  /** "BESTSELLER". */
+  badge: string | null;
 }
 
 export interface AddonOptionDto {
@@ -132,6 +140,56 @@ export interface HomeDto {
     }
   >;
   services: ServiceListItem[];
+  /** Home-screen promotions, in order. Empty when the owner has none up. */
+  banners: HomeBanner[];
+}
+
+/** `serviceSlug` is null when the banner is decorative, or its service is unpublished. */
+export interface HomeBanner {
+  id: string;
+  imageUrl: string;
+  altText: string;
+  serviceSlug: string | null;
+}
+
+// ── Help desk — apps/api/src/support/support.service.ts ──────────────────────
+
+export type SupportAuthor = 'CUSTOMER' | 'STAFF';
+
+export interface SupportThreadSummary {
+  id: string;
+  /** "HLP-7Q2K4M" */
+  publicId: string;
+  subject: string;
+  status: 'OPEN' | 'CLOSED';
+  lastMessageAt: string;
+  lastMessageBy: SupportAuthor;
+  createdAt: string;
+  /** Customer side: the store replied and it has not been opened. Staff side: the reverse. */
+  unread: boolean;
+  preview: string;
+  booking: { id: string; publicId: string; startsAt: string; serviceName: string } | null;
+}
+
+export interface SupportMessageDto {
+  id: string;
+  author: SupportAuthor;
+  body: string;
+  createdAt: string;
+}
+
+export interface SupportThreadDetail extends SupportThreadSummary {
+  messages: SupportMessageDto[];
+}
+
+export interface AdminSupportRow extends SupportThreadSummary {
+  messageCount: number;
+  customer: { id: string; name: string | null; phone: string | null; email: string | null };
+}
+
+export interface AdminSupportDetail extends AdminSupportRow {
+  /** `staffName` is who replied. Never sent to the customer. */
+  messages: Array<SupportMessageDto & { staffName: string | null }>;
 }
 
 // ── Admin catalog — apps/api/src/admin/admin-catalog.service.ts ──────────────
@@ -176,6 +234,11 @@ export interface AdminServiceRow {
   maxPerSlot: number | null;
   sortOrder: number;
   isActive: boolean;
+  emoji: string | null;
+  tagline: string | null;
+  /** Stored as entered, so it can be at or below the price; the menu then hides it. */
+  compareAtPricePaise: number | null;
+  badge: string | null;
   category: { name: string; segment: { name: string } };
   addonGroups: Array<{ addonGroup: { id: string; name: string } }>;
   /** How many stations are designated for this service. Zero means it can never be booked. */
@@ -337,6 +400,47 @@ export interface AdminAllocationRuleRow {
   isActive: boolean;
   stations: Array<{ id: string; name: string }>;
   services: Array<{ id: string; name: string }>;
+}
+
+/** apps/api/src/admin/admin-banners.service.ts — a Prisma row plus its service. */
+export interface AdminBannerRow {
+  id: string;
+  imageUrl: string;
+  altText: string;
+  serviceId: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  service: { id: string; name: string; slug: string } | null;
+}
+
+/** apps/api/src/admin/reports.service.ts `stations()` — earnings per station. */
+export interface StationEarningsRow {
+  stationId: string;
+  stationName: string;
+  /** False for a station switched off since; it still earned in the range. */
+  isActive: boolean;
+  sessionCount: number;
+  minutes: number;
+  grossPaise: number;
+  discountPaise: number;
+  netPaise: number;
+  refundedPaise: number;
+  /** Net minus refunds of the sessions counted. What incentives are worked out from. */
+  earnedPaise: number;
+  averagePerSessionPaise: number;
+  sharePercent: number;
+  byService: Array<{ serviceId: string; serviceName: string; sessionCount: number; netPaise: number }>;
+}
+
+export interface StationEarningsReport {
+  from: string;
+  to: string;
+  currency: string;
+  sessionCount: number;
+  netPaise: number;
+  refundedPaise: number;
+  earnedPaise: number;
+  byStation: StationEarningsRow[];
 }
 
 /**

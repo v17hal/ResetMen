@@ -22,10 +22,11 @@ import { errorMessage } from '@/lib/auth';
 import { adminClient } from '@/lib/client';
 import { keys } from '@/lib/queries';
 
-type Tab = 'revenue' | 'utilisation' | 'no-show' | 'retention';
+type Tab = 'revenue' | 'stations' | 'utilisation' | 'no-show' | 'retention';
 
 const TABS: ReadonlyArray<{ id: Tab; label: string }> = [
   { id: 'revenue', label: 'Revenue' },
+  { id: 'stations', label: 'By station' },
   { id: 'utilisation', label: 'Utilisation' },
   { id: 'no-show', label: 'No-shows' },
   { id: 'retention', label: 'Retention' },
@@ -121,6 +122,8 @@ export default function ReportsPage() {
 
       {invalid ? null : tab === 'revenue' ? (
         <RevenueReport range={range} />
+      ) : tab === 'stations' ? (
+        <StationsReport range={range} />
       ) : tab === 'utilisation' ? (
         <UtilisationReport range={range} />
       ) : tab === 'no-show' ? (
@@ -212,6 +215,85 @@ function RevenueReport({ range }: { range: { from: string; to: string } }) {
           { key: 'net', header: 'Net', align: 'right', cell: (row) => formatMoney(row.netPaise) },
         ]}
       />
+    </div>
+  );
+}
+
+/**
+ * Earnings per station — client request 11/09/2026, for paying incentives by station.
+ *
+ * "Earned" is what the station's sessions were charged, less refunds of those sessions.
+ * The breakdown under each name is there because the first question after "why is
+ * Station 2 lower?" is always "what was it doing?".
+ */
+function StationsReport({ range }: { range: { from: string; to: string } }) {
+  const report = useReport('stations', range, () => adminClient().reports.stations(range));
+
+  if (report.isError)
+    return <ErrorState description={errorMessage(report.error)} onRetry={() => void report.refetch()} />;
+  if (report.isPending) return <SkeletonList rows={3} />;
+
+  const data = report.data;
+
+  return (
+    <div className="flex flex-col gap-base">
+      <div className="grid grid-cols-2 gap-sm lg:grid-cols-4">
+        <StatTile label="Earned" value={formatMoney(data.earnedPaise)} hint="After refunds" />
+        <StatTile label="Sessions" value={data.sessionCount} />
+        <StatTile
+          label="Refunded"
+          value={formatMoney(data.refundedPaise)}
+          tone={data.refundedPaise > 0 ? 'danger' : 'default'}
+        />
+        <StatTile label="Stations" value={data.byStation.length} />
+      </div>
+
+      <DataTable
+        rows={data.byStation}
+        rowKey={(row) => row.stationId}
+        empty={{ title: 'No stations' }}
+        columns={[
+          {
+            key: 'station',
+            header: 'Station',
+            cell: (row) => (
+              <div className="flex flex-col">
+                <span className="font-medium">
+                  {row.stationName}
+                  {!row.isActive && <span className="text-text-muted"> · switched off</span>}
+                </span>
+                <span className="text-caption text-text-muted">
+                  {row.byService.length === 0
+                    ? 'No sessions'
+                    : row.byService.map((s) => `${s.serviceName} ×${s.sessionCount}`).join(' · ')}
+                </span>
+              </div>
+            ),
+          },
+          { key: 'sessions', header: 'Sessions', align: 'right', cell: (row) => row.sessionCount },
+          {
+            key: 'refunded',
+            header: 'Refunded',
+            align: 'right',
+            hideOnMobile: true,
+            cell: (row) => (row.refundedPaise === 0 ? '—' : formatMoney(row.refundedPaise)),
+          },
+          { key: 'earned', header: 'Earned', align: 'right', cell: (row) => formatMoney(row.earnedPaise) },
+          {
+            key: 'average',
+            header: 'Per session',
+            align: 'right',
+            hideOnMobile: true,
+            cell: (row) => formatMoney(row.averagePerSessionPaise),
+          },
+          { key: 'share', header: 'Share', align: 'right', cell: (row) => formatPercent(row.sharePercent) },
+        ]}
+      />
+
+      <p className="text-caption text-text-muted">
+        Checked-in and completed sessions, at the price charged, less refunds of those same
+        sessions. A station switched off since still shows for the days it worked.
+      </p>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { TERMS } from '@reset/types';
 
 import { StoreIdHeader, StoreScopeService } from '../common/store-scope.js';
 import { CatalogService } from './catalog.service.js';
@@ -30,6 +31,17 @@ export class CatalogController {
   @Get('services')
   async services(@Query('categoryId') categoryId?: string, @StoreIdHeader() header?: string) {
     return this.catalog.getServices(await this.scope.resolve(header), categoryId);
+  }
+
+  /**
+   * The Terms & Conditions, for the Android app.
+   *
+   * Served rather than compiled into the app so a change of wording reaches every phone at
+   * once. The booking request sends `version` back, and the API refuses a stale one.
+   */
+  @Get('terms')
+  terms() {
+    return TERMS;
   }
 
   @Get('home')

@@ -13,6 +13,9 @@ import { AdminProductsService } from './admin/admin-products.service.js';
 import { AdminRewardsController } from './admin/admin-rewards.controller.js';
 import { AdminRewardsService } from './admin/admin-rewards.service.js';
 import { AdminStaffService } from './admin/admin-staff.service.js';
+import { AdminBannersController } from './admin/admin-banners.controller.js';
+import { AdminBannersService } from './admin/admin-banners.service.js';
+import { AdminSupportController } from './admin/admin-support.controller.js';
 import { CapacityController } from './admin/capacity.controller.js';
 import { CapacityService } from './admin/capacity.service.js';
 import { ReportsController } from './admin/reports.controller.js';
@@ -58,6 +61,8 @@ import { RewardsJobs } from './rewards/rewards.jobs.js';
 import { RewardsService } from './rewards/rewards.service.js';
 import { ScratchService } from './rewards/scratch.service.js';
 import { StreakService } from './rewards/streak.service.js';
+import { SupportController } from './support/support.controller.js';
+import { SupportService } from './support/support.service.js';
 
 /**
  * A modular monolith with hard internal boundaries.
@@ -100,6 +105,7 @@ import { StreakService } from './rewards/streak.service.js';
     ProductController,
     ProductOrderController,
     MediaController,
+    SupportController,
     // Admin surface.
     CapacityController,
     AdminBookingsController,
@@ -112,6 +118,8 @@ import { StreakService } from './rewards/streak.service.js';
     AdminAuditController,
     ReportsController,
     MediaAdminController,
+    AdminBannersController,
+    AdminSupportController,
   ],
   providers: [
     CatalogService,
@@ -144,6 +152,9 @@ import { StreakService } from './rewards/streak.service.js';
     AdminRewardsService,
     AdminProductsService,
     ReportsService,
+    AdminBannersService,
+    // Help desk.
+    SupportService,
     // Scheduled work.
     BookingJobs,
     PrivacyJobs,

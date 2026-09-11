@@ -56,9 +56,11 @@ describe('idempotency', () => {
         firebaseUid: 'test-idempotency-user',
         email: 'idempotency@test.reset.app',
         name: 'Idempotency Test',
+        // The API refuses an app booking from an account with no number to ring.
+        phone: '+919100000012',
         consentAt: new Date(),
       },
-      update: {},
+      update: { phone: '+919100000012' },
     });
 
     token = app.get(TokenService).issueAccess({ sub: user.id, aud: 'customer' });

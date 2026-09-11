@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
+import { PriceTag, ServiceBadge } from '@/components/price-tag';
 import { ServiceImage } from '@/components/service-look';
 import { errorMessage } from '@/lib/auth';
 import { api } from '@/lib/client';
@@ -113,11 +114,22 @@ export function ServiceDetail({
           <Link href="/" className="text-body-sm text-primary underline underline-offset-4">
             ← All services
           </Link>
-          <h1 className="font-display text-h1">{service.data.name}</h1>
+          <div className="flex flex-col gap-0.5">
+            <h1 className="flex flex-wrap items-center gap-sm font-display text-h1">
+              {service.data.emoji !== null && <span aria-hidden="true">{service.data.emoji}</span>}
+              {service.data.name}
+              {service.data.badge !== null && <ServiceBadge label={service.data.badge} />}
+            </h1>
+            {service.data.tagline !== null && (
+              <p className="text-body text-text-muted">{service.data.tagline}</p>
+            )}
+          </div>
           <div className="flex flex-wrap items-center gap-md">
-            <span className="font-display text-[26px]">
-              {formatMoney(service.data.pricePaise)}
-            </span>
+            <PriceTag
+              pricePaise={service.data.pricePaise}
+              compareAtPricePaise={service.data.compareAtPricePaise}
+              priceClassName="text-[26px]"
+            />
             <span className="text-body-sm text-text-muted">
               {formatDuration(service.data.durationMinutes)}
             </span>

@@ -116,5 +116,50 @@ void main() {
       expect(formatBookingCode('RST2K8F4M'), 'RST-2K8F4M');
       expect(formatBookingCode('RST-2K8F4M'), 'RST-2K8F4M');
     });
+
+    test('leaves a help code that already has its hyphen alone', () {
+      expect(formatBookingCode('HLP-7Q2K4M'), 'HLP-7Q2K4M');
+    });
+  });
+
+  group('discountPercent', () {
+    test('matches the client menu, rounded to the nearest whole percent', () {
+      expect(discountPercent(49, 149), 67);
+      expect(discountPercent(99, 399), 75);
+      expect(discountPercent(149, 699), 79);
+      expect(discountPercent(199, 999), 80);
+      expect(discountPercent(299, 1699), 82);
+    });
+
+    test('is the same in paise as in rupees', () {
+      expect(discountPercent(4900, 14900), 67);
+      expect(discountPercent(29900, 169900), 82);
+    });
+
+    test('is zero when there is nothing to compare against', () {
+      expect(discountPercent(9900, 9900), 0);
+      expect(discountPercent(19900, 9900), 0, reason: 'never a negative discount');
+      expect(discountPercent(9900, 0), 0, reason: 'never a division by zero');
+    });
+  });
+
+  group('formatMessageTime', () {
+    // Friday 11 September 2026, 6 pm at the store.
+    final now = DateTime.parse('2026-09-11T18:00:00+05:30');
+
+    test('a time for today, a day otherwise', () {
+      expect(formatMessageTime(DateTime.parse('2026-09-11T16:05:00+05:30'), now: now),
+          '4:05 pm');
+      expect(formatMessageTime(DateTime.parse('2026-09-10T09:00:00+05:30'), now: now),
+          'Yesterday');
+      expect(formatMessageTime(DateTime.parse('2026-09-08T09:00:00+05:30'), now: now),
+          'Tue 8 Sep');
+    });
+
+    test('decides "today" in store time, not UTC', () {
+      // 00:30 on the 11th in Pune is still the 10th in UTC.
+      expect(formatMessageTime(DateTime.parse('2026-09-10T19:00:00.000Z'), now: now),
+          '12:30 am');
+    });
   });
 }

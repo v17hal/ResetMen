@@ -231,6 +231,21 @@ export class CapacityService {
     });
   }
 
+  /**
+   * On or off, and nothing else.
+   *
+   * There was no way to do this. The list showed an "Off" badge on a paused rule and
+   * nothing at all on a running one, and the edit dialog carried `isActive` through
+   * unchanged — so a rule could be paused only by deleting it and recreating it later.
+   */
+  async setAllocationRuleActive(storeId: string, ruleId: string, isActive: boolean) {
+    await this.assertRule(storeId, ruleId);
+    await this.prisma.allocationRule.update({ where: { id: ruleId }, data: { isActive } });
+
+    const rules = await this.listAllocationRules(storeId);
+    return rules.find((rule) => rule.id === ruleId)!;
+  }
+
   async deleteAllocationRule(storeId: string, ruleId: string) {
     await this.assertRule(storeId, ruleId);
     await this.prisma.allocationRule.delete({ where: { id: ruleId } });

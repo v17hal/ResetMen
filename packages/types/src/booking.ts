@@ -37,6 +37,14 @@ export const holdRequest = z.object({
   startsAt: instant,
   addonOptionIds: z.array(uuid).default([]),
   rewardId: uuid.nullable().default(null),
+  /**
+   * The Terms & Conditions version the customer ticked — `TERMS.version`.
+   *
+   * Optional on the wire so an app installed before the checkbox existed can still book;
+   * the website and the current app always send it, and the server refuses a version that
+   * is not the current one rather than recording agreement to text nobody was shown.
+   */
+  termsVersion: z.string().max(20).optional(),
 });
 export type HoldRequest = z.infer<typeof holdRequest>;
 

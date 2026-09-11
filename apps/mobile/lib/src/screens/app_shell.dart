@@ -1,8 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../api/models.dart';
+import '../providers.dart';
+import '../services/deep_links.dart';
 import 'account_screen.dart';
 import 'bookings_screen.dart';
+import 'confirmation_screen.dart';
+import 'help_screen.dart';
+import 'help_thread_screen.dart';
 import 'home_screen.dart';
 import 'rewards_screen.dart';
 import 'shop_screen.dart';
@@ -25,6 +33,108 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell> {
   int _index = 0;
   final _navigators = List.generate(5, (_) => GlobalKey<NavigatorState>());
+
+  /// Whom this device is registered for, so that a later sign-in on the same run —
+  /// somebody else picking up the phone — registers it again for them.
+  String? _pushUserId;
+  StreamSubscription<String>? _tokenRefresh;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Push starts once somebody is signed in: the permission prompt comes after sign-in
+    // rather than on first launch (see PushService), and a device is registered against an
+    // account, not against nobody.
+    ref.listenManual<AsyncValue<UserProfile?>>(
+      sessionProvider,
+      (_, next) {
+        final user = next.valueOrNull;
+        if (user == null) {
+          if (!next.isLoading) _pushUserId = null;
+          return;
+        }
+        if (user.id != _pushUserId) {
+          _pushUserId = user.id;
+          unawaited(_startPush());
+        }
+      },
+      fireImmediately: true,
+    );
+  }
+
+  @override
+  void dispose() {
+    _tokenRefresh?.cancel();
+    super.dispose();
+  }
+
+  /// Registers this device for reminders and replies, and routes taps on them.
+  ///
+  /// Nothing called `PushService.start` before this, so no notification the API sent could
+  /// open anything, and no device was ever registered to receive one — the "RESET replied"
+  /// push for Help depends on both. Never fatal: push is additive, and a phone that cannot
+  /// reach FCM (or has no Firebase at all) must still book.
+  Future<void> _startPush() async {
+    try {
+      final push = ref.read(pushProvider);
+      final repository = ref.read(repositoryProvider);
+
+      final token = await push.start(onOpen: _openDeepLink);
+      if (token != null) await repository.registerDevice(token);
+
+      _tokenRefresh ??= push.tokenRefreshes.listen((fresh) {
+        if (!repository.isAuthenticated) return;
+        unawaited(repository.registerDevice(fresh).catchError((Object _) {}));
+      });
+    } catch (error) {
+      debugPrint('Push not started: $error');
+    }
+  }
+
+  /// Takes a tapped notification to its screen, on the tab it belongs to.
+  ///
+  /// Each tab keeps its own stack, so the screen goes onto that tab's navigator and the tab
+  /// is selected — Back then returns to wherever that tab already was, rather than out of
+  /// the app. Whatever the notification is about is refetched on the way, because it is by
+  /// definition newer than anything on screen.
+  void _openDeepLink(String raw) {
+    final link = DeepLink.parse(raw);
+    if (link == null || !mounted) return;
+
+    final (int, Widget?) target = switch (link) {
+      BookingLink(:final bookingId) => (1, ConfirmationScreen(bookingId: bookingId)),
+      OrdersLink() => (2, null),
+      RewardsLink() => (3, null),
+      HelpLink() => (4, const HelpScreen()),
+      HelpThreadLink(:final threadId) => (4, HelpThreadScreen(threadId: threadId)),
+    };
+
+    switch (link) {
+      case BookingLink():
+        ref.invalidate(bookingsProvider('upcoming'));
+      case OrdersLink():
+        ref.invalidate(productOrdersProvider);
+      case RewardsLink():
+        ref.invalidate(streakProvider);
+        ref.invalidate(scratchCardsProvider);
+        ref.invalidate(walletProvider);
+      case HelpLink() || HelpThreadLink():
+        ref.invalidate(supportThreadsProvider);
+    }
+
+    final (tab, screen) = target;
+    setState(() => _index = tab);
+    if (screen == null) return;
+
+    // After the frame, so a notification that launched the app finds the tab's navigator
+    // built before anything is pushed onto it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navigators[tab].currentState?.push(
+            MaterialPageRoute<void>(builder: (_) => screen),
+          );
+    });
+  }
 
   static const _destinations = [
     NavigationDestination(

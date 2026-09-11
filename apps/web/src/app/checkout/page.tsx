@@ -2,6 +2,7 @@
 
 import type { HoldResponse, WalletEntry } from '@reset/api-client';
 import { isResetApiError } from '@reset/api-client';
+import { TERMS } from '@reset/types';
 import {
   Badge,
   Button,
@@ -17,6 +18,7 @@ import {
   useToast,
 } from '@reset/ui';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -47,6 +49,8 @@ function Checkout() {
   const [rewardId, setRewardId] = useState<string | null>(null);
   const [hold, setHold] = useState<HoldResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The Terms checkbox — client requirement 11/09/2026. Unticked on every visit. */
+  const [agreed, setAgreed] = useState(false);
 
   /**
    * One key for the whole checkout, generated when the screen mounts.
@@ -76,7 +80,8 @@ function Checkout() {
   const createHold = useMutation({
     mutationFn: () =>
       api().bookings.hold(
-        { serviceId, startsAt, addonOptionIds, rewardId },
+        // The version goes with the booking, so the record says which wording was agreed to.
+        { serviceId, startsAt, addonOptionIds, rewardId, termsVersion: TERMS.version },
         holdKey.current,
       ),
     onSuccess: (created) => {
@@ -254,15 +259,40 @@ function Checkout() {
         // pressing Book once the booking moved to the button.
         <PhoneRequired />
       ) : (
+        <>
+        <Card>
+          <label className="flex cursor-pointer items-start gap-sm text-body-sm">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(event) => setAgreed(event.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-primary"
+            />
+            <span>
+              {/* The client's sentence, with its own words made the link. Opens in a new
+                  tab so reading the terms cannot cost anyone the slot on this page. */}
+              {TERMS.agreement.split('Terms & Conditions')[0]}
+              <Link
+                href="/terms"
+                target="_blank"
+                rel="noopener"
+                className="text-primary underline underline-offset-2"
+              >
+                Terms &amp; Conditions
+              </Link>
+              {TERMS.agreement.split('Terms & Conditions')[1]}
+            </span>
+          </label>
+        </Card>
         <div className="sticky bottom-base z-20">
           <Button
             size="lg"
             fullWidth
             loading={createHold.isPending || pay.isPending}
-            // Ready as soon as there is a price to show. It used to wait for a hold that
-            // was made on mount, which is why it stayed dead after signing in until the
-            // page was reloaded.
-            disabled={quote.data === undefined}
+            // Ready as soon as there is a price to show and the terms are ticked. It used
+            // to wait for a hold that was made on mount, which is why it stayed dead after
+            // signing in until the page was reloaded.
+            disabled={quote.data === undefined || !agreed}
             onClick={() => pay.mutate()}
           >
             {/* "Pay" is a promise the screen cannot keep while payment happens at the
@@ -274,7 +304,15 @@ function Checkout() {
                 ? 'Pay'
                 : `Pay ${formatMoney(quote.data.payablePaise)}`}
           </Button>
+          {/* A disabled button with no reason reads as a broken one — which is how the
+              allocation-rule Save button got reported. Say what it is waiting for. */}
+          {!agreed && quote.data !== undefined && (
+            <p className="mt-xs text-center text-caption text-text-muted">
+              Tick the box above to book.
+            </p>
+          )}
         </div>
+        </>
       )}
 
       <p className="text-caption text-text-muted">

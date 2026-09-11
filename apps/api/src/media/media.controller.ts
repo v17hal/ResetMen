@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Query,
+  Req,
   Res,
   UploadedFile,
   UseGuards,
@@ -13,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { z } from 'zod';
 
 import { AdminGuard, CurrentAuth, Roles, RolesGuard } from '../auth/auth.guards.js';
@@ -52,6 +53,7 @@ export class MediaAdminController {
   async upload(
     @CurrentAuth() auth: TokenClaims,
     @UploadedFile() file: MediaFile | undefined,
+    @Req() req: Request,
     @StoreIdHeader() header?: string,
   ) {
     if (file === undefined) {
@@ -70,16 +72,18 @@ export class MediaAdminController {
       after: { key: asset.key, bytes: asset.bytes, mime: asset.mime },
     });
 
-    return asset;
+    return absolute(asset, originOf(req));
   }
 
   @Get()
   async list(
     @CurrentAuth() auth: TokenClaims,
     @Query(new ZodValidationPipe(listQuery)) query: z.infer<typeof listQuery>,
+    @Req() req: Request,
     @StoreIdHeader() header?: string,
   ) {
-    return { data: await this.media.list(await this.storeFor(auth, header), query.limit) };
+    const assets = await this.media.list(await this.storeFor(auth, header), query.limit);
+    return { data: assets.map((asset) => absolute(asset, originOf(req))) };
   }
 
   @Delete(':id')
@@ -101,6 +105,39 @@ export class MediaAdminController {
 
     return result;
   }
+}
+
+/**
+ * The API's own origin, as the caller reached it.
+ *
+ * `trust proxy` is on (main.ts), so behind Caddy this is `https://api.resetmen.in` rather
+ * than the container's `http://api:4000`.
+ */
+function originOf(req: Request): string {
+  return `${req.protocol}://${req.get('host') ?? 'localhost'}`;
+}
+
+/**
+ * Media URLs, made absolute.
+ *
+ * `MEDIA_PUBLIC_BASE_URL` defaults to the path `/api/v1/media`, which is only a URL on the
+ * API's own host. The admin panel, the website and the app all live on other hosts, so a
+ * path handed to them pointed at the wrong server: the first thing ever to upload through
+ * here — the home-banner form — showed a blank preview and had its save refused as
+ * "Invalid url." Nothing had uploaded before, so nothing had noticed.
+ *
+ * Resolved here, per request, rather than by adding a second setting that has to be kept in
+ * step with the domain.
+ */
+function absolute<T extends { url: string; variants: Record<string, string> }>(asset: T, origin: string): T {
+  const resolve = (url: string) => (url.startsWith('/') ? `${origin}${url}` : url);
+  return {
+    ...asset,
+    url: resolve(asset.url),
+    variants: Object.fromEntries(
+      Object.entries(asset.variants).map(([name, url]) => [name, resolve(url)]),
+    ),
+  };
 }
 
 /**

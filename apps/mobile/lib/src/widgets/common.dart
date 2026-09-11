@@ -469,7 +469,7 @@ String friendlyMessage(Object error, [String fallback = 'Something went wrong.']
       ErrorCode.holdExpired =>
         'Your slot was released because checkout took too long. Choose a time again.',
       ErrorCode.customerBlocked =>
-        'This account cannot book online. Please call the store.',
+        'This account cannot book online. Please message us from Help.',
       ErrorCode.rewardInvalid =>
         error.detail ?? 'That reward cannot be used on this booking.',
       ErrorCode.scratchAlreadyUsed => 'That card has already been scratched.',

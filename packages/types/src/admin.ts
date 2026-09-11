@@ -176,5 +176,12 @@ export const retentionReport = z.object({
 });
 export type RetentionReport = z.infer<typeof retentionReport>;
 
-export const reportKind = z.enum(['revenue', 'utilisation', 'no-show', 'retention', 'bookings']);
+export const reportKind = z.enum([
+  'revenue',
+  'utilisation',
+  'no-show',
+  'retention',
+  'bookings',
+  'stations',
+]);
 export const csvExportQuery = reportRange.and(z.object({ report: reportKind }));

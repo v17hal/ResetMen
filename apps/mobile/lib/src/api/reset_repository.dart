@@ -81,6 +81,10 @@ class ResetRepository {
       ServiceDetail.fromJson(await _api
           .get<Map<String, dynamic>>('/catalog/services/$idOrSlug'));
 
+  /// Public — someone can read the Terms before deciding to sign in.
+  Future<Terms> terms() async =>
+      Terms.fromJson(await _api.get<Map<String, dynamic>>('/catalog/terms'));
+
   // ── Availability ────────────────────────────────────────────────────────
 
   Future<Availability> slots({
@@ -136,11 +140,17 @@ class ResetRepository {
 
   /// Locks a station. Pass a key generated once for the checkout, not per tap — a retry
   /// carrying a fresh key is not idempotent at all.
+  ///
+  /// [termsVersion] is the version of the Terms the customer ticked, recorded on the
+  /// booking. Sending one the API no longer considers current is refused with a 422 naming
+  /// the field; reusing the same idempotency key afterwards is safe, because a failed
+  /// attempt releases its key rather than replaying the refusal.
   Future<Hold> hold({
     required String serviceId,
     required String startsAt,
     List<String> addonOptionIds = const [],
     String? rewardId,
+    String? termsVersion,
     required String idempotencyKey,
   }) async =>
       Hold.fromJson(await _api.post<Map<String, dynamic>>(
@@ -150,6 +160,7 @@ class ResetRepository {
           'startsAt': startsAt,
           'addonOptionIds': addonOptionIds,
           'rewardId': rewardId,
+          if (termsVersion != null) 'termsVersion': termsVersion,
         },
         idempotencyKey: idempotencyKey,
       ));
@@ -273,6 +284,49 @@ class ResetRepository {
 
   Future<ScratchCard> scratch(String id) async => ScratchCard.fromJson(
       await _api.post<Map<String, dynamic>>('/rewards/scratch-cards/$id/scratch'));
+
+  // ── Help ────────────────────────────────────────────────────────────────
+  //
+  // Signed-in only; the API answers 401 otherwise. Every write returns the whole
+  // conversation, so the thread screen replaces what it shows rather than patching it.
+
+  Future<List<SupportThreadSummary>> supportThreads() async {
+    final json = await _api.get<Map<String, dynamic>>('/support/threads');
+    return ((json['data'] as List?) ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(SupportThreadSummary.fromJson)
+        .toList();
+  }
+
+  /// Validation failures — a two-letter subject, a sixth open question — come back as a
+  /// 422 whose `detail` is written for the customer, and the sheet shows it as it is.
+  Future<SupportThread> createSupportThread({
+    required String subject,
+    required String body,
+    String? bookingId,
+  }) async =>
+      SupportThread.fromJson(await _api.post<Map<String, dynamic>>(
+        '/support/threads',
+        body: {
+          'subject': subject,
+          'body': body,
+          if (bookingId != null) 'bookingId': bookingId,
+        },
+      ));
+
+  /// Fetching is what clears the conversation's unread flag on the server.
+  Future<SupportThread> supportThread(String id) async => SupportThread.fromJson(
+      await _api.get<Map<String, dynamic>>('/support/threads/$id'));
+
+  /// Reopens a closed question — writing again means the customer is not done.
+  Future<SupportThread> replyToSupportThread(String id, String body) async =>
+      SupportThread.fromJson(await _api.post<Map<String, dynamic>>(
+        '/support/threads/$id/messages',
+        body: {'body': body},
+      ));
+
+  Future<SupportThread> closeSupportThread(String id) async => SupportThread.fromJson(
+      await _api.post<Map<String, dynamic>>('/support/threads/$id/close'));
 
   // ── Notifications ───────────────────────────────────────────────────────
 

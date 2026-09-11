@@ -120,6 +120,13 @@ const TEMPLATES: Record<NotificationTemplate, TemplateSpec> = {
     }),
     fallbackToSms: true,
   },
+  support_reply: {
+    render: (v) => ({
+      title: 'RESET replied',
+      body: `Re: ${v.subject} — tap to read.`,
+      deepLink: `reset://help/${v.threadId}`,
+    }),
+  },
 };
 
 @Injectable()
@@ -423,6 +430,21 @@ export class NotificationService {
       userId,
       template: 'product_order_ready',
       variables: { orderId, publicId },
+    });
+  }
+
+  /** The store answered a help-desk question. */
+  async notifySupportReply(threadId: string): Promise<void> {
+    const thread = await this.prisma.supportThread.findUnique({
+      where: { id: threadId },
+      select: { userId: true, subject: true },
+    });
+    if (thread === null) return;
+
+    await this.send({
+      userId: thread.userId,
+      template: 'support_reply',
+      variables: { threadId, subject: thread.subject },
     });
   }
 

@@ -364,6 +364,145 @@ export class ReportsService {
   }
 
   /**
+   * Earnings per station — client request 11/09/2026, to pay incentives by station.
+   *
+   * The same money as the revenue report, cut by where the session happened: realised
+   * sessions only (checked in or later), at the price actually charged. Refunds come off
+   * the station that earned them, and only refunds of sessions counted here — a refund
+   * for a cancelled booking was never earnings, so subtracting it would dock a station
+   * for money it never made.
+   *
+   * A station that has since been switched off still appears for a range in which it
+   * worked. Incentives are owed for work done, not for the station's current state.
+   */
+  async stations(storeId: string, range: Range) {
+    const w = await this.window(storeId, range);
+    const inWindow = { gte: w.startJs, lte: w.endJs };
+
+    const [stations, bookings, refunds] = await Promise.all([
+      this.prisma.station.findMany({
+        where: { storeId },
+        orderBy: { sortOrder: 'asc' },
+        select: { id: true, name: true, isActive: true },
+      }),
+      this.prisma.booking.findMany({
+        where: { storeId, status: { in: [...REALISED] }, startsAt: inWindow },
+        select: {
+          stationId: true,
+          serviceId: true,
+          serviceNameSnapshot: true,
+          basePricePaise: true,
+          addonsPricePaise: true,
+          discountPaise: true,
+          payablePaise: true,
+          totalDurationMinutes: true,
+        },
+      }),
+      this.prisma.refund.findMany({
+        where: {
+          status: { in: ['PROCESSED', 'PENDING'] },
+          payment: {
+            storeId,
+            booking: { is: { startsAt: inWindow, status: { in: [...REALISED] } } },
+          },
+        },
+        select: {
+          amountPaise: true,
+          payment: { select: { booking: { select: { stationId: true } } } },
+        },
+      }),
+    ]);
+
+    interface Tally {
+      sessionCount: number;
+      minutes: number;
+      grossPaise: number;
+      discountPaise: number;
+      netPaise: number;
+      refundedPaise: number;
+      services: Map<string, { serviceId: string; serviceName: string; sessionCount: number; netPaise: number }>;
+    }
+    const tallies = new Map<string, Tally>();
+    const tallyFor = (stationId: string): Tally => {
+      let tally = tallies.get(stationId);
+      if (tally === undefined) {
+        tally = {
+          sessionCount: 0,
+          minutes: 0,
+          grossPaise: 0,
+          discountPaise: 0,
+          netPaise: 0,
+          refundedPaise: 0,
+          services: new Map(),
+        };
+        tallies.set(stationId, tally);
+      }
+      return tally;
+    };
+
+    for (const booking of bookings) {
+      const tally = tallyFor(booking.stationId);
+      tally.sessionCount += 1;
+      tally.minutes += booking.totalDurationMinutes;
+      tally.grossPaise += booking.basePricePaise + booking.addonsPricePaise;
+      tally.discountPaise += booking.discountPaise;
+      tally.netPaise += booking.payablePaise;
+
+      const service = tally.services.get(booking.serviceId) ?? {
+        serviceId: booking.serviceId,
+        serviceName: booking.serviceNameSnapshot,
+        sessionCount: 0,
+        netPaise: 0,
+      };
+      service.sessionCount += 1;
+      service.netPaise += booking.payablePaise;
+      tally.services.set(booking.serviceId, service);
+    }
+
+    for (const refund of refunds) {
+      const stationId = refund.payment.booking?.stationId;
+      if (stationId !== undefined) tallyFor(stationId).refundedPaise += refund.amountPaise;
+    }
+
+    const rows = stations
+      .filter((station) => station.isActive || tallies.has(station.id))
+      .map((station) => {
+        const tally = tallies.get(station.id);
+        const netPaise = tally?.netPaise ?? 0;
+        const refundedPaise = tally?.refundedPaise ?? 0;
+        const sessionCount = tally?.sessionCount ?? 0;
+        const earnedPaise = netPaise - refundedPaise;
+        return {
+          stationId: station.id,
+          stationName: station.name,
+          isActive: station.isActive,
+          sessionCount,
+          minutes: tally?.minutes ?? 0,
+          grossPaise: tally?.grossPaise ?? 0,
+          discountPaise: tally?.discountPaise ?? 0,
+          netPaise,
+          refundedPaise,
+          earnedPaise,
+          averagePerSessionPaise: sessionCount === 0 ? 0 : Math.round(earnedPaise / sessionCount),
+          byService: [...(tally?.services.values() ?? [])].sort((a, b) => b.netPaise - a.netPaise),
+        };
+      });
+
+    const totalEarned = rows.reduce((sum, row) => sum + row.earnedPaise, 0);
+
+    return {
+      from: range.from,
+      to: range.to,
+      currency: w.currency,
+      sessionCount: rows.reduce((sum, row) => sum + row.sessionCount, 0),
+      netPaise: rows.reduce((sum, row) => sum + row.netPaise, 0),
+      refundedPaise: rows.reduce((sum, row) => sum + row.refundedPaise, 0),
+      earnedPaise: totalEarned,
+      byStation: rows.map((row) => ({ ...row, sharePercent: percent(row.earnedPaise, totalEarned) })),
+    };
+  }
+
+  /**
    * CSV export.
    *
    * Written by hand rather than with a library because the requirement is small and the
@@ -445,6 +584,30 @@ export class ReportsService {
         body: toCsv(
           ['Customer', 'Phone', 'No-shows'],
           data.repeatOffenders.map((o) => [o.name ?? '', o.phone, String(o.noShowCount)]),
+        ),
+      };
+    }
+
+    if (report === 'stations') {
+      const data = await this.stations(storeId, range);
+      const money = (paise: number) => (paise / 100).toFixed(2);
+      return {
+        filename: `reset-stations-${range.from}-to-${range.to}.csv`,
+        body: toCsv(
+          ['Station', 'Sessions', 'Minutes', 'Gross', 'Discounts', 'Net', 'Refunded', 'Earned',
+            'Average per session', 'Share %'],
+          data.byStation.map((s) => [
+            s.stationName,
+            String(s.sessionCount),
+            String(s.minutes),
+            money(s.grossPaise),
+            money(s.discountPaise),
+            money(s.netPaise),
+            money(s.refundedPaise),
+            money(s.earnedPaise),
+            money(s.averagePerSessionPaise),
+            String(s.sharePercent),
+          ]),
         ),
       };
     }

@@ -90,7 +90,21 @@ describe('hardening', () => {
     });
     userId = user.id;
 
-    adminId = (await raw.adminUser.findFirstOrThrow({ select: { id: true } })).id;
+    // The seed creates no admin on purpose, so a deployed store never has default
+    // credentials. This one cannot sign in: the hash is not a hash of anything.
+    adminId = (
+      await raw.adminUser.upsert({
+        where: { email: 'hardening-admin@test.reset.app' },
+        create: {
+          email: 'hardening-admin@test.reset.app',
+          passwordHash: 'not-a-password-hash',
+          name: 'Hardening Admin',
+          role: 'OWNER',
+        },
+        update: {},
+        select: { id: true },
+      })
+    ).id;
 
     let cursor = DateTime.now().setZone(timezone).plus({ days: 1 }).startOf('day');
     while (cursor.weekday === 1) cursor = cursor.plus({ days: 1 });

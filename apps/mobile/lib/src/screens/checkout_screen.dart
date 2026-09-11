@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
@@ -15,6 +16,7 @@ import '../widgets/common.dart';
 import 'confirmation_screen.dart';
 import 'phone_required_sheet.dart';
 import 'sign_in_sheet.dart';
+import 'terms_screen.dart';
 
 /// Confirm and book.
 ///
@@ -61,6 +63,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   Hold? _hold;
   String? _rewardId;
   String? _error;
+
+  /// The version of the Terms the box was ticked against, or null while unticked.
+  ///
+  /// A version rather than a bool: agreement is to a particular text. When the Terms change
+  /// under the customer the box empties by itself, because what they ticked is no longer
+  /// what is on offer — and the version is what the booking records.
+  String? _agreedVersion;
   bool _loading = true;
   bool _paying = false;
   Timer? _ticker;
@@ -124,6 +133,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             startsAt: widget.startsAt,
             addonOptionIds: widget.addonIds,
             rewardId: _rewardId,
+            termsVersion: _agreedVersion,
             idempotencyKey: _holdKey,
           );
       if (mounted) setState(() => _hold = hold);
@@ -140,6 +150,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           return null;
         }
         return _createHold();
+      }
+
+      // The Terms changed while they were on this screen, and a booking recorded against
+      // text they never saw would make the tick meaningless, so the API refuses it. Empty
+      // the box, fetch the new text, and let the server's sentence say why. Retrying with the
+      // same hold key is safe: a refused attempt releases its key rather than replaying.
+      if (error.termsOutdated) {
+        setState(() {
+          _agreedVersion = null;
+          _error = friendlyMessage(error);
+        });
+        ref.invalidate(termsProvider);
+        return null;
       }
 
       setState(() => _error = friendlyMessage(error));
@@ -285,6 +308,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     /// money and promised a checkout that never comes.
     final paymentsEnabled = ref.watch(storeProvider).valueOrNull?.paymentsEnabled ?? false;
 
+    final termsAsync = ref.watch(termsProvider);
+    final terms = termsAsync.valueOrNull;
+    final agreed = terms != null && _agreedVersion == terms.version;
+
     final wallet = session.valueOrNull == null
         ? const AsyncValue<List<WalletReward>>.data([])
         : ref.watch(basketWalletProvider(
@@ -337,6 +364,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 ],
 
                 const SizedBox(height: ResetTokens.spaceXl),
+                _TermsAgreement(
+                  terms: termsAsync,
+                  agreed: agreed,
+                  onChanged: (value) =>
+                      setState(() => _agreedVersion = value ? terms?.version : null),
+                  onRetry: () => ref.invalidate(termsProvider),
+                ),
+                const SizedBox(height: ResetTokens.spaceBase),
                 PrimaryButton(
                   // "Pay" is a promise the screen cannot keep while payment happens at the
                   // counter — the button confirms a booking and takes no money.
@@ -346,10 +381,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     (true, final q?) => 'Pay ${formatMoney(q.payablePaise)}',
                   },
                   loading: _paying,
-                  // Enabled once there is something to book. It used to require a hold,
-                  // which is the thing this button now creates — so while the hold was
-                  // failing, the only control that could recover was disabled.
-                  onPressed: quote == null ? null : _book,
+                  // Enabled once there is something to book and the Terms are ticked. It
+                  // used to require a hold, which is the thing this button now creates — so
+                  // while the hold was failing, the only control that could recover was
+                  // disabled.
+                  onPressed: quote == null || !agreed ? null : _book,
                 ),
 
                 const SizedBox(height: ResetTokens.spaceSm),
@@ -373,6 +409,126 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
 class _PaymentCancelled implements Exception {
   const _PaymentCancelled();
+}
+
+/// The Terms checkbox — client request of 11/09/2026, and a legal one.
+///
+/// Unticked to begin with, and required: a box ticked on somebody's behalf is not
+/// agreement, and the booking records which version was accepted. The words "Terms &
+/// Conditions" open the full text; the rest of the line ticks the box, because a label that
+/// ignores a tap is the commonest complaint about checkboxes on a phone.
+///
+/// Until the text has loaded there is nothing to agree to, so no box is offered — a retry
+/// is, and Book stays disabled.
+class _TermsAgreement extends StatefulWidget {
+  const _TermsAgreement({
+    required this.terms,
+    required this.agreed,
+    required this.onChanged,
+    required this.onRetry,
+  });
+
+  final AsyncValue<Terms> terms;
+  final bool agreed;
+  final ValueChanged<bool> onChanged;
+  final VoidCallback onRetry;
+
+  @override
+  State<_TermsAgreement> createState() => _TermsAgreementState();
+}
+
+class _TermsAgreementState extends State<_TermsAgreement> {
+  late final TapGestureRecognizer _link = TapGestureRecognizer()
+    ..onTap = () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const TermsScreen()),
+        );
+
+  @override
+  void dispose() {
+    _link.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final terms = widget.terms.valueOrNull;
+
+    if (terms == null) {
+      final failed = widget.terms.hasError && !widget.terms.isLoading;
+
+      return Row(
+        children: [
+          if (failed)
+            Icon(Icons.error_outline, size: 18, color: theme.mutedColor)
+          else
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          const SizedBox(width: ResetTokens.spaceSm),
+          Expanded(
+            child: Text(
+              failed
+                  ? 'Could not load the Terms & Conditions.'
+                  : 'Loading the Terms & Conditions…',
+              style: ResetTokens.bodySm.copyWith(color: theme.mutedColor),
+            ),
+          ),
+          if (failed)
+            TextButton(onPressed: widget.onRetry, child: const Text('Try again')),
+        ],
+      );
+    }
+
+    const phrase = 'Terms & Conditions';
+    final text = terms.agreement;
+    final at = text.indexOf(phrase);
+    final link = TextSpan(
+      text: phrase,
+      recognizer: _link,
+      style: TextStyle(
+        color: theme.colorScheme.primary,
+        fontWeight: FontWeight.w600,
+        decoration: TextDecoration.underline,
+        decorationColor: theme.colorScheme.primary,
+      ),
+    );
+
+    return InkWell(
+      onTap: () => widget.onChanged(!widget.agreed),
+      borderRadius: BorderRadius.circular(ResetTokens.radiusMd),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Checkbox(
+            value: widget.agreed,
+            onChanged: (value) => widget.onChanged(value ?? false),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 14, right: ResetTokens.spaceXs),
+              child: Text.rich(
+                TextSpan(
+                  children: at < 0
+                      // Reworded without the phrase. The way to the full text must survive
+                      // whatever the client writes next.
+                      ? [TextSpan(text: '$text. Read the '), link, const TextSpan(text: '.')]
+                      : [
+                          TextSpan(text: text.substring(0, at)),
+                          link,
+                          TextSpan(text: text.substring(at + phrase.length)),
+                        ],
+                ),
+                style: ResetTokens.bodySm,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// The hold countdown.

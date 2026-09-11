@@ -58,6 +58,32 @@ String formatDuration(int minutes) {
   return rest == 0 ? '${hours}h' : '${hours}h ${rest}m';
 }
 
+/// `₹49` against a "was" price of `₹149` → `67`, as in "67% OFF".
+///
+/// The one sum on money in this file, and safe for the same reason as the rest: both figures
+/// come from the server and neither is ever what gets charged. It lives here, rather than
+/// inline on the two screens that show it, so the list row and the detail page round the
+/// same way — "66% OFF" on one and "67% OFF" on the other for the same service is exactly
+/// the kind of thing a customer screenshots and sends to the shop.
+///
+/// Zero when there is nothing to compare against. The API already drops a "was" price at or
+/// below the real one; checking again means bad data draws no badge instead of "−20% OFF",
+/// and a zero "was" price is never divided by.
+int discountPercent(int price, int compareAt) {
+  if (compareAt <= 0 || compareAt <= price) return 0;
+  return ((compareAt - price) / compareAt * 100).round();
+}
+
+/// `4:05 pm` today, `Yesterday`, otherwise `Mon 10 Aug` — in store time.
+///
+/// For a list of conversations, where the question is "how long ago", not "exactly when". A
+/// time on its own already reads as today, and a date on its own as not-today, so neither
+/// needs the other.
+String formatMessageTime(DateTime instant, {DateTime? now}) {
+  final day = formatRelativeDay(instant, now: now);
+  return day == 'Today' ? formatTime(instant) : day;
+}
+
 /// `8:15 pm`, in store time.
 ///
 /// Never `.toLocal()`: that renders in the *device's* timezone, so a customer abroad — or

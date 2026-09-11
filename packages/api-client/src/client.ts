@@ -2,6 +2,7 @@ import { HttpClient, type HttpClientOptions } from './http.js';
 import {
   AdminAuditResource,
   AdminAuthResource,
+  AdminBannersResource,
   AdminBookingsResource,
   AdminCapacityResource,
   AdminCatalogResource,
@@ -13,6 +14,7 @@ import {
   AdminReportsResource,
   AdminRewardsResource,
   AdminStaffResource,
+  AdminSupportResource,
 } from './resources/admin.js';
 import {
   AuthResource,
@@ -23,6 +25,7 @@ import {
   PaymentsResource,
   ProductsResource,
   RewardsResource,
+  SupportResource,
 } from './resources/customer.js';
 
 /**
@@ -44,6 +47,7 @@ export class ResetClient {
   readonly rewards: RewardsResource;
   readonly products: ProductsResource;
   readonly notifications: NotificationsResource;
+  readonly support: SupportResource;
 
   constructor(options: HttpClientOptions) {
     this.http = new HttpClient({ audience: 'customer', ...options });
@@ -56,6 +60,7 @@ export class ResetClient {
     this.rewards = new RewardsResource(this.http);
     this.products = new ProductsResource(this.http);
     this.notifications = new NotificationsResource(this.http);
+    this.support = new SupportResource(this.http);
   }
 
   get isAuthenticated(): boolean {
@@ -87,6 +92,8 @@ export class ResetAdminClient {
   readonly reports: AdminReportsResource;
   readonly media: AdminMediaResource;
   readonly audit: AdminAuditResource;
+  readonly banners: AdminBannersResource;
+  readonly support: AdminSupportResource;
 
   constructor(options: HttpClientOptions) {
     this.http = new HttpClient({ audience: 'admin', ...options });
@@ -104,6 +111,8 @@ export class ResetAdminClient {
     this.reports = new AdminReportsResource(this.http);
     this.media = new AdminMediaResource(this.http);
     this.audit = new AdminAuditResource(this.http);
+    this.banners = new AdminBannersResource(this.http);
+    this.support = new AdminSupportResource(this.http);
   }
 
   get isAuthenticated(): boolean {

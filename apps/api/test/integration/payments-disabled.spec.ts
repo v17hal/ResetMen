@@ -52,9 +52,11 @@ describe('booking with payments disabled', () => {
         firebaseUid: 'test-payments-disabled',
         email: 'payments-disabled@test.reset.app',
         name: 'Counter Payer',
+        // The API refuses an app booking from an account with no number to ring.
+        phone: '+919100000011',
         consentAt: new Date(),
       },
-      update: {},
+      update: { phone: '+919100000011' },
     });
 
     token = app.get(TokenService).issueAccess({ sub: user.id, aud: 'customer' });
@@ -95,19 +97,45 @@ describe('booking with payments disabled', () => {
     expect(stored.status).toBe('CONFIRMED');
   });
 
-  it('issues a check-in QR immediately, so the customer has something to show', async () => {
+  /**
+   * The QR arrives with the money, not with the booking.
+   *
+   * This test used to expect the code the instant the slot was taken. That was changed on
+   * purpose: a code on screen told the customer they were done and gave the counter
+   * something to scan for a visit nobody had paid for.
+   */
+  it('withholds the check-in QR until the counter marks the booking paid', async () => {
     const hold = await request(app.getHttpServer())
       .post('/api/v1/bookings/hold')
       .set('Authorization', `Bearer ${token}`)
       .send({ serviceId, startsAt: nextSlot(30), addonOptionIds: [], rewardId: null })
       .expect(201);
 
-    const detail = await request(app.getHttpServer())
+    const before = await request(app.getHttpServer())
       .get(`/api/v1/bookings/${hold.body.bookingId}`)
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
+    expect(before.body.checkinPayload).toBeNull();
 
-    expect(detail.body.checkinPayload).toBeTruthy();
+    // What "Mark paid" on the Payments due screen writes.
+    const booking = await raw.booking.findUniqueOrThrow({ where: { id: hold.body.bookingId } });
+    await raw.payment.create({
+      data: {
+        storeId,
+        bookingId: booking.id,
+        gateway: 'COUNTER',
+        gatewayOrderId: `counter:${booking.publicId}`,
+        amountPaise: booking.payablePaise,
+        status: 'CAPTURED',
+        method: 'CASH',
+      },
+    });
+
+    const after = await request(app.getHttpServer())
+      .get(`/api/v1/bookings/${hold.body.bookingId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(after.body.checkinPayload).toBeTruthy();
   });
 
   it('survives the hold-expiry job — the booking is no longer HELD', async () => {
@@ -148,19 +176,37 @@ describe('booking with payments disabled', () => {
 
     // Fill every station at that time, then prove the next one is refused. The exclusion
     // constraint does not care whether payment is involved.
+    //
+    // A different customer per station: one customer may not hold two overlapping slots,
+    // so a single account filling the store would be refused on its second booking for a
+    // reason that has nothing to do with capacity.
     const stations = await raw.station.count({ where: { storeId, isActive: true } });
+
+    // Imported the same way as in beforeAll: after PAYMENTS_ENABLED is set.
+    const { TokenService } = await import('../../src/auth/token.service.js');
+
+    const tokenFor = async (n: number): Promise<string> => {
+      const uid = `test-payments-disabled-${n}`;
+      const phone = `+91910000${String(100 + n).padStart(4, '0')}`;
+      const user = await raw.user.upsert({
+        where: { firebaseUid: uid },
+        create: { firebaseUid: uid, name: `Station Filler ${n}`, phone, consentAt: new Date() },
+        update: { phone },
+      });
+      return app.get(TokenService).issueAccess({ sub: user.id, aud: 'customer' });
+    };
 
     for (let i = 0; i < stations; i += 1) {
       await request(app.getHttpServer())
         .post('/api/v1/bookings/hold')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${await tokenFor(i)}`)
         .send({ serviceId, startsAt, addonOptionIds: [], rewardId: null })
         .expect(201);
     }
 
     const overflow = await request(app.getHttpServer())
       .post('/api/v1/bookings/hold')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${await tokenFor(stations)}`)
       .send({ serviceId, startsAt, addonOptionIds: [], rewardId: null });
 
     expect(overflow.status).toBe(409);

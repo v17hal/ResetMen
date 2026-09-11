@@ -7,7 +7,9 @@ import '../providers.dart';
 import '../theme/app_theme.dart';
 import '../theme/reset_tokens.dart';
 import '../widgets/common.dart';
+import 'help_screen.dart';
 import 'sign_in_sheet.dart';
+import 'terms_screen.dart';
 
 class AccountScreen extends ConsumerStatefulWidget {
   const AccountScreen({super.key});
@@ -81,6 +83,17 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
 
   Future<void> _signOut() async {
     final repository = ref.read(repositoryProvider);
+
+    // First, while the session still exists — the call is authenticated. Without it the
+    // phone goes on receiving the previous person's reminders and replies to their
+    // questions.
+    try {
+      final token = ref.read(pushProvider).token;
+      if (token != null) await repository.unregisterDevice(token);
+    } catch (_) {
+      // Never fatal. A failure here must not keep somebody signed in.
+    }
+
     await repository.signOut();
     // Also clear Google and Firebase. Leaving them signed in means the next "Sign in"
     // reuses the same account with no picker, which looks broken to anyone switching.
@@ -149,13 +162,22 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     if (user == null && !session.isLoading) {
       return Scaffold(
         appBar: AppBar(title: const Text('You')),
-        body: EmptyState(
-          title: 'Sign in',
-          message: 'Your mobile number is all you need. No password to remember.',
-          action: FilledButton(
-            onPressed: () => showSignInSheet(context),
-            child: const Text('Sign in'),
-          ),
+        // Help and the Terms are here signed out too, where people look for them before
+        // they have an account. Help itself asks for sign-in before anything is written.
+        body: ListView(
+          padding: const EdgeInsets.all(ResetTokens.gutter),
+          children: [
+            const _HelpCard(),
+            EmptyState(
+              title: 'Sign in',
+              message: 'Your mobile number is all you need. No password to remember.',
+              action: FilledButton(
+                onPressed: () => showSignInSheet(context),
+                child: const Text('Sign in'),
+              ),
+            ),
+            const _TermsLink(),
+          ],
         ),
       );
     }
@@ -189,6 +211,9 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             style: ResetTokens.bodySm.copyWith(color: theme.mutedColor),
           ),
           const SizedBox(height: ResetTokens.spaceLg),
+
+          const _HelpCard(),
+          const SizedBox(height: ResetTokens.spaceBase),
 
           ResetCard(
             child: Column(
@@ -325,13 +350,94 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             ),
           ),
 
+          const SizedBox(height: ResetTokens.spaceBase),
+          const _TermsLink(),
+
           const SizedBox(height: ResetTokens.spaceXl),
           Center(
             child: Text(
-              'RESET · v1.0.0',
+              'RESET · v1.1.0',
               style: ResetTokens.caption.copyWith(color: theme.mutedColor),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Help, where the phone number used to be.
+///
+/// Near the top of You rather than at the foot of it: this replaced the only way customers
+/// had of reaching the shop, and a reply waiting to be read should be seen, not scrolled to.
+class _HelpCard extends ConsumerWidget {
+  const _HelpCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final unread = ref.watch(supportUnreadCountProvider);
+
+    return ResetCard(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const HelpScreen()),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.support_agent, color: theme.colorScheme.primary),
+          const SizedBox(width: ResetTokens.spaceMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Help & support',
+                  style: ResetTokens.body.copyWith(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  switch (unread) {
+                    0 => 'Ask about a booking, a treatment or the shop.',
+                    1 => 'The store has replied to your question.',
+                    _ => 'The store has replied to $unread of your questions.',
+                  },
+                  style: ResetTokens.caption.copyWith(color: theme.mutedColor),
+                ),
+              ],
+            ),
+          ),
+          if (unread > 0) ...[
+            const SizedBox(width: ResetTokens.spaceSm),
+            ResetBadge('$unread new', color: theme.colorScheme.primary),
+          ],
+          const SizedBox(width: ResetTokens.spaceXs),
+          Icon(Icons.chevron_right, color: theme.mutedColor),
+        ],
+      ),
+    );
+  }
+}
+
+class _TermsLink extends StatelessWidget {
+  const _TermsLink();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return ResetCard(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const TermsScreen()),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: ResetTokens.spaceBase,
+        vertical: ResetTokens.spaceMd,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.description_outlined, color: theme.mutedColor),
+          const SizedBox(width: ResetTokens.spaceMd),
+          Expanded(child: Text('Terms & Conditions', style: ResetTokens.body)),
+          Icon(Icons.chevron_right, color: theme.mutedColor),
         ],
       ),
     );

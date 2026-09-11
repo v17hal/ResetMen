@@ -284,6 +284,16 @@ export default function AccountPage() {
       )}
 
       <Card className="flex flex-col gap-sm">
+        <h2 className="font-display text-h2">Help</h2>
+        <a href="/help" className="text-body text-primary underline underline-offset-4">
+          Ask us a question
+        </a>
+        <a href="/terms" className="text-body-sm text-text-muted underline underline-offset-4">
+          Terms &amp; Conditions
+        </a>
+      </Card>
+
+      <Card className="flex flex-col gap-sm">
         <h2 className="font-display text-h2">Account</h2>
 
         <Button variant="secondary" onClick={signOut}>

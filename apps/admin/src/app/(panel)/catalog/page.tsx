@@ -183,8 +183,13 @@ function Services() {
             header: 'Service',
             cell: (row) => (
               <div className="flex flex-col">
-                <span className="font-medium">{row.name}</span>
+                <span className="flex flex-wrap items-center gap-xs font-medium">
+                  {row.emoji !== null && <span aria-hidden="true">{row.emoji}</span>}
+                  {row.name}
+                  {row.badge !== null && <Badge tone="accent">{row.badge}</Badge>}
+                </span>
                 <span className="text-caption text-text-muted">
+                  {row.tagline === null ? '' : `${row.tagline} · `}
                   {row.category.segment.name} · {row.category.name}
                 </span>
               </div>
@@ -320,6 +325,10 @@ function ServiceDialog({
     description: '',
     price: '',
     duration: '60',
+    emoji: '',
+    tagline: '',
+    wasPrice: '',
+    badge: '',
   });
   /** Which add-on groups this service offers. Saved as a second call, after the service. */
   const [groupIds, setGroupIds] = useState<string[]>([]);
@@ -333,6 +342,11 @@ function ServiceDialog({
       description: existing?.description ?? '',
       price: existing === null ? '' : String(paiseToRupees(existing.pricePaise)),
       duration: existing === null ? '60' : String(existing.durationMinutes),
+      emoji: existing?.emoji ?? '',
+      tagline: existing?.tagline ?? '',
+      wasPrice:
+        existing?.compareAtPricePaise == null ? '' : String(paiseToRupees(existing.compareAtPricePaise)),
+      badge: existing?.badge ?? '',
     });
     setGroupIds((existing?.addonGroups ?? []).map((link) => link.addonGroup.id));
     setError(null);
@@ -354,6 +368,14 @@ function ServiceDialog({
         // New services start hidden. Publishing is a separate, deliberate action once the
         // price, duration and station coverage are all right.
         isActive: existing?.isActive ?? false,
+        // Sent every time, not only when changed. The request replaces the row, and a
+        // field left out defaults to empty — so omitting these would wipe the emoji, the
+        // badge and the "was" price on every save of an unrelated field.
+        emoji: form.emoji.trim() === '' ? null : form.emoji.trim(),
+        tagline: form.tagline.trim() === '' ? null : form.tagline.trim(),
+        compareAtPricePaise:
+          form.wasPrice.trim() === '' ? null : rupeesToPaise(Number(form.wasPrice)),
+        badge: form.badge.trim() === '' ? null : form.badge.trim().toUpperCase(),
       };
 
       /**
@@ -389,6 +411,10 @@ function ServiceDialog({
     form.categoryId !== '' &&
     Number(form.duration) >= 1 &&
     form.price !== '';
+
+  const price = Number(form.price);
+  const was = Number(form.wasPrice);
+  const showsWas = form.wasPrice.trim() !== '' && form.price !== '' && was > price;
 
   return (
     <Dialog
@@ -470,6 +496,83 @@ function ServiceDialog({
             hint="The engine cannot schedule without it."
           />
         </div>
+
+        {/* Client request 11/09/2026 — names like "💆‍♂️ Tension Relief", with the old
+            price struck through. Display only: none of it reaches receipts or reports. */}
+        <fieldset className="flex flex-col gap-sm rounded-md border border-border p-sm">
+          <legend className="px-xs text-body-sm font-medium">How it looks on the menu</legend>
+
+          <div className="flex gap-base">
+            <Input
+              label="Emoji"
+              value={form.emoji}
+              maxLength={16}
+              placeholder="💆‍♂️"
+              onChange={(event) => setForm((c) => ({ ...c, emoji: event.target.value }))}
+              containerClassName="w-28"
+              hint="Windows: Win + ."
+            />
+            <Input
+              label="Tagline"
+              value={form.tagline}
+              maxLength={80}
+              placeholder="Head, Neck & Shoulder"
+              onChange={(event) => setForm((c) => ({ ...c, tagline: event.target.value }))}
+              containerClassName="flex-1"
+              hint="One line under the name. Also goes into the Google title."
+            />
+          </div>
+
+          <div className="flex gap-base">
+            <Input
+              label="Was price (₹)"
+              type="number"
+              min={0}
+              step="1"
+              value={form.wasPrice}
+              placeholder="149"
+              onChange={(event) => setForm((c) => ({ ...c, wasPrice: event.target.value }))}
+              containerClassName="flex-1"
+              hint="Struck through, with the % off. Empty for none."
+              error={
+                form.wasPrice.trim() !== '' && form.price !== '' && was <= price
+                  ? 'Not above the price, so it will not be shown.'
+                  : null
+              }
+            />
+            <Input
+              label="Badge"
+              value={form.badge}
+              maxLength={20}
+              placeholder="BESTSELLER"
+              onChange={(event) => setForm((c) => ({ ...c, badge: event.target.value }))}
+              containerClassName="flex-1"
+              hint="Optional. Keep it to one word."
+            />
+          </div>
+
+          <div aria-live="polite" className="rounded-md bg-surface2 p-sm text-body-sm">
+            <p className="text-caption uppercase tracking-wide text-text-muted">Preview</p>
+            <p className="flex flex-wrap items-center gap-xs font-medium">
+              {form.emoji.trim() !== '' && <span aria-hidden="true">{form.emoji.trim()}</span>}
+              <span>{form.name.trim() === '' ? 'Service name' : form.name.trim()}</span>
+              {form.badge.trim() !== '' && <Badge tone="accent">{form.badge.trim().toUpperCase()}</Badge>}
+            </p>
+            {form.tagline.trim() !== '' && <p className="text-text-muted">{form.tagline.trim()}</p>}
+            <p className="flex flex-wrap items-baseline gap-xs">
+              <span className="font-medium">{form.price === '' ? '₹—' : `₹${price}`}</span>
+              {showsWas && (
+                <>
+                  <s className="text-text-muted">₹{was}</s>
+                  <span className="font-medium text-primary">
+                    {Math.round(((was - price) / was) * 100)}% OFF
+                  </span>
+                </>
+              )}
+              <span className="text-text-muted">· {form.duration} min</span>
+            </p>
+          </div>
+        </fieldset>
 
         <Textarea
           label="Description"

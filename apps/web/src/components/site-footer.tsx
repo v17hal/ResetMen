@@ -1,4 +1,4 @@
-import { formatPhone } from '@reset/ui';
+import Link from 'next/link';
 
 import { getStore, locality, openingHoursSpecification } from '@/lib/seo';
 
@@ -12,8 +12,9 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
  * and NAP that appears only in a `<script>` tag is the weakest form of it.
  *
  * It is also the plainest conversion win on the site. A customer deciding whether to come
- * in wants three facts — where, when, and a number to ring — and none of them were anywhere
- * on the site. The phone is a `tel:` link because most of this traffic is a phone.
+ * in wants three facts — where, when, and how to ask something. The third was a phone
+ * number until 11/09/2026, when the client asked for written help instead; the number
+ * stays in the structured data, where Google already shows it from the Business Profile.
  *
  * Rendered on the server, so it is in the HTML rather than arriving after hydration.
  */
@@ -60,16 +61,15 @@ export async function SiteFooter() {
             </div>
           )}
 
-          {store.phone !== null && store.phone.trim() !== '' && (
-            <div className="flex flex-col">
-              <span className="text-caption uppercase tracking-wide text-text-muted">Call</span>
-              {/* Grouped for reading aloud and dialling: +91 94044 91801. The href keeps
-                  the unspaced E.164 number, which is what a dialler wants. */}
-              <a href={`tel:${store.phone}`} className="underline underline-offset-2">
-                {formatPhone(store.phone)}
-              </a>
-            </div>
-          )}
+          {/* Help in place of the phone number — client request 11/09/2026. The owner
+              would rather answer in writing, when the desk is free, than take calls in the
+              middle of a session. */}
+          <div className="flex flex-col">
+            <span className="text-caption uppercase tracking-wide text-text-muted">Questions</span>
+            <Link href="/help" className="underline underline-offset-2">
+              Ask us — we reply in writing
+            </Link>
+          </div>
 
           {openLine !== null && (
             <div className="flex flex-col">
@@ -85,6 +85,13 @@ export async function SiteFooter() {
             </div>
           )}
         </div>
+
+        <p className="text-caption text-text-muted">
+          <Link href="/terms" className="underline underline-offset-2">
+            Terms &amp; Conditions
+          </Link>
+          {' · '}Non-medical wellness services only.
+        </p>
       </div>
     </footer>
   );

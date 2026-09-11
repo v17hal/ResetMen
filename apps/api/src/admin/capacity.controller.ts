@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
+  allocationRuleActive,
   allocationRuleInput,
   blackoutInput,
   localDate,
@@ -121,6 +122,17 @@ export class CapacityController {
     @StoreIdHeader() header?: string,
   ) {
     return this.capacity.updateAllocationRule(await this.storeFor(auth, header), id, body);
+  }
+
+  /** On or off without re-previewing — pausing a rule for a day is not a redesign of it. */
+  @Put('allocation-rules/:id/active')
+  async setRuleActive(
+    @CurrentAuth() auth: TokenClaims,
+    @Param('id', new ZodValidationPipe(uuid)) id: string,
+    @Body(new ZodValidationPipe(allocationRuleActive)) body: z.infer<typeof allocationRuleActive>,
+    @StoreIdHeader() header?: string,
+  ) {
+    return this.capacity.setAllocationRuleActive(await this.storeFor(auth, header), id, body.isActive);
   }
 
   @Delete('allocation-rules/:id')

@@ -31,6 +31,7 @@ export const NOTIFICATION_TEMPLATES = [
   'streak_milestone',
   'cashback_credited',
   'product_order_ready',
+  'support_reply',
 ] as const;
 
 export const notificationTemplate = z.enum(NOTIFICATION_TEMPLATES);

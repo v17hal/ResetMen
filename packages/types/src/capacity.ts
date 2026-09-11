@@ -72,6 +72,15 @@ export const allocationRuleInput = z
 export type AllocationRuleInput = z.infer<typeof allocationRuleInput>;
 
 /**
+ * Switching a rule on or off, on its own.
+ *
+ * Separate from the full edit because the edit requires a fresh preview, which is right
+ * for changing what a rule does and absurd for pausing it for a day.
+ */
+export const allocationRuleActive = z.object({ isActive: z.boolean() });
+export type AllocationRuleActive = z.infer<typeof allocationRuleActive>;
+
+/**
  * The dry-run response. Capacity rules have non-obvious second-order effects — reserving
  * two stations for a ₹199 push can quietly eliminate all morning availability for the ₹299
  * Premium, which is the opposite of what the owner intended.

@@ -75,7 +75,7 @@ export class CatalogService {
   }
 
   async getServices(storeId: string, categoryId?: string) {
-    return this.prisma.service.findMany({
+    const rows = await this.prisma.service.findMany({
       where: {
         storeId,
         isActive: true,
@@ -92,8 +92,14 @@ export class CatalogService {
         pricePaise: true,
         durationMinutes: true,
         categoryId: true,
+        emoji: true,
+        tagline: true,
+        compareAtPricePaise: true,
+        badge: true,
       },
     });
+
+    return rows.map((row) => ({ ...row, ...display(row) }));
   }
 
   /** Service detail including its add-on groups — one call, so the detail screen never waterfalls. */
@@ -132,6 +138,7 @@ export class CatalogService {
       pricePaise: service.pricePaise,
       durationMinutes: service.durationMinutes,
       categoryId: service.categoryId,
+      ...display(service),
       addonGroups: service.addonGroups
         .filter((link) => link.addonGroup.isActive)
         .map((link) => ({
@@ -163,9 +170,32 @@ export class CatalogService {
     const services = await this.getServices(storeId);
     const categoryIds = new Set(categories.map((c) => c.id));
 
+    const banners = await this.prisma.banner.findMany({
+      where: { storeId, isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      select: {
+        id: true,
+        imageUrl: true,
+        altText: true,
+        service: { select: { slug: true, isActive: true, deletedAt: true } },
+      },
+    });
+
     return {
       segments,
       activeSegmentId: activeSegmentId ?? null,
+      // A link is only offered while its service is bookable. A service unpublished after
+      // the banner went up leaves a picture that does nothing, not one that leads to a
+      // "not found" page.
+      banners: banners.map((banner) => ({
+        id: banner.id,
+        imageUrl: banner.imageUrl,
+        altText: banner.altText,
+        serviceSlug:
+          banner.service !== null && banner.service.isActive && banner.service.deletedAt === null
+            ? banner.service.slug
+            : null,
+      })),
       categories: categories.map((category) => {
         const inCategory = services.filter((s) => s.categoryId === category.id);
         return {
@@ -186,6 +216,32 @@ function formatTime(time: Date): string {
   const h = String(time.getUTCHours()).padStart(2, '0');
   const m = String(time.getUTCMinutes()).padStart(2, '0');
   return `${h}:${m}`;
+}
+
+/**
+ * The menu's presentation fields, cleaned for display.
+ *
+ * A "was" price at or below the real one is dropped rather than shown: "₹99, was ₹99" or
+ * a negative discount would be worse than no comparison, and it is exactly what a price
+ * cut that forgot to clear the old figure would otherwise produce.
+ */
+function display(service: {
+  pricePaise: number;
+  emoji: string | null;
+  tagline: string | null;
+  compareAtPricePaise: number | null;
+  badge: string | null;
+}) {
+  const blank = (value: string | null) => (value === null || value.trim() === '' ? null : value.trim());
+  return {
+    emoji: blank(service.emoji),
+    tagline: blank(service.tagline),
+    compareAtPricePaise:
+      service.compareAtPricePaise !== null && service.compareAtPricePaise > service.pricePaise
+        ? service.compareAtPricePaise
+        : null,
+    badge: blank(service.badge),
+  };
 }
 
 function isUuid(value: string): boolean {

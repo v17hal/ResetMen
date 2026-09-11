@@ -201,6 +201,8 @@ model Store {
   productOrders    ProductOrder[]
   mediaAssets      MediaAsset[]
   auditLogs        AuditLog[]
+  banners          Banner[]
+  supportThreads   SupportThread[]
 
   @@map("stores")
 }
@@ -430,6 +432,24 @@ model Service {
   bufferOverrideMinutes Int?
   /// Optional cap independent of station count.
   maxPerSlot Int?
+
+  // ── How the menu presents it — client request 11/09/2026 ──────────────────
+  // Display only. None of these reach the slot engine, receipts or reports, which is why
+  // a "was" price can be edited freely without touching anything that has been sold.
+
+  /// Shown before the name: "💆‍♂️ Tension Relief". One emoji, not part of the name, so
+  /// receipts, SMS and the booking snapshot stay plain text.
+  emoji   String?
+  /// One line under the name saying what is covered: "Head, Neck & Shoulder". Also carried
+  /// into the page title, so a service renamed to "Tension Relief" still ranks for "head
+  /// massage".
+  tagline String?
+  /// The struck-through "was" price. Ignored unless it is above `pricePaise`, so a stale
+  /// value can never show a discount that is not one.
+  compareAtPricePaise Int?
+  /// A short label such as "BESTSELLER". Null shows nothing.
+  badge   String?
+
   isActive   Boolean   @default(true)
   sortOrder  Int       @default(0)
   deletedAt  DateTime? @db.Timestamptz(3)
@@ -442,6 +462,7 @@ model Service {
   allocationRules AllocationRuleService[]
   bookings        Booking[]
   streakRules     StreakRule[]
+  banners         Banner[]
 
   @@unique([storeId, slug])
   @@index([categoryId, sortOrder])
@@ -551,6 +572,7 @@ model User {
   deviceTokens  DeviceToken[]
   productOrders ProductOrder[]
   notifications NotificationLog[]
+  supportThreads SupportThread[]
 
   @@map("users")
 }
@@ -574,6 +596,7 @@ model AdminUser {
 
   checkins  CheckinToken[]
   auditLogs AuditLog[]
+  supportMessages SupportMessage[]
 
   @@map("admin_users")
 }
@@ -622,6 +645,11 @@ model Booking {
   idempotencyKey String?
   notes          String?
 
+  /// Which version of the Terms & Conditions the customer ticked before booking, and when.
+  /// Null for staff walk-ins and for bookings made before the checkbox existed.
+  termsVersion    String?
+  termsAcceptedAt DateTime? @db.Timestamptz(3)
+
   cancelledAt  DateTime? @db.Timestamptz(3)
   cancelReason String?
   checkedInAt  DateTime? @db.Timestamptz(3)
@@ -635,6 +663,7 @@ model Booking {
   checkinToken  CheckinToken?
   payments      Payment[]
   scratchCards  ScratchCard[]
+  supportThreads SupportThread[]
 
   @@unique([storeId, idempotencyKey], name: "booking_idempotency")
   @@index([storeId, startsAt])
@@ -1029,6 +1058,108 @@ model MediaAsset {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   @@map("media_assets")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Home banners — client request 11/09/2026
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A promotional image across the top of the home screen, like the delivery apps.
+///
+/// Uploaded and ordered by the owner in the admin panel rather than shipped in the app, so
+/// changing a promotion is a minute's work and never a release.
+model Banner {
+  id      String @id @default(uuid()) @db.Uuid
+  storeId String @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  imageUrl String
+  /// What the picture says, for screen readers and for search engines — the words baked
+  /// into the artwork are invisible to both.
+  altText  String
+  /// Tapping opens this service. Null makes the banner decorative.
+  serviceId String?  @db.Uuid
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([storeId, isActive, sortOrder])
+  @@map("banners")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Help desk — client request 11/09/2026
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum SupportStatus {
+  OPEN
+  CLOSED
+}
+
+enum SupportAuthor {
+  CUSTOMER
+  STAFF
+}
+
+/// A customer's question and the conversation that follows.
+///
+/// Replaces the phone number on the site: the owner would rather answer in writing, when
+/// the desk is free, than take calls mid-session.
+model SupportThread {
+  id       String @id @default(uuid()) @db.Uuid
+  /// Short and speakable, like a booking code: HLP-7Q2K4M.
+  publicId String @unique
+  storeId  String @db.Uuid
+  store    Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  /// Cascades: the privacy purge deletes an account's conversations with it.
+  userId   String @db.Uuid
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Optional — "about my booking on Saturday".
+  bookingId String?  @db.Uuid
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  subject String
+  status  SupportStatus @default(OPEN)
+
+  lastMessageAt DateTime      @default(now()) @db.Timestamptz(3)
+  lastMessageBy SupportAuthor @default(CUSTOMER)
+  /// The store has replied and the customer has not opened it yet.
+  unreadByCustomer Boolean @default(false)
+  /// The customer has written and nobody at the store has opened it yet.
+  unreadByStaff    Boolean @default(true)
+  closedAt DateTime? @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  messages SupportMessage[]
+
+  @@index([storeId, status, lastMessageAt(sort: Desc)])
+  @@index([userId, lastMessageAt(sort: Desc)])
+  @@map("support_threads")
+}
+
+model SupportMessage {
+  id       String        @id @default(uuid()) @db.Uuid
+  threadId String        @db.Uuid
+  thread   SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  author SupportAuthor
+  /// Which member of staff replied. The customer sees "RESET team"; the audit trail sees
+  /// who.
+  adminUserId String?    @db.Uuid
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
+
+  body String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([threadId, createdAt])
+  @@map("support_messages")
 }
 
 /// Pricing and capacity changes must be attributable.

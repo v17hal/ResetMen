@@ -19,6 +19,8 @@ import type {
   UserProfile,
   VerifyPaymentRequest,
   WalletEntry,
+  CreateSupportThread,
+  Terms,
 } from '@reset/types';
 
 import type { HttpClient } from '../http.js';
@@ -34,6 +36,8 @@ import type {
   ServiceDetail,
   ServiceListItem,
   StoreDto,
+  SupportThreadDetail,
+  SupportThreadSummary,
 } from '../models.js';
 
 export class AuthResource {
@@ -111,6 +115,11 @@ export class CatalogResource {
   }
 
   /** Everything the home screen needs. One request instead of four on a cold open. */
+  /** The Terms & Conditions. The booking request sends `version` back. */
+  terms(): Promise<Terms> {
+    return this.http.get('/catalog/terms');
+  }
+
   home(segmentId?: string): Promise<HomeDto> {
     return this.http.get('/catalog/home', { query: { segmentId } });
   }
@@ -327,6 +336,33 @@ export class ProductsResource {
 
   order(id: string): Promise<ProductOrderDto> {
     return this.http.get(`/orders/${encodeURIComponent(id)}`);
+  }
+}
+
+/**
+ * Help desk — client request 11/09/2026. Questions in writing instead of a phone number;
+ * staff answer from the admin panel. Signed in only.
+ */
+export class SupportResource {
+  constructor(private readonly http: HttpClient) {}
+
+  async list(): Promise<SupportThreadSummary[]> {
+    const { data } = await this.http.get<{ data: SupportThreadSummary[] }>('/support/threads');
+    return data;
+  }
+  create(input: Omit<CreateSupportThread, 'bookingId'> & { bookingId?: string | null }): Promise<SupportThreadDetail> {
+    return this.http.post('/support/threads', { body: { bookingId: null, ...input } });
+  }
+  /** Opening a conversation clears its "new reply" flag. */
+  get(id: string): Promise<SupportThreadDetail> {
+    return this.http.get(`/support/threads/${encodeURIComponent(id)}`);
+  }
+  /** Writing to a closed question reopens it. */
+  reply(id: string, body: string): Promise<SupportThreadDetail> {
+    return this.http.post(`/support/threads/${encodeURIComponent(id)}/messages`, { body: { body } });
+  }
+  close(id: string): Promise<SupportThreadDetail> {
+    return this.http.post(`/support/threads/${encodeURIComponent(id)}/close`);
   }
 }
 

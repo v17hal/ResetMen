@@ -14,6 +14,8 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import { CompleteProfileBanner } from '@/components/complete-profile-banner';
+import { HomeBanners } from '@/components/home-banners';
+import { PriceTag, ServiceBadge } from '@/components/price-tag';
 import { ServiceImage, lookFor } from '@/components/service-look';
 import { errorMessage } from '@/lib/auth';
 import { useOnline } from '@/lib/offline';
@@ -63,7 +65,7 @@ export function HomeClient({ initialHome }: { initialHome: HomeDto | null }) {
     const q = query.trim().toLowerCase();
     if (q === '') return () => true;
 
-    const named = (home.data?.services ?? []).some((s) => s.name.toLowerCase().includes(q));
+    const named = (home.data?.services ?? []).some((s) => nameOf(s).toLowerCase().includes(q));
 
     return (name: string, description: string | null) =>
       named
@@ -98,16 +100,34 @@ export function HomeClient({ initialHome }: { initialHome: HomeDto | null }) {
     query !== '' || selected === null ? live : live.filter((c) => c.id === selected);
 
   const shown = scoped.filter((c) =>
-    home.data?.services.some((s) => s.categoryId === c.id && matches(s.name, s.description)),
+    home.data?.services.some((s) => s.categoryId === c.id && matches(nameOf(s), s.description)),
   );
 
   return (
     <div className="flex flex-col gap-base p-base">
-      <header className="flex flex-col gap-xs pt-sm">
-        <h1 className="font-display text-h1">Book your reset</h1>
-        <p className="text-body-sm text-text-muted">
-          Pick a service, choose a time, walk straight in.
-        </p>
+      <header className="flex items-start justify-between gap-sm pt-sm">
+        <div className="flex flex-col gap-xs">
+          <h1 className="font-display text-h1">Book your reset</h1>
+          <p className="text-body-sm text-text-muted">
+            Pick a service, choose a time, walk straight in.
+          </p>
+        </div>
+        {/* Where the phone number used to be the way to ask — client request 11/09/2026. */}
+        <Link
+          href="/help"
+          className="flex min-h-touch shrink-0 items-center gap-xs rounded-full border border-border bg-surface px-md text-body-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 text-primary">
+            <path
+              d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4H6.5A2.5 2.5 0 0 1 4 13.5v-8Z"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Help
+        </Link>
       </header>
 
       <label className="relative block">
@@ -142,6 +162,8 @@ export function HomeClient({ initialHome }: { initialHome: HomeDto | null }) {
           You are offline. Prices and times may have changed since this was saved.
         </p>
       )}
+
+      <HomeBanners banners={home.data?.banners ?? []} />
 
       <CompleteProfileBanner />
 
@@ -222,7 +244,7 @@ export function HomeClient({ initialHome }: { initialHome: HomeDto | null }) {
 
           {shown.map((category) => {
             const services = home.data.services.filter(
-              (s) => s.categoryId === category.id && matches(s.name, s.description),
+              (s) => s.categoryId === category.id && matches(nameOf(s), s.description),
             );
 
             return (
@@ -251,12 +273,21 @@ export function HomeClient({ initialHome }: { initialHome: HomeDto | null }) {
                         className="flex items-start gap-base py-base transition-transform duration-micro ease-standard active:scale-[0.99]"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="font-display text-h2 text-[17px]">{service.name}</p>
+                          <p className="flex flex-wrap items-center gap-xs font-display text-h2 text-[17px]">
+                            {service.emoji !== null && <span aria-hidden="true">{service.emoji}</span>}
+                            {service.name}
+                            {service.badge !== null && <ServiceBadge label={service.badge} />}
+                          </p>
+                          {service.tagline !== null && (
+                            <p className="text-body-sm text-text-muted">{service.tagline}</p>
+                          )}
 
-                          <p className="mt-xs flex items-center gap-sm">
-                            <span className="font-display text-[18px]">
-                              {formatMoney(service.pricePaise)}
-                            </span>
+                          <p className="mt-xs flex flex-wrap items-center gap-sm">
+                            <PriceTag
+                              pricePaise={service.pricePaise}
+                              compareAtPricePaise={service.compareAtPricePaise}
+                              priceClassName="text-[18px]"
+                            />
                             <span className="flex items-center gap-[3px] text-caption text-text-muted">
                               <svg
                                 viewBox="0 0 24 24"
@@ -309,7 +340,7 @@ export function HomeClient({ initialHome }: { initialHome: HomeDto | null }) {
           {shown.length === 0 && (
             <p className="rounded-lg border border-border bg-surface p-lg text-center text-body text-text-muted">
               {query === ''
-                ? 'Nothing is bookable online yet. Please call the store.'
+                ? 'Nothing is bookable online yet. Message us from Help and we will sort it out.'
                 : 'No match for that search. Try a shorter word, such as head, back or full body.'}
             </p>
           )}
@@ -317,6 +348,16 @@ export function HomeClient({ initialHome }: { initialHome: HomeDto | null }) {
       )}
     </div>
   );
+}
+
+/**
+ * What search treats as a service's name: the name and its tagline together.
+ *
+ * The client renamed "Head" to "Tension Relief", with "Head" as the tagline. People still
+ * type "head", and a name-only search would now find nothing called that.
+ */
+function nameOf(service: { name: string; tagline: string | null }): string {
+  return service.tagline === null ? service.name : `${service.name} ${service.tagline}`;
 }
 
 /** Shaped like the real thing, so the catalogue does not jump when it lands. */

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../api/models.dart';
+import '../format.dart';
 import '../theme/app_theme.dart';
 import '../theme/reset_tokens.dart';
 
@@ -132,6 +134,173 @@ class ServiceImage extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: Icon(look.icon, size: glyph, color: Colors.white),
+    );
+  }
+}
+
+/// A service's name, with its emoji before it and its badge after — "💆‍♂️ Tension Relief
+/// BESTSELLER".
+///
+/// One run of text rather than a Row. The emoji wraps with the name instead of leaving a
+/// hole beside a two-line title, and the badge rides at the end of the last line or drops
+/// underneath when there is no room. A Row with an Expanded name does the opposite — it
+/// truncates the name to keep the pill on screen, which is backwards.
+///
+/// With no emoji and no badge this is exactly the plain name the rows showed before.
+class ServiceName extends StatelessWidget {
+  const ServiceName({
+    super.key,
+    required this.name,
+    required this.style,
+    this.emoji,
+    this.badge,
+    this.maxLines,
+  });
+
+  final String name;
+  final TextStyle style;
+  final String? emoji;
+  final String? badge;
+  final int? maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      TextSpan(
+        children: [
+          if (emoji != null) TextSpan(text: '$emoji '),
+          TextSpan(text: name),
+          if (badge != null)
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.only(left: ResetTokens.spaceSm),
+                child: ServiceBadge(badge!),
+              ),
+            ),
+        ],
+      ),
+      style: style,
+      maxLines: maxLines,
+      overflow: maxLines == null ? null : TextOverflow.ellipsis,
+    );
+  }
+}
+
+/// "BESTSELLER", as a small amber pill.
+///
+/// Amber means "you earned something" everywhere else in the app (see [ResetColors]); a
+/// bestseller tag is the one other thing that belongs in that register — it says "people
+/// like this". The lettering is a shade darker than the accent on the light theme, because
+/// amber on pale amber at this size is too faint to read in daylight.
+class ServiceBadge extends StatelessWidget {
+  const ServiceBadge(this.label, {super.key});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ink = theme.brightness == Brightness.dark
+        ? theme.accentColor
+        : Color.lerp(theme.accentColor, Colors.black, 0.35)!;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.accentColor.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(ResetTokens.radiusFull),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: ResetTokens.caption.copyWith(
+          fontSize: 10,
+          height: 1.2,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.6,
+          color: ink,
+        ),
+      ),
+    );
+  }
+}
+
+/// Price, the "was" price struck through, "67% OFF", then the duration.
+///
+/// The order every delivery app in India uses, so it reads without thinking. A Wrap rather
+/// than a Row: at a large text size the duration moves to the next line instead of running
+/// off the edge of the row.
+///
+/// The struck figure is announced as "was ₹149". Read out on its own it is a second price
+/// with nothing to say it is the old one.
+///
+/// Without a "was" price this is the price and duration the rows always showed.
+class ServicePriceRow extends StatelessWidget {
+  const ServicePriceRow({
+    super.key,
+    required this.service,
+    required this.durationMinutes,
+    required this.priceStyle,
+    required this.metaStyle,
+    this.iconSize = 13,
+    this.spacing = ResetTokens.spaceSm,
+  });
+
+  final ServicePresentation service;
+  final int durationMinutes;
+  final TextStyle priceStyle;
+
+  /// The struck price, the discount and the duration all take their size from this.
+  final TextStyle metaStyle;
+  final double iconSize;
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final was = service.wasPricePaise;
+    final off = service.percentOff;
+
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: spacing,
+      runSpacing: 2,
+      children: [
+        Text(formatMoney(service.pricePaise), style: priceStyle),
+        if (was != null)
+          Semantics(
+            label: 'was ${formatMoney(was)}',
+            excludeSemantics: true,
+            child: Text(
+              formatMoney(was),
+              style: metaStyle.copyWith(
+                color: theme.mutedColor,
+                decoration: TextDecoration.lineThrough,
+                decorationColor: theme.mutedColor,
+              ),
+            ),
+          ),
+        if (off > 0)
+          Text(
+            '$off% OFF',
+            style: metaStyle.copyWith(
+              color: theme.successColor,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+            ),
+          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.schedule, size: iconSize, color: theme.mutedColor),
+            const SizedBox(width: 3),
+            Text(
+              formatDuration(durationMinutes),
+              style: metaStyle.copyWith(color: theme.mutedColor),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

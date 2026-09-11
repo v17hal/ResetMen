@@ -124,6 +124,45 @@ final serviceProvider = FutureProvider.family<ServiceDetail, String>(
   (ref, idOrSlug) => ref.watch(repositoryProvider).service(idOrSlug),
 );
 
+/// The Terms & Conditions as the server has them now.
+///
+/// Kept alive and shared: the checkout checkbox and the Terms screen read the same copy, so
+/// the text somebody opened from the checkbox is the text whose version goes out with their
+/// booking. Invalidated when the API says that version has moved on.
+final termsProvider = FutureProvider<Terms>(
+  (ref) => ref.watch(repositoryProvider).terms(),
+);
+
+/// The customer's questions to the store, most recent activity first.
+///
+/// Empty for a signed-out visitor rather than an error — the same arrangement as
+/// [productOrdersProvider] — so the unread dots on Home and You can watch it without either
+/// screen needing to know whether anyone is signed in.
+final supportThreadsProvider =
+    FutureProvider.autoDispose<List<SupportThreadSummary>>((ref) async {
+  if (ref.watch(sessionProvider).valueOrNull == null) {
+    return const <SupportThreadSummary>[];
+  }
+  return ref.watch(repositoryProvider).supportThreads();
+});
+
+/// How many questions have a reply the customer has not opened yet.
+///
+/// Zero while loading or after a failure. A dot that blinks on and off with the signal is
+/// noise; a missing one is put right by the next refresh.
+final supportUnreadCountProvider = Provider.autoDispose<int>((ref) {
+  final threads =
+      ref.watch(supportThreadsProvider).valueOrNull ?? const <SupportThreadSummary>[];
+  return threads.where((thread) => thread.unread).length;
+});
+
+/// One conversation. The thread screen polls by invalidating it, and `autoDispose` means
+/// leaving the screen stops holding the messages.
+final supportThreadProvider =
+    FutureProvider.autoDispose.family<SupportThread, String>(
+  (ref, id) => ref.watch(repositoryProvider).supportThread(id),
+);
+
 typedef SlotQuery = ({String serviceId, String date, List<String> addonIds});
 
 /// Availability, never cached.

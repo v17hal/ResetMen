@@ -37,6 +37,13 @@ export const keys = {
   report: (kind: string, from: string, to: string) => ['report', kind, from, to] as const,
   audit: (params: unknown) => ['audit', params] as const,
   media: ['media'] as const,
+  banners: ['banners'] as const,
+  // Three separate prefixes on purpose. Opening a thread invalidates the list and the
+  // unread count; if they shared a prefix with the thread, that would refetch the thread,
+  // which would invalidate again, forever.
+  supportList: (status: string) => ['support-list', status] as const,
+  supportThread: (id: string) => ['support-thread', id] as const,
+  supportUnread: ['support-unread'] as const,
 };
 
 export function useDashboard() {

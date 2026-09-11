@@ -45,8 +45,33 @@ export const serviceInput = z.object({
   maxPerSlot: z.number().int().min(1).nullable().default(null),
   sortOrder: z.number().int().nonnegative().default(0),
   isActive: z.boolean().default(true),
+
+  // How the menu presents it — client request 11/09/2026. Display only.
+
+  /** "💆‍♂️". Short enough for one emoji and its skin-tone and gender modifiers. */
+  emoji: z.string().trim().max(16).nullable().default(null),
+  /** "Head, Neck & Shoulder" — one line under the name. */
+  tagline: z.string().trim().max(80).nullable().default(null),
+  /** The struck-through "was" price. Only shown when above the price. */
+  compareAtPricePaise: paise.nullable().default(null),
+  /** "BESTSELLER". */
+  badge: z.string().trim().max(20).nullable().default(null),
 });
 export type ServiceInput = z.infer<typeof serviceInput>;
+
+/** A home-screen promotion. The image is uploaded through /admin/media first. */
+export const bannerInput = z.object({
+  imageUrl: z.string().url(),
+  altText: z
+    .string()
+    .trim()
+    .min(3, 'Describe the picture — screen readers and Google cannot read the artwork.')
+    .max(160),
+  serviceId: uuid.nullable().default(null),
+  sortOrder: z.number().int().nonnegative().default(0),
+  isActive: z.boolean().default(true),
+});
+export type BannerInput = z.infer<typeof bannerInput>;
 
 export const addonGroupInput = z
   .object({

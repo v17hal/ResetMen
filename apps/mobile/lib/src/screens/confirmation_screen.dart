@@ -205,10 +205,12 @@ class _ConfirmationScreenState extends ConsumerState<ConfirmationScreen> {
                       const SizedBox(height: ResetTokens.spaceXs),
                       Text(formatDateTime(booking.startsAt), style: ResetTokens.body),
                       Text(
-                        // "paid" was a plain untruth while payment happens at the counter.
+                        // "paid" was a plain untruth while payment happens at the counter —
+                        // and "to pay" is one once the counter has taken the money. Decided by
+                        // this booking, not only by the store's setting.
                         '${formatDuration(booking.durationMinutes)} · '
                         '${formatMoney(booking.payablePaise)}'
-                        '${(store?.paymentsEnabled ?? true) ? ' paid' : ' to pay'}',
+                        '${(store?.paymentsEnabled ?? true) || booking.isPaid ? ' paid' : ' to pay'}',
                         style: ResetTokens.bodySm.copyWith(color: theme.mutedColor),
                       ),
                       if (booking.addonNames.isNotEmpty) ...[

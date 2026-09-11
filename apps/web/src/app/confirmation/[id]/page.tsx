@@ -172,10 +172,13 @@ export default function ConfirmationPage() {
         <p className="text-body-sm text-text-muted">
           {formatDuration(shown.durationMinutes)} ·{' '}
           {/* "paid" was a plain untruth while payment happens at the counter. */}
-          {formatMoney(shown.payablePaise)} {payAtCounter ? 'to pay' : 'paid'}
+          {/* Whether *this* booking is settled, not whether the store takes money online.
+              Deciding it from the store setting alone left "₹59 to pay · Payment pending"
+              under "You're booked" and the QR, on a booking the counter had marked paid. */}
+          {formatMoney(shown.payablePaise)} {payAtCounter && !shown.isPaid ? 'to pay' : 'paid'}
         </p>
 
-        {payAtCounter && (
+        {payAtCounter && !shown.isPaid && (
           <p className="rounded-md bg-warning/10 px-sm py-xs text-caption text-warning">
             Payment pending — pay at the counter when you arrive.
           </p>

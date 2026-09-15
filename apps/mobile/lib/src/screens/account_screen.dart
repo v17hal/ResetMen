@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/generated/reset_enums.dart';
 import '../format.dart';
@@ -177,6 +180,8 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
               ),
             ),
             const _TermsLink(),
+          const _PrivacyLink(),
+            const _PrivacyLink(),
           ],
         ),
       );
@@ -411,6 +416,39 @@ class _HelpCard extends ConsumerWidget {
           ],
           const SizedBox(width: ResetTokens.spaceXs),
           Icon(Icons.chevron_right, color: theme.mutedColor),
+        ],
+      ),
+    );
+  }
+}
+
+/// The privacy policy, which lives on the website rather than in the app.
+///
+/// Play requires a policy at a public URL and a way to reach it from inside the app. Opening
+/// the web page keeps one copy of the words: an app that shipped its own copy would drift
+/// from the published one the first time a sentence changed.
+class _PrivacyLink extends StatelessWidget {
+  const _PrivacyLink();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return ResetCard(
+      onTap: () => unawaited(launchUrl(
+        Uri.parse('https://resetmen.in/privacy'),
+        mode: LaunchMode.externalApplication,
+      )),
+      padding: const EdgeInsets.symmetric(
+        horizontal: ResetTokens.spaceBase,
+        vertical: ResetTokens.spaceMd,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lock_outline, color: theme.mutedColor),
+          const SizedBox(width: ResetTokens.spaceMd),
+          Expanded(child: Text('Privacy Policy', style: ResetTokens.body)),
+          Icon(Icons.open_in_new, size: 18, color: theme.mutedColor),
         ],
       ),
     );

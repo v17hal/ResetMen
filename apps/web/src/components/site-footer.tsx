@@ -88,6 +88,13 @@ export async function SiteFooter() {
           <Link href="/terms" className="underline underline-offset-2">
             Terms &amp; Conditions
           </Link>
+          {' · '}
+          {/* Play will not publish an app that handles a name and a number without a policy
+              at a public URL, and a customer deciding whether to sign in with Google should
+              not have to hunt for it. */}
+          <Link href="/privacy" className="underline underline-offset-2">
+            Privacy Policy
+          </Link>
           {' · '}Non-medical wellness services only.
         </p>
       </div>

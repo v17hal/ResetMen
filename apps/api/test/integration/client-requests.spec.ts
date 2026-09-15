@@ -566,6 +566,31 @@ describe('client requests of 11/09/2026', () => {
       expect(after.body.data[0].unread).toBe(false);
     });
 
+    /**
+     * The client had the subject box removed on 14/09/2026 — "only your question". The desk
+     * still lists threads by subject, so the server takes one from what was written.
+     */
+    it('takes a subject from the question when the customer is not asked for one', async () => {
+      const customer = await freshCustomer();
+
+      const short = await ask(customer, {
+        body: 'Can I bring a friend? We would both like the head massage on Saturday.',
+      }).expect(201);
+      expect(short.body.subject).toBe('Can I bring a friend?');
+
+      const long = await ask(customer, {
+        body: 'I left my earphones at the shop yesterday evening and I think they are still there somewhere',
+      }).expect(201);
+      expect(long.body.subject.endsWith('…')).toBe(true);
+      expect(long.body.subject.length).toBeLessThanOrEqual(61);
+      expect(long.body.messages[0].body.startsWith(long.body.subject.slice(0, 40))).toBe(true);
+
+      const atDesk = await http().get('/api/v1/admin/support').set('Authorization', adminAuth).expect(200);
+      expect(atDesk.body.data.map((row: { subject: string }) => row.subject)).toContain(
+        'Can I bring a friend?',
+      );
+    });
+
     it('keeps one customer out of another’s questions', async () => {
       const owner = await freshCustomer();
       const stranger = await freshCustomer();

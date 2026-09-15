@@ -236,7 +236,6 @@ class _AskSheet extends ConsumerStatefulWidget {
 }
 
 class _AskSheetState extends ConsumerState<_AskSheet> {
-  final TextEditingController _subject = TextEditingController();
   final TextEditingController _body = TextEditingController();
   bool _sending = false;
   String? _error;
@@ -244,22 +243,19 @@ class _AskSheetState extends ConsumerState<_AskSheet> {
   @override
   void initState() {
     super.initState();
-    // Send follows the fields as they are typed, not only when one loses focus.
-    _subject.addListener(_changed);
+    // Send follows the field as it is typed, not only when it loses focus.
     _body.addListener(_changed);
   }
 
   @override
   void dispose() {
-    _subject.dispose();
     _body.dispose();
     super.dispose();
   }
 
   void _changed() => setState(() {});
 
-  bool get _ready =>
-      _subject.text.trim().isNotEmpty && _body.text.trim().isNotEmpty;
+  bool get _ready => _body.text.trim().isNotEmpty;
 
   Future<void> _send() async {
     setState(() {
@@ -268,8 +264,9 @@ class _AskSheetState extends ConsumerState<_AskSheet> {
     });
 
     try {
+      // No subject: the client asked for that box to go (14/09/2026). The server takes
+      // one from the first line of the question.
       final thread = await ref.read(repositoryProvider).createSupportThread(
-            subject: _subject.text.trim(),
             body: _body.text.trim(),
           );
       ref.invalidate(supportThreadsProvider);
@@ -310,27 +307,16 @@ class _AskSheetState extends ConsumerState<_AskSheet> {
           const SizedBox(height: ResetTokens.spaceBase),
 
           TextField(
-            controller: _subject,
-            autofocus: true,
-            maxLength: 120,
-            textCapitalization: TextCapitalization.sentences,
-            textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
-              labelText: 'Subject',
-              hintText: 'e.g. Moving my Saturday booking',
-            ),
-          ),
-          const SizedBox(height: ResetTokens.spaceSm),
-
-          TextField(
             controller: _body,
+            autofocus: true,
             minLines: 4,
             maxLines: 8,
             maxLength: 2000,
             keyboardType: TextInputType.multiline,
             textCapitalization: TextCapitalization.sentences,
             decoration: const InputDecoration(
-              labelText: 'Message',
+              labelText: 'Your question',
+              hintText: 'e.g. Can I move my Saturday booking?',
               alignLabelWithHint: true,
             ),
           ),

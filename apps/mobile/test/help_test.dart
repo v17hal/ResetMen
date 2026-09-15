@@ -112,7 +112,7 @@ void main() {
       expect(weight('Is parking free?'), FontWeight.w500);
     });
 
-    testWidgets('Send waits for both fields, and a refusal is shown in the sheet',
+    testWidgets('Send waits for the question, and a refusal is shown in the sheet',
         (tester) async {
       await pumpScreen(
         tester,
@@ -124,7 +124,7 @@ void main() {
           'POST /support/threads': (_) => problem(
                 422,
                 'VALIDATION_FAILED',
-                'Give it a short subject — three characters at least.',
+                'You already have 5 open questions. We will answer those first.',
               ),
         }),
       );
@@ -136,20 +136,17 @@ void main() {
           tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Send')).onPressed;
       expect(send(), isNull);
 
-      await tester.enterText(find.widgetWithText(TextField, 'Subject'), 'Hi');
-      await tester.pump();
-      expect(send(), isNull);
-
-      await tester.enterText(find.widgetWithText(TextField, 'Message'), 'Is Sunday open?');
+      await tester.enterText(
+          find.widgetWithText(TextField, 'Your question'), 'Is Sunday open?');
       await tester.pump();
       expect(send(), isNotNull);
 
       await tester.tap(find.widgetWithText(FilledButton, 'Send'));
       await settle(tester);
 
-      expect(find.text('Give it a short subject — three characters at least.'),
+      expect(find.text('You already have 5 open questions. We will answer those first.'),
           findsOneWidget);
-      expect(find.widgetWithText(TextField, 'Subject'), findsOneWidget,
+      expect(find.widgetWithText(TextField, 'Your question'), findsOneWidget,
           reason: 'the sheet stays open with what they typed');
     });
 
@@ -173,10 +170,8 @@ void main() {
 
       await tester.tap(find.text('Ask a question'));
       await settle(tester);
-      await tester.enterText(
-          find.widgetWithText(TextField, 'Subject'), 'Moving my Saturday booking');
-      await tester.enterText(
-          find.widgetWithText(TextField, 'Message'), 'Can I move Saturday to 11?');
+      await tester.enterText(find.widgetWithText(TextField, 'Your question'),
+          'Can I move Saturday to 11?');
       await tester.pump();
       await tester.tap(find.widgetWithText(FilledButton, 'Send'));
       await settle(tester);

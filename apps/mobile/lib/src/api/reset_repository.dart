@@ -300,15 +300,17 @@ class ResetRepository {
 
   /// Validation failures — a two-letter subject, a sixth open question — come back as a
   /// 422 whose `detail` is written for the customer, and the sheet shows it as it is.
+  /// [subject] is optional: the client had the subject box removed on 14/09/2026, and the
+  /// server takes one from the first line of the question when it is left out.
   Future<SupportThread> createSupportThread({
-    required String subject,
     required String body,
+    String? subject,
     String? bookingId,
   }) async =>
       SupportThread.fromJson(await _api.post<Map<String, dynamic>>(
         '/support/threads',
         body: {
-          'subject': subject,
+          if (subject != null) 'subject': subject,
           'body': body,
           if (bookingId != null) 'bookingId': bookingId,
         },

@@ -69,6 +69,23 @@ export class SupportService {
     }));
   }
 
+  /**
+   * A subject for a customer who was not asked for one — the client had the box removed on
+   * 14/09/2026, but the Help desk lists threads by subject and staff scan that list.
+   *
+   * The first sentence of the first line, cut at a word to 60 characters. Falls back to
+   * "Question" for something too short to read, so the list never shows an empty row.
+   */
+  private subjectFrom(body: string): string {
+    const line = body.split('\n')[0]?.trim() ?? '';
+    const sentence = line.split(/(?<=[.?!])\s/)[0]?.trim() || line;
+    if (sentence.length < 3) return 'Question';
+    if (sentence.length <= 60) return sentence;
+    const cut = sentence.slice(0, 60);
+    const space = cut.lastIndexOf(' ');
+    return `${(space > 30 ? cut.slice(0, space) : cut).trimEnd()}…`;
+  }
+
   async createThread(userId: string, storeId: string, input: CreateSupportThread) {
     if (input.bookingId !== null) {
       const booking = await this.prisma.booking.findFirst({
@@ -100,7 +117,7 @@ export class SupportService {
             storeId,
             userId,
             bookingId: input.bookingId,
-            subject: input.subject,
+            subject: input.subject ?? this.subjectFrom(input.body),
             messages: { create: { author: 'CUSTOMER', body: input.body } },
           },
           select: { id: true },

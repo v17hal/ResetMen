@@ -20,11 +20,17 @@ const messageBody = z
   .max(2000, 'Keep it under 2,000 characters.');
 
 export const createSupportThread = z.object({
+  /**
+   * Optional since 14/09/2026: the client asked for the subject box to go, so a customer
+   * writes only their question. When it is absent the server takes a subject from the
+   * first line — the Help desk lists threads by subject and staff scan that list.
+   */
   subject: z
     .string()
     .trim()
     .min(3, 'Give it a short subject — three characters at least.')
-    .max(120, 'Keep the subject under 120 characters.'),
+    .max(120, 'Keep the subject under 120 characters.')
+    .optional(),
   body: messageBody,
   /** Optional — "about my booking on Saturday". Must be the customer's own. */
   bookingId: uuid.nullable().default(null),

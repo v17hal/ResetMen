@@ -145,6 +145,28 @@ hand is how this deployment twice shipped a site whose sign-in did not work — 
 `--build-arg` resolved to an empty string, the build succeeded and the container was
 healthy. That file reads them from `.env.prod` and refuses to build if any is missing.
 
+### Uploaded media
+
+The API runs as `reset` (uid 100) and writes uploads to `/app/var/media`. The `media`
+volume, however, was first created by the **backup** container, which mounts it at
+`/media` — an Alpine directory that already exists and is owned by root. Docker only
+copies ownership onto an *empty* new volume, so the volume stayed root-owned and every
+upload failed with:
+
+```
+EACCES: permission denied, mkdir '/app/var/media/<store id>'
+```
+
+Nothing had ever been uploaded, so this stayed invisible until the client tried to add a
+home banner on 14/09/2026. One-time fix on the box:
+
+```bash
+docker-compose -f infra/docker-compose.prod.yml exec -T -u root api   chown -R 100:101 /app/var/media
+```
+
+`Dockerfile.api` creates and chowns the directory, so a volume created fresh is fine; it
+is an existing root-owned volume that needs the command above.
+
 ### Migrations
 
 **This database has no migration history.** It was created by `db-init`, which runs

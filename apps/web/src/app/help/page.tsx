@@ -1,7 +1,7 @@
 'use client';
 
 import type { SupportThreadSummary } from '@reset/api-client';
-import { Button, Card, ErrorState, Input, Skeleton, Textarea, cn, formatDateTime } from '@reset/ui';
+import { Button, Card, ErrorState, Skeleton, Textarea, cn, formatDateTime } from '@reset/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -29,7 +29,6 @@ export default function HelpPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const [asking, setAsking] = useState(false);
-  const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -42,7 +41,7 @@ export default function HelpPage() {
   });
 
   const ask = useMutation({
-    mutationFn: () => api().support.create({ subject: subject.trim(), body: body.trim() }),
+    mutationFn: () => api().support.create({ body: body.trim() }),
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ['support-threads'] });
       router.push(`/help/${created.id}`);
@@ -72,18 +71,12 @@ export default function HelpPage() {
         <>
           {asking ? (
             <Card className="flex flex-col gap-base">
-              <Input
-                label="Subject"
-                required
-                value={subject}
-                maxLength={120}
-                placeholder="Can I bring a friend?"
-                onChange={(event) => setSubject(event.target.value)}
-              />
               <Textarea
                 label="Your question"
                 required
+                autoFocus
                 rows={4}
+                placeholder="Can I bring a friend?"
                 value={body}
                 maxLength={2000}
                 onChange={(event) => setBody(event.target.value)}
@@ -101,15 +94,12 @@ export default function HelpPage() {
                 </Button>
                 <Button
                   loading={ask.isPending}
-                  disabled={subject.trim().length < 3 || body.trim() === ''}
+                  disabled={body.trim() === ''}
                   onClick={() => ask.mutate()}
                 >
                   Send
                 </Button>
               </div>
-              {subject.trim().length > 0 && subject.trim().length < 3 && (
-                <p className="text-caption text-text-muted">The subject needs three letters or more.</p>
-              )}
             </Card>
           ) : (
             <Button size="lg" fullWidth onClick={() => setAsking(true)}>

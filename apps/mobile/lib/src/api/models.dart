@@ -52,6 +52,8 @@ class StoreInfo {
     required this.bookingHorizonDays,
     required this.cancellationWindowMinutes,
     required this.paymentsEnabled,
+    this.tagline,
+    this.audience = 'MEN_ONLY',
   });
 
   final String id;
@@ -68,6 +70,13 @@ class StoreInfo {
   /// has always sent this; it simply was not read, so the app told people they had paid.
   final bool paymentsEnabled;
 
+  /// The shop's own line, written in the admin panel. Null means it has not written one.
+  final String? tagline;
+
+  /// 'MEN_ONLY' or 'EVERYONE'. Kept as a string: it is wording, and an app that has not
+  /// been updated should not crash on a value someone adds later.
+  final String audience;
+
   factory StoreInfo.fromJson(Map<String, dynamic> json) => StoreInfo(
         id: _str(json['id']),
         name: _str(json['name'], 'RESET'),
@@ -80,6 +89,8 @@ class StoreInfo {
         cancellationWindowMinutes: _int(json['cancellationWindowMinutes']),
         // Absent means the old behaviour: assume a gateway.
         paymentsEnabled: json['paymentsEnabled'] as bool? ?? true,
+        tagline: json['tagline'] as String?,
+        audience: json['audience'] as String? ?? 'MEN_ONLY',
       );
 }
 

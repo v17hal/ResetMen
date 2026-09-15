@@ -1,4 +1,5 @@
 import type { HomeDto, ServiceDetail, StoreDto } from '@reset/api-client';
+import { DEFAULT_TAGLINE } from '@reset/types';
 
 /**
  * Server-side catalogue reads, and the facts every page's metadata is built from.
@@ -128,6 +129,29 @@ export async function getServiceResult(
  * set. A wrong town in a title is worse than no town: "massage in Ahmedabad" on a shop in
  * Indore earns clicks from people who cannot visit, and teaches Google the wrong place.
  */
+/**
+ * The shop's own line, or the standard wording for who it serves.
+ *
+ * Both are editable in the admin panel since 14/09/2026 — the client asked to be able to
+ * change this text, and to be able to say "we serve women too" without a release. An empty
+ * line is not a valid answer to "what is this shop", so a blank falls back rather than
+ * publishing nothing.
+ */
+export function tagline(store: StoreDto | null): string {
+  const written = store?.tagline?.trim();
+  return written !== undefined && written !== '' ? written : DEFAULT_TAGLINE[store?.audience ?? 'MEN_ONLY'];
+}
+
+/** Title case, for page titles: "for Men" / "for Men & Women". */
+export function audienceTitle(store: StoreDto | null): string {
+  return (store?.audience ?? 'MEN_ONLY') === 'MEN_ONLY' ? 'for Men' : 'for Men & Women';
+}
+
+/** Sentence case, for descriptions Google reads. */
+export function audienceWords(store: StoreDto | null): string {
+  return (store?.audience ?? 'MEN_ONLY') === 'MEN_ONLY' ? 'for men' : 'for men and women';
+}
+
 export function locality(store: StoreDto | null): string | null {
   const city = store?.city?.trim();
   return city === undefined || city === '' ? null : city;

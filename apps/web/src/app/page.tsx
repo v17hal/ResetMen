@@ -1,7 +1,16 @@
 import type { Metadata } from 'next';
 
 import { HomeClient } from './home-client';
-import { SITE_URL, getHome, getStore, jsonLd, rupees, withLocality } from '@/lib/seo';
+import {
+  SITE_URL,
+  audienceTitle,
+  audienceWords,
+  getHome,
+  getStore,
+  jsonLd,
+  rupees,
+  withLocality,
+} from '@/lib/seo';
 
 /**
  * The homepage, rendered on the server.
@@ -29,13 +38,13 @@ export async function generateMetadata(): Promise<Metadata> {
     null,
   );
 
-  const title = withLocality('Quick Head & Body Massage for Men', store);
+  const title = withLocality(`Quick Head & Body Massage ${audienceTitle(store)}`, store);
   const from = cheapest === null ? '₹49' : rupees(cheapest);
 
   return {
     title: `${title} — walk-in from ${from}`,
     description:
-      `Quick dry massage for men — head, neck, shoulder and full body from ${from}. ` +
+      `Quick dry massage ${audienceWords(store)} — head, neck, shoulder and full body from ${from}. ` +
       'Ten to thirty minutes, no appointment needed. Pick a time and walk straight in.',
     alternates: { canonical: '/' },
   };

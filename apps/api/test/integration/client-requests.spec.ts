@@ -507,6 +507,81 @@ describe('client requests of 11/09/2026', () => {
 
   // ── Help desk ──────────────────────────────────────────────────────────────
 
+  /**
+   * Client requests of 14/09/2026: the shop's own words, and the switch for the day it
+   * serves women too.
+   */
+  describe('shop details', () => {
+    it('publishes the line the shop writes, and falls back when it is cleared', async () => {
+      const before = await http().get('/api/v1/admin/store').set('Authorization', adminAuth).expect(200);
+
+      await http()
+        .put('/api/v1/admin/store')
+        .set('Authorization', adminAuth)
+        .send({ ...before.body, tagline: 'Ten minutes, no appointment, straight back to work.' })
+        .expect(200);
+
+      const shown = await http().get('/api/v1/catalog/store').expect(200);
+      expect(shown.body.tagline).toBe('Ten minutes, no appointment, straight back to work.');
+
+      // Cleared, not blanked: the clients fall back to the wording for the audience.
+      await http()
+        .put('/api/v1/admin/store')
+        .set('Authorization', adminAuth)
+        .send({ ...before.body, tagline: '   ' })
+        .expect(200);
+      expect((await http().get('/api/v1/catalog/store').expect(200)).body.tagline).toBeNull();
+    });
+
+    it('switches who the shop serves, and says so to the clients', async () => {
+      const before = await http().get('/api/v1/admin/store').set('Authorization', adminAuth).expect(200);
+      const servicesBefore = await http().get('/api/v1/catalog/services').expect(200);
+
+      try {
+        await http()
+          .put('/api/v1/admin/store')
+          .set('Authorization', adminAuth)
+          .send({ ...before.body, audience: 'EVERYONE' })
+          .expect(200);
+        expect((await http().get('/api/v1/catalog/store').expect(200)).body.audience).toBe('EVERYONE');
+
+        // Wording only: the catalogue is exactly as it was.
+        const servicesAfter = await http().get('/api/v1/catalog/services').expect(200);
+        expect(servicesAfter.body.map((s: { id: string }) => s.id)).toEqual(
+          servicesBefore.body.map((s: { id: string }) => s.id),
+        );
+
+        await http()
+          .put('/api/v1/admin/store')
+          .set('Authorization', adminAuth)
+          .send({ ...before.body, audience: 'MEN_ONLY' })
+          .expect(200);
+        expect((await http().get('/api/v1/catalog/store').expect(200)).body.audience).toBe('MEN_ONLY');
+      } finally {
+        // Whatever this store was set to, put it back — a failure here must not leave the
+        // next test reading someone else's state.
+        await http()
+          .put('/api/v1/admin/store')
+          .set('Authorization', adminAuth)
+          .send({ ...before.body, audience: before.body.audience });
+      }
+    });
+
+    it('refuses a line too short to read, and a nameless shop', async () => {
+      const before = await http().get('/api/v1/admin/store').set('Authorization', adminAuth).expect(200);
+      await http()
+        .put('/api/v1/admin/store')
+        .set('Authorization', adminAuth)
+        .send({ ...before.body, tagline: 'hi' })
+        .expect(422);
+      await http()
+        .put('/api/v1/admin/store')
+        .set('Authorization', adminAuth)
+        .send({ ...before.body, name: '' })
+        .expect(422);
+    });
+  });
+
   describe('help desk', () => {
     const ask = (customer: Customer, body: Record<string, unknown>) =>
       http().post('/api/v1/support/threads').set('Authorization', customer.auth).send(body);

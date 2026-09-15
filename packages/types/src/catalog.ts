@@ -60,6 +60,51 @@ export const serviceInput = z.object({
 export type ServiceInput = z.infer<typeof serviceInput>;
 
 /** A home-screen promotion. The image is uploaded through /admin/media first. */
+/**
+ * Who the shop serves — client request 14/09/2026, "how do I turn the female option on
+ * later". One switch in the admin panel: it changes the wording on the website, in the app
+ * and in the data Google reads. It does not touch the catalog, the stations or who may book,
+ * because none of those are decided by this.
+ */
+export const storeAudience = z.enum(['MEN_ONLY', 'EVERYONE']);
+export type StoreAudience = z.infer<typeof storeAudience>;
+
+/** Used wherever the shop has not written its own line. */
+export const DEFAULT_TAGLINE: Record<StoreAudience, string> = {
+  MEN_ONLY:
+    'Quick dry massage and wellness for men — head, neck, shoulder and full body. ' +
+    'Ten to thirty minutes, walk straight in.',
+  EVERYONE:
+    'Quick dry massage and wellness — head, neck, shoulder and full body. ' +
+    'Ten to thirty minutes, walk straight in.',
+};
+
+/** What the admin panel may change about the shop itself. Hours live under Capacity. */
+export const storeProfileInput = z.object({
+  name: z.string().trim().min(2, 'The shop needs a name.').max(60),
+  /**
+   * An emptied box means "use the standard wording", not "publish nothing" — so blank
+   * becomes null here rather than failing the minimum length. Without this the API refused
+   * to let a shop undo its own sentence.
+   */
+  tagline: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
+    z
+      .string()
+      .trim()
+      .min(10, 'A line customers read — ten characters at least.')
+      .max(200, 'Keep it under 200 characters; it is one line, not a paragraph.')
+      .nullable()
+      .default(null),
+  ),
+  address: z.string().trim().max(200).nullable().default(null),
+  city: z.string().trim().max(60).nullable().default(null),
+  pincode: z.string().trim().max(12).nullable().default(null),
+  phone: z.string().trim().max(20).nullable().default(null),
+  audience: storeAudience,
+});
+export type StoreProfileInput = z.infer<typeof storeProfileInput>;
+
 export const bannerInput = z.object({
   imageUrl: z.string().url(),
   altText: z

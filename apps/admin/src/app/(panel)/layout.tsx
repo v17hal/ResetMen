@@ -45,6 +45,7 @@ const NAV: readonly NavItem[] = [
   { href: '/rewards', label: 'Rewards', minimum: 'MANAGER', group: 'manage' },
   { href: '/products', label: 'Products', minimum: 'MANAGER', group: 'manage' },
   { href: '/banners', label: 'Home banners', minimum: 'MANAGER', group: 'manage' },
+  { href: '/store', label: 'Shop details', minimum: 'MANAGER', group: 'manage' },
 
   { href: '/payments', label: 'Payments', minimum: 'MANAGER', group: 'insight' },
   { href: '/reports', label: 'Reports', minimum: 'MANAGER', group: 'insight' },

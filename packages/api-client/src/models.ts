@@ -72,6 +72,28 @@ export interface StoreDto {
    * customer whether money had changed hands and defaulted to saying it had.
    */
   paymentsEnabled: boolean;
+  /**
+   * The line under the shop's name, written by the shop in the admin panel.
+   *
+   * Null means it has not written one: use `DEFAULT_TAGLINE[audience]` from `@reset/types`
+   * rather than showing nothing, so a blank field never becomes a blank website.
+   */
+  tagline: string | null;
+  /** Who the shop says it serves. Wording only — it decides nothing about bookings. */
+  audience: 'MEN_ONLY' | 'EVERYONE';
+}
+
+/** Shop details as the admin panel edits them. */
+export interface AdminStoreProfile {
+  id: string;
+  name: string;
+  slug: string;
+  tagline: string | null;
+  address: string | null;
+  city: string | null;
+  pincode: string | null;
+  phone: string | null;
+  audience: 'MEN_ONLY' | 'EVERYONE';
 }
 
 export interface SegmentDto {

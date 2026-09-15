@@ -23,6 +23,7 @@ import type {
   SegmentInput,
   ServiceInput,
   StaffInput,
+  StoreProfileInput,
   StaffSummary,
   StationInput,
   StationServices,
@@ -60,6 +61,7 @@ import type {
   Page,
   StationEarningsReport,
   TimelineDto,
+  AdminStoreProfile,
 } from '../models.js';
 
 /** Counter screen result — everything staff need to greet the person in front of them. */
@@ -635,6 +637,23 @@ export class AdminBannersResource {
   }
   remove(id: string): Promise<{ deleted: boolean }> {
     return this.http.delete(`/admin/banners/${encodeURIComponent(id)}`);
+  }
+}
+
+/**
+ * Shop details and who it serves — the words customers and Google read.
+ *
+ * Client request 14/09/2026: the description under the name was in the website's code, so
+ * changing it meant a release.
+ */
+export class AdminStoreResource {
+  constructor(private readonly http: HttpClient) {}
+
+  get(): Promise<AdminStoreProfile> {
+    return this.http.get('/admin/store');
+  }
+  update(input: StoreProfileInput): Promise<AdminStoreProfile> {
+    return this.http.put('/admin/store', { body: input });
   }
 }
 

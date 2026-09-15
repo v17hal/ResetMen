@@ -14,6 +14,7 @@ import {
   AdminReportsResource,
   AdminRewardsResource,
   AdminStaffResource,
+  AdminStoreResource,
   AdminSupportResource,
 } from './resources/admin.js';
 import {
@@ -93,6 +94,7 @@ export class ResetAdminClient {
   readonly media: AdminMediaResource;
   readonly audit: AdminAuditResource;
   readonly banners: AdminBannersResource;
+  readonly store: AdminStoreResource;
   readonly support: AdminSupportResource;
 
   constructor(options: HttpClientOptions) {
@@ -112,6 +114,7 @@ export class ResetAdminClient {
     this.media = new AdminMediaResource(this.http);
     this.audit = new AdminAuditResource(this.http);
     this.banners = new AdminBannersResource(this.http);
+    this.store = new AdminStoreResource(this.http);
     this.support = new AdminSupportResource(this.http);
   }
 

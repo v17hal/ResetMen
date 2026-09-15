@@ -24,6 +24,14 @@ datasource db {
 //  Enums
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Who the shop serves. Changes the wording customers and Google see — not the catalog,
+/// the stations or who may book. The client asked for the switch on 14/09/2026, for
+/// "when we open to women".
+enum StoreAudience {
+  MEN_ONLY
+  EVERYONE
+}
+
 enum Gender {
   MALE
   FEMALE
@@ -177,6 +185,12 @@ model Store {
   lat      Decimal? @db.Decimal(10, 7)
   lng      Decimal? @db.Decimal(10, 7)
   isActive Boolean @default(true)
+
+  /// The line under the name on the website and in the app, and the description Google
+  /// shows. Written by the shop in the admin panel; null falls back to the wording for
+  /// `audience`, so a store that never touches it still reads correctly.
+  tagline  String?
+  audience StoreAudience @default(MEN_ONLY)
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)

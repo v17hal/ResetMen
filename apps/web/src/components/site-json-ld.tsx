@@ -1,5 +1,6 @@
 import {
   SITE_URL,
+  audienceWords,
   getStore,
   hasRealPremises,
   jsonLd,
@@ -34,7 +35,7 @@ export async function SiteJsonLd() {
     name: 'RESET',
     url: SITE_URL,
     description:
-      'Head, neck, shoulder and full-body dry massage, wellness and grooming for men. ' +
+      `Head, neck, shoulder and full-body dry massage, wellness and grooming ${audienceWords(store)}. ` +
       'Book a time and walk straight in.',
     ...(premises
       ? {

@@ -28,6 +28,11 @@ export class CatalogService {
       id: store.id,
       name: store.name,
       slug: store.slug,
+      // The shop's own words, and who it says it serves — both editable in admin since
+      // 14/09/2026. Null tagline means "use the wording for the audience"; the clients
+      // hold that default, so one store's blank line does not become a blank website.
+      tagline: store.tagline,
+      audience: store.audience,
       timezone: store.timezone,
       address: store.address,
       city: store.city,

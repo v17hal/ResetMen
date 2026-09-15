@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { getStore, locality, openingHoursSpecification } from '@/lib/seo';
+import { getStore, locality, openingHoursSpecification, tagline } from '@/lib/seo';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -38,10 +38,8 @@ export async function SiteFooter() {
         <div>
           {/* Not an h1 — the page already has one. */}
           <p className="font-display text-h3">RESET{city === null ? '' : ` ${city}`}</p>
-          <p className="text-text-muted">
-            Quick dry massage and wellness for men — head, neck, shoulder and full body.
-            Ten to thirty minutes, walk straight in.
-          </p>
+          {/* The shop's own words, from Admin → Shop details. */}
+          <p className="text-text-muted">{tagline(store)}</p>
         </div>
 
         <div className="flex flex-col gap-sm sm:flex-row sm:gap-2xl">

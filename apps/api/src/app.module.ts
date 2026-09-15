@@ -15,6 +15,8 @@ import { AdminRewardsService } from './admin/admin-rewards.service.js';
 import { AdminStaffService } from './admin/admin-staff.service.js';
 import { AdminBannersController } from './admin/admin-banners.controller.js';
 import { AdminBannersService } from './admin/admin-banners.service.js';
+import { AdminStoreController } from './admin/admin-store.controller.js';
+import { AdminStoreService } from './admin/admin-store.service.js';
 import { AdminSupportController } from './admin/admin-support.controller.js';
 import { CapacityController } from './admin/capacity.controller.js';
 import { CapacityService } from './admin/capacity.service.js';
@@ -119,6 +121,7 @@ import { SupportService } from './support/support.service.js';
     ReportsController,
     MediaAdminController,
     AdminBannersController,
+    AdminStoreController,
     AdminSupportController,
   ],
   providers: [
@@ -153,6 +156,7 @@ import { SupportService } from './support/support.service.js';
     AdminProductsService,
     ReportsService,
     AdminBannersService,
+    AdminStoreService,
     // Help desk.
     SupportService,
     // Scheduled work.

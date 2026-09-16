@@ -53,7 +53,7 @@ of Play's health-claims rules.
 | Task | Answer |
 |---|---|
 | Privacy policy | `https://resetmen.in/privacy` |
-| App access / sign-in details | All functionality available without special access — sign-in is Google, so a reviewer uses their own account. No demo credentials needed. |
+| App access / sign-in details | **Yes, part of the app is restricted.** Play counts Google SSO as a restriction — its own list names it. Browsing the menu needs no account; booking, visits, rewards and Help do. Give a throwaway Gmail with **no two-factor** as the demo account, plus instructions saying any Google account works, that payment is at the counter, and that the entry QR is scanned by staff at the shop. |
 | Ads | No, this app contains no ads |
 | Content rating | Category: Utility / Productivity / Other. Answer **no** to every violence, sexual, drug, gambling and profanity question. Do not describe the massage service in suggestive terms. |
 | Target audience | 18 and over. Not appealing to children. |

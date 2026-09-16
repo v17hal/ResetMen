@@ -7,42 +7,42 @@ RESETMEN: Massage Booking
 
 **Short description** (80 max)
 ```
-Book a head, neck, shoulder or full-body massage in Pune. Walk straight in.
+Book a 5 to 30 minute massage in Pune. Pick a time and walk straight in.
 ```
 
-**Full description** (4000 max)
+**Full description** (4000 max) — prices and names read from the live catalogue on
+16/09/2026. Re-read them before publishing: the client renames services, and a listing that
+advertises a price the shop no longer charges is worse than a vague one.
 ```
-RESETMEN is a quick dry massage and wellness studio in Sadashiv Peth, Pune. Pick a
-service, choose a time, and walk straight in — most sessions take between ten and
-thirty minutes, and there is no appointment to arrange over the phone.
+RESETMEN is a quick dry massage and wellness studio in Sadashiv Peth, Pune. Pick a service, choose a time, and walk straight in. Most sessions take between five and thirty minutes, and there is nothing to arrange over the phone.
 
 WHAT YOU CAN DO IN THE APP
 
 • See every service with its price and how long it takes
-• Choose a time from what is genuinely free today or later this week
+• Choose from times that are genuinely free today or later this week
 • Book in seconds — no card needed, you pay at the counter
-• Show the entry QR when you arrive, and you are checked straight in
+• Show your entry QR when you arrive and walk straight to your chair
 • Keep every visit in one place, and rebook a favourite in two taps
 • Ask us anything from Help, and read our reply in the app
-• Collect rewards as you visit
+• Earn rewards as you keep coming back
 
-SERVICES
+THE MENU
 
-Head. Head, neck and shoulder. Head, neck, shoulder and back. Full body. Plus
-add-ons and shop items at the counter.
+Tension Relief — ₹49, 5 minutes. A focused head session. The quickest reset there is.
+Stress Buster — ₹99, 10 minutes.
+Upper Body Reset — ₹149, 15 minutes.
+Basic — ₹199, 20 minutes.
+Premium — ₹299, 30 minutes.
 
 PAYING
 
-Sessions are paid at the counter when you arrive. The app never asks for card
-details.
+Sessions are paid at the counter when you arrive. The app never asks for card details.
 
 WHERE WE ARE
 
-Shreenad Apartments, 3rd Floor, Tilak Road, behind Bank of Maharashtra,
-Sadashiv Peth, Pune. Open 9am to 9pm, closed on Mondays.
+Shreenad Apartments, 3rd Floor, Tilak Road, behind Bank of Maharashtra, Sadashiv Peth, Pune. Open 9am to 9pm, closed on Mondays.
 
-RESETMEN provides non-medical wellness, relaxation and body-care services only. It
-does not provide medical treatment, diagnosis or physiotherapy.
+RESETMEN provides non-medical wellness, relaxation and body-care services only. It does not provide medical treatment, diagnosis or physiotherapy.
 ```
 
 Keep the last paragraph. It matches the Terms, and it is what keeps the listing clear

@@ -129,8 +129,41 @@ jobs:
           path: apps/mobile/build/app/outputs/bundle/release/app-release.aab
           retention-days: 90
 
-      # Uploading to Play is left as a manual step until the client's Play Console and
-      # service account exist. The bundle above is what gets uploaded; wiring
-      # r0adkll/upload-google-play here is a one-line change once they do.
-      - name: Note
-        run: echo "Bundle built. Upload to Play Console manually until the service account exists."
+      # R8 obfuscates the release build, so a crash in Play Console is unreadable without
+      # this file. Uploaded with the bundle, never committed: it maps back to the source.
+      - name: Find the mapping file
+        id: mapping
+        run: |
+          MAP=apps/mobile/build/app/outputs/mapping/release/mapping.txt
+          [ -f "$MAP" ] && echo "path=$MAP" >> "$GITHUB_OUTPUT" || echo "path=" >> "$GITHUB_OUTPUT"
+
+      # `secrets` cannot be read in a step's `if`, so the presence of the key becomes an
+      # output first. Without it the job still builds and keeps the artifact — a missing
+      # Play account must not fail a release that is otherwise fine.
+      - name: Is Play upload configured?
+        id: play
+        env:
+          KEY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -n "$KEY" ]; then echo 'configured=true' >> "$GITHUB_OUTPUT"; else echo 'configured=false' >> "$GITHUB_OUTPUT"; fi
+
+      - name: Upload to Google Play
+        if: steps.play.outputs.configured == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: app.reset.app
+          releaseFiles: apps/mobile/build/app/outputs/bundle/release/app-release.aab
+          mappingFile: ${{ steps.mapping.outputs.path }}
+          # Internal testing by default: it reaches testers within minutes and needs no
+          # review, so a bad build never lands in front of a customer. Promote from the
+          # Console, or set the PLAY_TRACK variable to `production` deliberately.
+          track: ${{ vars.PLAY_TRACK || 'internal' }}
+          status: completed
+          whatsNewDirectory: distribution/whatsnew
+
+      - name: Play upload skipped
+        if: steps.play.outputs.configured != 'true'
+        run: |
+          echo "::notice::No PLAY_SERVICE_ACCOUNT_JSON secret, so nothing was uploaded."
+          echo "::notice::The signed bundle is attached to this run as an artifact — see docs/play/README.md."

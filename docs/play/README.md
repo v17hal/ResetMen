@@ -33,10 +33,13 @@ and all of it deletable in-app (**You → Delete my account**):
 | Financial info → Purchase history | Bookings and counter payments | App functionality, records | No |
 | Messages → Other in-app messages | Help conversations | Customer support | **Yes** |
 | App activity → Other actions | Visits and check-ins | App functionality | No |
+| Device or other IDs | The notification token, if notifications are allowed | App functionality (delivering the message) | **Yes** |
+
+Firebase publishes the FCM registration token as a *Device or other ID*, which is why it
+is in the table even though the app never reads an advertising ID or an IMEI.
 
 Answer **no** to: location, contacts, photos, files, health, calendar, SMS, call logs,
-installed apps, device identifiers for advertising, and any analytics or crash SDK — none
-are in the app. The only permissions are `INTERNET` and, if the customer agrees,
+installed apps, advertising IDs, and any analytics or crash SDK — none are in the app. The only permissions are `INTERNET` and, if the customer agrees,
 `POST_NOTIFICATIONS`.
 
 Card details are **not** collected: money is taken at the counter. If online payment is

@@ -261,11 +261,14 @@ class ResetRepository {
     String? serviceId,
     List<String> addonOptionIds = const [],
   }) async {
-    final json = await _api.get<List<dynamic>>('/rewards/wallet', query: {
+    // The API wraps every collection in `data`. Read as a bare list, this threw on a real
+    // phone and the Rewards tab said "Could not load your wallet" — with nothing wrong on
+    // the server and nothing in any log. Same for the cards below.
+    final json = await _api.get<Map<String, dynamic>>('/rewards/wallet', query: {
       'serviceId': serviceId,
       'addonOptionIds': addonOptionIds,
     });
-    return json
+    return (json['data'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .map(WalletReward.fromJson)
         .toList();
@@ -275,8 +278,8 @@ class ResetRepository {
       Streak.fromJson(await _api.get<Map<String, dynamic>>('/rewards/streak'));
 
   Future<List<ScratchCard>> scratchCards() async {
-    final json = await _api.get<List<dynamic>>('/rewards/scratch-cards');
-    return json
+    final json = await _api.get<Map<String, dynamic>>('/rewards/scratch-cards');
+    return (json['data'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .map(ScratchCard.fromJson)
         .toList();

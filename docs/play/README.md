@@ -6,6 +6,7 @@ Generated assets in this folder:
 |---|---|
 | `play-store-icon-512.png` | Store listing → App icon (512×512) |
 | `play-feature-graphic-1024x500.png` | Store listing → Feature graphic |
+| `screenshots/*.png` | Store listing → Phone screenshots (1080×1920, 9:16) |
 
 Both are built from the client's logo colour (`#022D0F`). The launcher icon uses the
 **R** alone: the logo is a wide wordmark, and "RESETMEN" at 48dp is an unreadable smudge.
@@ -93,3 +94,13 @@ thing about a new build.
 
 **Permissions the service account must NOT have:** account-level admin. It needs app-level
 release rights and nothing else; a leaked key with admin rights can change payouts.
+
+## Screenshots
+
+`screenshots/` holds six captures taken from the release build on a real phone (Galaxy Z
+Fold 6, cover screen), not from the website and not from a mock. Each is the app's own
+screen, scaled onto a 1080×1920 canvas in the logo green because the device is taller than
+Play's 9:16 limit, with the status and navigation bars trimmed.
+
+Retake them with `scratchpad/frame-shots.py` after any visual change; a listing showing a
+screen that no longer exists is worse than one with fewer pictures.

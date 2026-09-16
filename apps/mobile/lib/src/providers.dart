@@ -22,11 +22,21 @@ final bookingCacheProvider = Provider<BookingCache>((ref) {
 
 /// The API base URL, from `--dart-define=API_URL=...`.
 ///
+/// The emulator's alias for the host machine. Right for `flutter run`, useless on a phone.
+const _developmentApiUrl = 'http://10.0.2.2:4000';
+const _productionApiUrl = 'https://api.resetmen.in';
+
 /// A compile-time define rather than a runtime setting: a release build must not be able to
 /// be pointed at a different server, and the value is baked into the APK CI produces.
+///
+/// The default now follows the build mode. It used to be the developer address in every
+/// mode, so a hand-run `flutter build apk --release` — without the `--dart-define` CI
+/// passes — produced an app that could not reach any server. That has now happened twice:
+/// once to a build handed to a tester, and once to a bundle built for the Play upload. A
+/// default that is wrong for the build being made is a trap, not a setting.
 const apiBaseUrl = String.fromEnvironment(
   'API_URL',
-  defaultValue: 'http://10.0.2.2:4000',
+  defaultValue: kReleaseMode ? _productionApiUrl : _developmentApiUrl,
 );
 
 /// Refuses to start a release build that is still pointed at a developer's machine.

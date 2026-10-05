@@ -17,7 +17,19 @@ import { DEFAULT_TAGLINE } from '@reset/types';
  * this runs on every crawl of every page.
  */
 
-const REVALIDATE_SECONDS = 300;
+/**
+ * Thirty seconds, not five minutes.
+ *
+ * The original number assumed a catalogue that changes a few times a year. It does not: the
+ * shop edits services, pictures and banners from the admin panel and expects to see the
+ * result, and five minutes of staleness reads as "the upload did not work" — which is
+ * exactly how it read when a category picture set in admin was still missing from the home
+ * page ten minutes later.
+ *
+ * Half a minute still absorbs a crawl: Googlebot walking fifty service pages makes one API
+ * call, not fifty.
+ */
+const REVALIDATE_SECONDS = 30;
 
 /** The canonical origin. Every absolute URL in metadata is built from this one value. */
 export const SITE_URL = 'https://resetmen.in';

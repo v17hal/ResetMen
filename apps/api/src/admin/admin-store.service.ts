@@ -9,6 +9,7 @@ const FIELDS = {
   name: true,
   slug: true,
   tagline: true,
+  logoUrl: true,
   address: true,
   city: true,
   pincode: true,
@@ -42,6 +43,7 @@ export class AdminStoreService {
       data: {
         name: input.name,
         tagline: input.tagline === null || input.tagline === '' ? null : input.tagline,
+        logoUrl: input.logoUrl,
         address: input.address,
         city: input.city,
         pincode: input.pincode,

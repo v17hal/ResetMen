@@ -6,6 +6,7 @@ import { Button, Card, ErrorState, Input, Select, SkeletonList, Textarea, useToa
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
+import { PictureField } from '@/components/picture-field';
 import { errorMessage } from '@/lib/auth';
 import { adminClient } from '@/lib/client';
 
@@ -43,6 +44,7 @@ export default function StorePage() {
         pincode: blankToNull(profile.pincode),
         phone: blankToNull(profile.phone),
         audience: profile.audience,
+        logoUrl: profile.logoUrl,
       }),
     onSuccess: (saved) => {
       setForm(saved);
@@ -80,6 +82,13 @@ export default function StorePage() {
           value={form.name}
           maxLength={60}
           onChange={(event) => set('name', event.target.value)}
+        />
+
+        <PictureField
+          label="Logo"
+          value={form.logoUrl}
+          onChange={(logoUrl) => setForm({ ...form, logoUrl })}
+          hint="Shown above “Book your reset” on the website and in the app. A wide mark on a transparent or white background works best; it is drawn about 120 pixels across."
         />
 
         <div className="flex flex-col gap-xs">

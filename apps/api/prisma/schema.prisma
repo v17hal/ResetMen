@@ -191,6 +191,9 @@ model Store {
   /// `audience`, so a store that never touches it still reads correctly.
   tagline  String?
   audience StoreAudience @default(MEN_ONLY)
+  /// The shop's mark, shown above the greeting on both home screens. Uploaded in the admin
+  /// panel — client request 05/10/2026, "logo above Book your reset".
+  logoUrl  String?
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)

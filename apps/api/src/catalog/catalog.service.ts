@@ -33,6 +33,7 @@ export class CatalogService {
       // hold that default, so one store's blank line does not become a blank website.
       tagline: store.tagline,
       audience: store.audience,
+      logoUrl: store.logoUrl,
       timezone: store.timezone,
       address: store.address,
       city: store.city,

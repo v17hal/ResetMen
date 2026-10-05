@@ -138,6 +138,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     HomeData data, {
     bool stale = false,
   }) {
+    // The shop's logo, if it has uploaded one. Read here rather than passed in: the store
+    // is already fetched for the card at the foot of this screen.
+    final logoUrl = ref.watch(storeProvider).valueOrNull?.logoUrl;
+
     // Categories with nothing bookable are dropped rather than shown empty — an inert
     // heading reads as something that failed to load.
     final live = data.categories
@@ -198,6 +202,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // The shop's mark above the greeting — client request 05/10/2026.
+                          // Nothing is reserved for it until one is uploaded, so a store
+                          // without a logo keeps the screen it has today.
+                          if (logoUrl != null) ...[
+                            Image.network(
+                              logoUrl,
+                              height: 40,
+                              fit: BoxFit.contain,
+                              alignment: Alignment.centerLeft,
+                              // A logo that will not load is not worth an error icon in the
+                              // middle of the greeting.
+                              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                            ),
+                            const SizedBox(height: ResetTokens.spaceXs),
+                          ],
                           Text('Book your reset', style: ResetTokens.h1),
                           const SizedBox(height: 2),
                           Text(

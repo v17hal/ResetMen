@@ -40,6 +40,10 @@ export function HomeClient({ initialHome }: { initialHome: HomeDto | null }) {
   const reduced = useReducedMotion();
   const online = useOnline();
 
+  // The logo and the shop's own details. Cached like the catalogue, so the header costs one
+  // request on a cold load and nothing afterwards.
+  const store = useQuery({ queryKey: ['store'], queryFn: () => api().catalog.store() });
+
   const home = useQuery({
     queryKey: ['home', segmentId],
     queryFn: () => api().catalog.home(segmentId),
@@ -107,6 +111,16 @@ export function HomeClient({ initialHome }: { initialHome: HomeDto | null }) {
     <div className="flex flex-col gap-base p-base">
       <header className="flex items-start justify-between gap-sm pt-sm">
         <div className="flex flex-col gap-xs">
+          {/* The shop's own mark, above the greeting — client request 05/10/2026. Uploaded in
+              Admin → Shop details; nothing is reserved for it until one exists, so a store
+              without a logo keeps the layout it has today. */}
+          {store.data?.logoUrl != null && store.data.logoUrl !== '' && (
+            <img
+              src={store.data.logoUrl}
+              alt={store.data.name}
+              className="mb-xs h-10 w-auto max-w-[180px] object-contain object-left"
+            />
+          )}
           <h1 className="font-display text-h1">Book your reset</h1>
           <p className="text-body-sm text-text-muted">
             Pick a service, choose a time, walk straight in.

@@ -53,6 +53,7 @@ class StoreInfo {
     required this.cancellationWindowMinutes,
     required this.paymentsEnabled,
     this.tagline,
+    this.logoUrl,
     this.audience = 'MEN_ONLY',
   });
 
@@ -73,6 +74,9 @@ class StoreInfo {
   /// The shop's own line, written in the admin panel. Null means it has not written one.
   final String? tagline;
 
+  /// The shop's mark, shown above the greeting on the home screen. Null until uploaded.
+  final String? logoUrl;
+
   /// 'MEN_ONLY' or 'EVERYONE'. Kept as a string: it is wording, and an app that has not
   /// been updated should not crash on a value someone adds later.
   final String audience;
@@ -90,6 +94,7 @@ class StoreInfo {
         // Absent means the old behaviour: assume a gateway.
         paymentsEnabled: json['paymentsEnabled'] as bool? ?? true,
         tagline: json['tagline'] as String?,
+        logoUrl: json['logoUrl'] as String?,
         audience: json['audience'] as String? ?? 'MEN_ONLY',
       );
 }

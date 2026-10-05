@@ -97,6 +97,8 @@ export const storeProfileInput = z.object({
       .nullable()
       .default(null),
   ),
+  /** Shown above "Book your reset" on the website and in the app. */
+  logoUrl: z.string().url().nullable().default(null),
   address: z.string().trim().max(200).nullable().default(null),
   city: z.string().trim().max(60).nullable().default(null),
   pincode: z.string().trim().max(12).nullable().default(null),

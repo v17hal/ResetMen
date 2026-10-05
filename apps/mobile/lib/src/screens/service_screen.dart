@@ -72,25 +72,27 @@ class _ServiceScreenState extends ConsumerState<ServiceScreen> {
                     ResetTokens.spaceXl,
                   ),
                   children: [
-                    // Continues the tile the row was tapped on, so the screen grows out of
-                    // it. Without a photo the icon fills the same frame rather than the
-                    // page opening on bare text.
-                    Hero(
-                      tag: 'service-${data.id}',
-                      child: ServiceImage(
-                        label: data.name,
-                        imageUrl: data.imageUrl,
-                        size: double.infinity,
-                        height: 180,
-                      ),
-                    ),
-                    // Banners the shop placed on this service's page — client request
-                    // 05/10/2026. No link: the customer is already where a tap would go.
+                    // The top of the screen is the shop's banner when it has placed one
+                    // here — the same strip as the home screen, managed from Admin →
+                    // Banners (client request 05/10/2026). Otherwise it continues the tile
+                    // the row was tapped on, so the screen grows out of it; without a photo
+                    // the icon fills the same frame rather than the page opening on text.
                     if (data.banners.isNotEmpty)
                       BannerCarousel(
                         banners: data.banners,
+                        // No link: the customer is already where a tap would go.
                         onOpen: (_) {},
                         padding: const EdgeInsets.only(top: ResetTokens.spaceBase),
+                      )
+                    else
+                      Hero(
+                        tag: 'service-${data.id}',
+                        child: ServiceImage(
+                          label: data.name,
+                          imageUrl: data.imageUrl,
+                          size: double.infinity,
+                          height: 180,
+                        ),
                       ),
                     const SizedBox(height: ResetTokens.spaceBase),
 

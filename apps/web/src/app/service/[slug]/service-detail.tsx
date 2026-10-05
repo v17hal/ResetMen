@@ -101,28 +101,30 @@ export function ServiceDetail({
 
   return (
     <div className="flex flex-col">
-      {/* Always shown. Without a photo the icon fills the same frame, so the page opens on
-          the thing being sold rather than on bare text. */}
-      <ServiceImage
-        name={service.data.name}
-        imageUrl={service.data.imageUrl}
-        className="h-[200px] w-full"
-        rounded="sm:rounded-b-lg"
-      />
-
-      {/* Banners the shop placed on this service's page — client request 05/10/2026. They
-          carry no link: the customer is already on the thing they would open. */}
-      {service.data.banners.length > 0 && (
+      {/* The top of the page is the shop's banner when it has placed one here — the same
+          pictures-or-video strip as the home screen, managed from Admin → Banners. Client
+          request 05/10/2026: that header is the spot they circled; a second strip under it
+          read as clutter. Without one, the service's own picture fills the frame, and
+          without that, the generated icon — so the page never opens on bare text. */}
+      {service.data.banners.length > 0 ? (
         <div className="px-base pt-base">
           <HomeBanners
             banners={service.data.banners.map((banner) => ({
               ...banner,
+              // No link: the customer is already on the thing a tap would open.
               serviceSlug: null,
               placement: 'HOME' as const,
               categoryId: null,
             }))}
           />
         </div>
+      ) : (
+        <ServiceImage
+          name={service.data.name}
+          imageUrl={service.data.imageUrl}
+          className="h-[200px] w-full"
+          rounded="sm:rounded-b-lg"
+        />
       )}
 
       <div className="flex flex-col gap-lg p-base">

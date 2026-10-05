@@ -115,6 +115,7 @@ class Category {
     required this.description,
     required this.serviceCount,
     required this.fromPricePaise,
+    this.imageUrl,
   });
 
   final String id;
@@ -123,12 +124,17 @@ class Category {
   final int serviceCount;
   final int? fromPricePaise;
 
+  /// The circle on the home strip. The API has always sent this; the app never read it, so
+  /// every category drew a generated gradient even once the shop had uploaded artwork.
+  final String? imageUrl;
+
   factory Category.fromJson(Map<String, dynamic> json) => Category(
         id: _str(json['id']),
         name: _str(json['name']),
         description: json['description'] as String?,
         serviceCount: _int(json['serviceCount']),
         fromPricePaise: (json['fromPricePaise'] as num?)?.toInt(),
+        imageUrl: json['imageUrl'] as String?,
       );
 }
 

@@ -28,6 +28,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
+import { PictureField } from '@/components/picture-field';
 import { errorMessage } from '@/lib/auth';
 import { adminClient } from '@/lib/client';
 import { keys } from '@/lib/queries';
@@ -329,6 +330,7 @@ function ServiceDialog({
     tagline: '',
     wasPrice: '',
     badge: '',
+    imageUrl: null as string | null,
   });
   /** Which add-on groups this service offers. Saved as a second call, after the service. */
   const [groupIds, setGroupIds] = useState<string[]>([]);
@@ -347,6 +349,7 @@ function ServiceDialog({
       wasPrice:
         existing?.compareAtPricePaise == null ? '' : String(paiseToRupees(existing.compareAtPricePaise)),
       badge: existing?.badge ?? '',
+      imageUrl: existing?.imageUrl ?? null,
     });
     setGroupIds((existing?.addonGroups ?? []).map((link) => link.addonGroup.id));
     setError(null);
@@ -359,7 +362,7 @@ function ServiceDialog({
         name: form.name.trim(),
         slug: form.slug.trim(),
         description: form.description.trim() === '' ? null : form.description.trim(),
-        imageUrl: existing?.imageUrl ?? null,
+        imageUrl: form.imageUrl,
         pricePaise: rupeesToPaise(Number(form.price)),
         durationMinutes: Number(form.duration),
         bufferOverrideMinutes: existing?.bufferOverrideMinutes ?? null,
@@ -457,6 +460,13 @@ function ServiceDialog({
           value={form.slug}
           onChange={(event) => setForm((c) => ({ ...c, slug: event.target.value }))}
           hint="Lowercase words with hyphens. Appears in the customer app's URL."
+        />
+
+        <PictureField
+          label="Picture"
+          value={form.imageUrl}
+          onChange={(imageUrl) => setForm((c) => ({ ...c, imageUrl }))}
+          hint="Shown on the menu row and at the top of the service page. Without one, customers see a coloured tile with the first letter."
         />
 
         <Select
@@ -634,7 +644,12 @@ function Categories() {
     queryFn: () => adminClient().catalog.segments(),
   });
 
-  const [form, setForm] = useState({ name: '', slug: '', segmentId: '' });
+  const [form, setForm] = useState({
+    name: '',
+    slug: '',
+    segmentId: '',
+    imageUrl: null as string | null,
+  });
   const [error, setError] = useState<string | null>(null);
   const existing = editing === 'new' || editing === null ? null : editing;
 
@@ -643,6 +658,7 @@ function Categories() {
       name: existing?.name ?? '',
       slug: existing?.slug ?? '',
       segmentId: existing?.segmentId ?? segments.data?.[0]?.id ?? '',
+      imageUrl: existing?.imageUrl ?? null,
     });
     setError(null);
   }, [existing, editing, segments.data]);
@@ -669,7 +685,7 @@ function Categories() {
         name: form.name.trim(),
         slug: form.slug.trim(),
         description: existing?.description ?? null,
-        imageUrl: existing?.imageUrl ?? null,
+        imageUrl: form.imageUrl,
         sortOrder: existing?.sortOrder ?? 0,
         isActive: existing?.isActive ?? true,
       };
@@ -832,6 +848,14 @@ function Categories() {
             onChange={(event) => setForm((c) => ({ ...c, slug: event.target.value }))}
             error={error}
           />
+
+          <PictureField
+            label="Picture"
+            shape="circle"
+            value={form.imageUrl}
+            onChange={(imageUrl) => setForm((c) => ({ ...c, imageUrl }))}
+            hint="The circle customers tap on the home screen. Cropped to a disc, so keep the subject centred."
+          />
         </div>
       </Dialog>
     </div>
@@ -845,7 +869,7 @@ function Segments() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<AdminSegmentRow | 'new' | null>(null);
   const [deleting, setDeleting] = useState<AdminSegmentRow | null>(null);
-  const [form, setForm] = useState({ name: '', slug: '' });
+  const [form, setForm] = useState({ name: '', slug: '', imageUrl: null as string | null });
   const [error, setError] = useState<string | null>(null);
 
   const segments = useQuery({
@@ -870,7 +894,11 @@ function Segments() {
   const existing = editing === 'new' || editing === null ? null : editing;
 
   useEffect(() => {
-    setForm({ name: existing?.name ?? '', slug: existing?.slug ?? '' });
+    setForm({
+      name: existing?.name ?? '',
+      slug: existing?.slug ?? '',
+      imageUrl: existing?.imageUrl ?? null,
+    });
     setError(null);
   }, [existing, editing]);
 
@@ -879,7 +907,7 @@ function Segments() {
       const input = {
         name: form.name.trim(),
         slug: form.slug.trim(),
-        imageUrl: existing?.imageUrl ?? null,
+        imageUrl: form.imageUrl,
         sortOrder: existing?.sortOrder ?? 0,
         isActive: existing?.isActive ?? true,
       };
@@ -1017,6 +1045,13 @@ function Segments() {
             value={form.slug}
             onChange={(event) => setForm((c) => ({ ...c, slug: event.target.value }))}
             error={error}
+          />
+          <PictureField
+            label="Picture"
+            shape="circle"
+            value={form.imageUrl}
+            onChange={(imageUrl) => setForm((c) => ({ ...c, imageUrl }))}
+            hint="Only shown where segments are offered as a choice — the app hides them while there is just one."
           />
         </div>
       </Dialog>

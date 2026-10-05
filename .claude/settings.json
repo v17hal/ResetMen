@@ -50,7 +50,8 @@
       "Bash(curl -m 5 -skI https://155.248.240.247)",
       "Bash(curl -m 8 -sI http://155.248.240.247)",
       "Bash(curl -m 8 -skI https://155.248.240.247)",
-      "Bash(ssh -i ~/Downloads/ssh-key-2026-08-24.key ubuntu@155.248.240.247 \"curl -m 5 -sI http://169.254.169.254/opc/v2/instance/ -H 'Authorization: Bearer Oracle' 2>&1 | head -5; echo '---'; ls ~/.oci 2>&1\")"
+      "Bash(ssh -i ~/Downloads/ssh-key-2026-08-24.key ubuntu@155.248.240.247 \"curl -m 5 -sI http://169.254.169.254/opc/v2/instance/ -H 'Authorization: Bearer Oracle' 2>&1 | head -5; echo '---'; ls ~/.oci 2>&1\")",
+      "Bash(grep -n \"useState\\({\\\\|const \\\\[form, setForm\\\\]\\\\|function ServiceDialog\\\\|function CategoryDialog\\\\|function SegmentDialog\\\\|title={isNew\" \"apps/admin/src/app/\\(panel\\)/catalog/page.tsx\")"
     ]
   }
 }

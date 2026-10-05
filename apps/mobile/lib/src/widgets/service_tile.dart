@@ -312,11 +312,17 @@ class CategoryBubble extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.imageUrl,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
+
+  /// The shop's own picture, uploaded in the admin panel — client request 05/10/2026.
+  /// Null keeps the generated gradient and icon, which is what every category had before
+  /// anything could be uploaded.
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -345,15 +351,36 @@ class CategoryBubble extends StatelessWidget {
               child: Container(
                 width: 62,
                 height: 62,
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [look.from, look.to],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  gradient: imageUrl == null
+                      ? LinearGradient(
+                          colors: [look.from, look.to],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
                 ),
-                child: Icon(look.icon, size: 28, color: Colors.white),
+                child: imageUrl == null
+                    ? Icon(look.icon, size: 28, color: Colors.white)
+                    : Image.network(
+                        imageUrl!,
+                        fit: BoxFit.cover,
+                        // A picture that will not load must not leave a hole in the strip:
+                        // the generated look is still right, and still readable.
+                        errorBuilder: (_, __, ___) => DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [look.from, look.to],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                          ),
+                          child: Icon(look.icon, size: 28, color: Colors.white),
+                        ),
+                      ),
               ),
             ),
             const SizedBox(height: ResetTokens.spaceXs),

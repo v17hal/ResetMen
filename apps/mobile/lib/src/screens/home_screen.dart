@@ -278,6 +278,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     final category = live[index];
                     return CategoryBubble(
                       label: category.name,
+                      imageUrl: category.imageUrl,
                       selected: selected == category.id,
                       // Tapping the active category clears the filter — the same gesture
                       // that narrowed the list widens it again.

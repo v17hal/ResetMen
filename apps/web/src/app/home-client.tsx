@@ -217,15 +217,31 @@ export function HomeClient({ initialHome }: { initialHome: HomeDto | null }) {
                     >
                       <span
                         className={
-                          'flex h-[62px] w-[62px] items-center justify-center rounded-full text-white ring-offset-2 ring-offset-bg transition-shadow duration-micro ' +
+                          'flex h-[62px] w-[62px] items-center justify-center overflow-hidden rounded-full text-white ring-offset-2 ring-offset-bg transition-shadow duration-micro ' +
                           (active ? 'ring-2 ring-primary' : '')
                         }
-                        style={{
-                          backgroundImage:
-                            'linear-gradient(135deg, ' + look.from + ', ' + look.to + ')',
-                        }}
+                        style={
+                          category.imageUrl === null
+                            ? {
+                                backgroundImage:
+                                  'linear-gradient(135deg, ' + look.from + ', ' + look.to + ')',
+                              }
+                            : undefined
+                        }
                       >
-                        {look.icon}
+                        {/* The shop's own picture when it has uploaded one — client request
+                            05/10/2026. The generated gradient stays as the fallback, so a
+                            catalogue with no artwork still looks deliberate. */}
+                        {category.imageUrl === null ? (
+                          look.icon
+                        ) : (
+                          <img
+                            src={category.imageUrl}
+                            alt=""
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        )}
                       </span>
                       <span
                         className={

@@ -103,6 +103,13 @@ export const storeProfileInput = z.object({
   city: z.string().trim().max(60).nullable().default(null),
   pincode: z.string().trim().max(12).nullable().default(null),
   phone: z.string().trim().max(20).nullable().default(null),
+  /** Show the number in the details card on the website and in the app. */
+  showPhone: z.boolean().default(false),
+  /** The line under "Questions". Blank means the standard "Ask us — we reply in writing". */
+  contactNote: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
+    z.string().trim().max(120).nullable().default(null),
+  ),
   audience: storeAudience,
 });
 export type StoreProfileInput = z.infer<typeof storeProfileInput>;

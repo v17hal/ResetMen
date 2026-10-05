@@ -208,6 +208,12 @@ model Store {
   /// The shop's mark, shown above the greeting on both home screens. Uploaded in the admin
   /// panel — client request 05/10/2026, "logo above Book your reset".
   logoUrl  String?
+  /// Whether the phone number appears in the shop's details card. Off by default — on
+  /// 11/09/2026 the client wanted questions in writing — but theirs to switch on: on
+  /// 05/10/2026 they asked for every line of that card to be editable from the admin panel.
+  showPhone   Boolean @default(false)
+  /// The line under "Questions" in the details card. Null shows the standard wording.
+  contactNote String?
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)

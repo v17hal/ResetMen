@@ -25,12 +25,15 @@ export function PictureField({
   value,
   onChange,
   shape = 'wide',
+  fit = 'cover',
   hint,
 }: {
   label: string;
   value: string | null;
   onChange: (url: string | null) => void;
   shape?: 'wide' | 'circle';
+  /** "contain" for a logo, which must be seen whole rather than cropped to fill the box. */
+  fit?: 'cover' | 'contain';
   hint?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -63,8 +66,13 @@ export function PictureField({
             src={value}
             alt=""
             className={
-              'shrink-0 bg-surface2 object-cover ' +
-              (shape === 'circle' ? 'h-16 w-16 rounded-full' : 'h-16 w-24 rounded-md')
+              'shrink-0 bg-surface2 ' +
+              (fit === 'contain' ? 'object-contain p-xs ' : 'object-cover ') +
+              (shape === 'circle'
+                ? 'h-16 w-16 rounded-full'
+                : fit === 'contain'
+                  ? 'h-16 w-48 rounded-md'
+                  : 'h-16 w-24 rounded-md')
             }
           />
         )}

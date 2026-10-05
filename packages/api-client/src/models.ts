@@ -83,6 +83,10 @@ export interface StoreDto {
   audience: 'MEN_ONLY' | 'EVERYONE';
   /** The shop's mark, above the greeting on the home screens. Null until one is uploaded. */
   logoUrl: string | null;
+  /** Whether the details card shows the phone number. */
+  showPhone: boolean;
+  /** The line under "Questions". Null means the standard wording. */
+  contactNote: string | null;
 }
 
 /** Shop details as the admin panel edits them. */
@@ -97,6 +101,8 @@ export interface AdminStoreProfile {
   phone: string | null;
   audience: 'MEN_ONLY' | 'EVERYONE';
   logoUrl: string | null;
+  showPhone: boolean;
+  contactNote: string | null;
 }
 
 export interface SegmentDto {

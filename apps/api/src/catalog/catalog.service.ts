@@ -34,6 +34,8 @@ export class CatalogService {
       tagline: store.tagline,
       audience: store.audience,
       logoUrl: store.logoUrl,
+      showPhone: store.showPhone,
+      contactNote: store.contactNote,
       timezone: store.timezone,
       address: store.address,
       city: store.city,

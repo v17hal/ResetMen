@@ -2,8 +2,19 @@
 
 import type { AdminStoreProfile } from '@reset/api-client';
 import { DEFAULT_TAGLINE, type StoreAudience } from '@reset/types';
-import { Button, Card, ErrorState, Input, Select, SkeletonList, Textarea, useToast } from '@reset/ui';
+import {
+  Button,
+  Card,
+  Checkbox,
+  ErrorState,
+  Input,
+  Select,
+  SkeletonList,
+  Textarea,
+  useToast,
+} from '@reset/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { PictureField } from '@/components/picture-field';
@@ -26,6 +37,12 @@ export default function StorePage() {
   const queryClient = useQueryClient();
 
   const store = useQuery({ queryKey: ['admin-store'], queryFn: () => adminClient().store.get() });
+  // Shown here so every line of the customer's details card is visible on one page; edited
+  // under Capacity, where the booking engine reads them.
+  const hours = useQuery({
+    queryKey: ['admin-store-hours'],
+    queryFn: () => adminClient().capacity.storeHours(),
+  });
 
   const [form, setForm] = useState<AdminStoreProfile | null>(null);
   // Loaded once into the form; refetches must not overwrite half-typed edits.
@@ -45,6 +62,8 @@ export default function StorePage() {
         phone: blankToNull(profile.phone),
         audience: profile.audience,
         logoUrl: profile.logoUrl,
+        showPhone: profile.showPhone,
+        contactNote: blankToNull(profile.contactNote),
       }),
     onSuccess: (saved) => {
       setForm(saved);
@@ -86,6 +105,7 @@ export default function StorePage() {
 
         <PictureField
           label="Logo"
+          fit="contain"
           value={form.logoUrl}
           onChange={(logoUrl) => setForm({ ...form, logoUrl })}
           hint="Shown above “Book your reset” on the website and in the app. A wide mark on a transparent or white background works best; it is drawn about 120 pixels across."
@@ -121,14 +141,16 @@ export default function StorePage() {
           </p>
         </div>
 
+        {/* A full box, not one line: the address is long enough that a single-line field
+            cut it off, which made it look as if it could not be edited. */}
+        <Textarea
+          label="Address"
+          rows={2}
+          value={form.address ?? ''}
+          maxLength={200}
+          onChange={(event) => set('address', event.target.value)}
+        />
         <div className="flex flex-wrap gap-sm">
-          <Input
-            label="Address"
-            className="min-w-[16rem] flex-1"
-            value={form.address ?? ''}
-            maxLength={200}
-            onChange={(event) => set('address', event.target.value)}
-          />
           <Input
             label="City"
             value={form.city ?? ''}
@@ -144,14 +166,41 @@ export default function StorePage() {
         </div>
 
         <Input
-          label="Phone (not shown to customers)"
+          label="Phone"
           value={form.phone ?? ''}
           maxLength={20}
+          placeholder="+91 73500 24824"
           onChange={(event) => set('phone', event.target.value)}
         />
+        <Checkbox
+          label="Show the phone number to customers"
+          checked={form.showPhone}
+          onChange={(event) => set('showPhone', event.target.checked)}
+        />
         <p className="-mt-sm text-caption text-text-muted">
-          Kept for Google and for your own records. Customers are sent to Help, as you asked.
+          Off, customers are sent to Help and you reply in writing. On, the number appears in
+          the details card at the foot of the website and in the app, as a tap-to-call link.
         </p>
+
+        <Input
+          label="The line under Questions"
+          value={form.contactNote ?? ''}
+          maxLength={120}
+          placeholder="Ask us — we reply in writing"
+          onChange={(event) => set('contactNote', event.target.value)}
+          hint="It links to Help. Leave it empty for the standard wording shown in grey."
+        />
+
+        <div className="flex flex-col gap-xs rounded-md border border-border p-sm">
+          <span className="text-body-sm font-medium">Opening hours</span>
+          <span className="text-body-sm text-text-muted">{hoursLine(hours.data)}</span>
+          <Link
+            href="/capacity"
+            className="self-start text-caption text-primary underline underline-offset-2"
+          >
+            Change them under Capacity → Opening hours
+          </Link>
+        </div>
       </Card>
 
       {/* What they are about to publish, in the shape the website renders it. */}
@@ -164,6 +213,29 @@ export default function StorePage() {
           {form.city !== null && form.city.trim() !== '' ? ` ${form.city.trim()}` : ''}
         </p>
         <p className={form.tagline === null || form.tagline.trim() === '' ? 'text-text-muted' : ''}>{shown}</p>
+        {/* The rest of the card, in the order the website shows it. */}
+        <div className="mt-sm flex flex-col gap-sm text-body-sm sm:flex-row sm:gap-2xl">
+          <div className="flex flex-col">
+            <span className="text-caption uppercase tracking-wide text-text-muted">Where</span>
+            <span className="whitespace-pre-line">{form.address ?? '—'}</span>
+            {form.city !== null && form.city.trim() !== '' && <span>{form.city}</span>}
+          </div>
+          <div className="flex flex-col">
+            <span className="text-caption uppercase tracking-wide text-text-muted">Questions</span>
+            {form.showPhone && form.phone !== null && form.phone.trim() !== '' && (
+              <span>Call {form.phone}</span>
+            )}
+            <span className="underline underline-offset-2">
+              {form.contactNote === null || form.contactNote.trim() === ''
+                ? 'Ask us — we reply in writing'
+                : form.contactNote}
+            </span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-caption uppercase tracking-wide text-text-muted">Open</span>
+            <span>{hoursLine(hours.data)}</span>
+          </div>
+        </div>
       </Card>
 
       <div className="flex justify-end gap-sm">
@@ -184,6 +256,22 @@ export default function StorePage() {
       </div>
     </div>
   );
+}
+
+/** "08:00 – 21:30 · closed Monday", from the hours the booking engine uses. */
+function hoursLine(
+  rows:
+    | ReadonlyArray<{ dayOfWeek: number; opensAt: string; closesAt: string; isClosed: boolean }>
+    | undefined,
+): string {
+  if (rows === undefined) return '…';
+  const open = rows.filter((row) => !row.isClosed);
+  if (open.length === 0) return 'No opening hours set';
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const closed = rows.filter((row) => row.isClosed).map((row) => days[row.dayOfWeek]);
+  const first = open[0]!;
+  const span = first.opensAt.slice(0, 5) + ' – ' + first.closesAt.slice(0, 5);
+  return closed.length === 0 ? span : span + ' · closed ' + closed.join(', ');
 }
 
 const blankToNull = (value: string | null): string | null =>

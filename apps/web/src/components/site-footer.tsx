@@ -64,8 +64,18 @@ export async function SiteFooter() {
               middle of a session. */}
           <div className="flex flex-col">
             <span className="text-caption uppercase tracking-wide text-text-muted">Questions</span>
+            {/* Both lines are the shop's to set in Admin → Shop details (client request
+                05/10/2026): whether the number appears at all, and what the Help line says. */}
+            {store.showPhone && store.phone !== null && store.phone.trim() !== '' && (
+              <a
+                href={'tel:' + store.phone.split(' ').join('')}
+                className="underline underline-offset-2"
+              >
+                Call {store.phone}
+              </a>
+            )}
             <Link href="/help" className="underline underline-offset-2">
-              Ask us — we reply in writing
+              {store.contactNote ?? 'Ask us — we reply in writing'}
             </Link>
           </div>
 

@@ -182,7 +182,7 @@ export class MediaController {
     res.setHeader('Accept-Ranges', 'bytes');
 
     const header = req.headers.range;
-    const match = header === undefined ? null : /^bytes=(d*)-(d*)$/.exec(header.trim());
+    const match = header === undefined ? null : /^bytes=(\d*)-(\d*)$/.exec(header.trim());
     if (match === null || (match[1] === '' && match[2] === '')) {
       res.send(asset.body);
       return;

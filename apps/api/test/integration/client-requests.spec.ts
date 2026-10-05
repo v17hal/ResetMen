@@ -180,6 +180,46 @@ describe('client requests of 11/09/2026', () => {
     });
   });
 
+  // ── Serving media ──────────────────────────────────────────────────────────
+
+  describe('media byte ranges', () => {
+    const PNG = Buffer.from(
+      '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c48900' +
+        '00000d4944415478da63f8ffff3f0005fe02fea735c8730000000049454e44ae426082',
+      'hex',
+    );
+
+    /**
+     * A video will not play without this.
+     *
+     * Chrome and Android's player ask for a range before they start, and treat a 200 with no
+     * Accept-Ranges as unseekable — the first video banner uploaded to production was
+     * dropped by both clients for exactly this reason.
+     */
+    it('answers a range with 206 and the bytes asked for', async () => {
+      const upload = await http()
+        .post('/api/v1/admin/media')
+        .set('Authorization', adminAuth)
+        .attach('file', PNG, { filename: 'range.png', contentType: 'image/png' })
+        .expect(201);
+
+      const path = new URL(upload.body.url as string).pathname;
+
+      const whole = await http().get(path).expect(200);
+      expect(whole.headers['accept-ranges']).toBe('bytes');
+
+      const part = await http().get(path).set('Range', 'bytes=0-9').expect(206);
+      expect(part.headers['content-range']).toBe(`bytes 0-9/${PNG.length}`);
+      expect(part.body.length ?? Buffer.from(part.body).length).toBe(10);
+
+      // The last ten bytes, which is how a player reads an MP4's index when it trails the file.
+      const tail = await http().get(path).set('Range', 'bytes=-10').expect(206);
+      expect(tail.headers['content-range']).toBe(`bytes ${PNG.length - 10}-${PNG.length - 1}/${PNG.length}`);
+
+      await http().get(path).set('Range', 'bytes=999999-1000000').expect(416);
+    });
+  });
+
   // ── Banners: where they go, and whether they move ──────────────────────────
 
   /** Client requests of 05/10/2026: banners inside a category and a service, and video. */

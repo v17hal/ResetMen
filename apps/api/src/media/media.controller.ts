@@ -3,10 +3,10 @@ import {
   Delete,
   Get,
   Header,
+  Req,
   Param,
   Post,
   Query,
-  Req,
   Res,
   UploadedFile,
   UseGuards,
@@ -156,14 +156,52 @@ function absolute<T extends { url: string; variants: Record<string, string> }>(a
 export class MediaController {
   constructor(private readonly media: MediaService) {}
 
+  /**
+   * Byte ranges, because a banner may now be a video.
+   *
+   * A picture is happy with one 200 and the whole file. A video is not: Chrome and Android's
+   * player ask for `Range: bytes=0-` before they will start, and treat a 200 with no
+   * `Accept-Ranges` as unseekable — in practice the element fires an error and the banner is
+   * dropped, which is exactly what happened to the first video uploaded to production.
+   *
+   * A malformed Range is answered with the whole file rather than refused; a range that
+   * cannot be satisfied gets the 416 the specification asks for.
+   */
   @Get(':storeId/:file')
   @Header('Cache-Control', 'public, max-age=31536000, immutable')
   async serve(
     @Param('storeId') storeId: string,
     @Param('file') file: string,
+    @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
     const asset = await this.media.read(`${storeId}/${file}`);
-    res.type(asset.mime).send(asset.body);
+    const total = asset.body.length;
+
+    res.type(asset.mime);
+    res.setHeader('Accept-Ranges', 'bytes');
+
+    const header = req.headers.range;
+    const match = header === undefined ? null : /^bytes=(d*)-(d*)$/.exec(header.trim());
+    if (match === null || (match[1] === '' && match[2] === '')) {
+      res.send(asset.body);
+      return;
+    }
+
+    // "bytes=-500" means the last 500 bytes, not a negative start.
+    const start = match[1] === '' ? total - Number(match[2]) : Number(match[1]);
+    const end =
+      match[1] === '' || match[2] === '' ? total - 1 : Math.min(Number(match[2]), total - 1);
+
+    if (!Number.isFinite(start) || start < 0 || start > end) {
+      res.status(416).setHeader('Content-Range', `bytes */${total}`);
+      res.end();
+      return;
+    }
+
+    res.status(206);
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
+    res.setHeader('Content-Length', String(end - start + 1));
+    res.end(asset.body.subarray(start, end + 1));
   }
 }

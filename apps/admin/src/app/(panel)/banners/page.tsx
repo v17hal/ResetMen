@@ -102,10 +102,11 @@ export default function BannersPage() {
     <div className="flex flex-col gap-base">
       <header className="flex flex-wrap items-end justify-between gap-sm">
         <div>
-          <h1 className="font-display text-h1">Home banners</h1>
+          <h1 className="font-display text-h1">Banners</h1>
           <p className="text-body-sm text-text-muted">
-            The pictures across the top of the website and the app. They rotate every few
-            seconds, in this order.
+            Pictures and short videos across the top of the home screen, inside a category, or
+            on one service's page. Several in the same spot rotate every few seconds, in this
+            order.
           </p>
         </div>
         <Button onClick={() => setEditing('new')}>+ Add banner</Button>
@@ -113,8 +114,9 @@ export default function BannersPage() {
 
       <Card className="text-body-sm text-text-muted">
         Use a wide picture — about 16 : 10, at least 1200 pixels across, JPEG, PNG or WebP
-        under 5 MB. On a phone the banner is only about 350 pixels wide, so any words in the
-        artwork need to be large.
+        under 5 MB. A video must be MP4 under 15 MB, which is roughly ten seconds; it plays
+        silently and loops, so nothing important should be said out loud in it. On a phone the
+        banner is only about 350 pixels wide, so any words in the artwork need to be large.
       </Card>
 
       {banners.isError ? (

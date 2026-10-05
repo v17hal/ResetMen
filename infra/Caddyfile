@@ -78,7 +78,7 @@
 		#   script-src   apis.google.com, the gapi loader the popup flow pulls in
 		#
 		# The Android app has no CSP, which is why sign-in worked there and only there.
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://apis.google.com https://*.firebaseapp.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' {$API_ORIGIN} https://*.razorpay.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com; frame-src https://*.razorpay.com https://*.firebaseapp.com https://accounts.google.com; font-src 'self' data:; base-uri 'self'; form-action 'self'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://apis.google.com https://*.firebaseapp.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: {$API_ORIGIN}; connect-src 'self' {$API_ORIGIN} https://*.razorpay.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com; frame-src https://*.razorpay.com https://*.firebaseapp.com https://accounts.google.com; font-src 'self' data:; base-uri 'self'; form-action 'self'"
 	}
 
 	reverse_proxy web:3000
@@ -110,7 +110,7 @@ www.{$WEB_DOMAIN} {
 
 	header {
 		# Stricter than the customer app: no third-party scripts, no framing at all.
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' {$API_ORIGIN}; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: {$API_ORIGIN}; connect-src 'self' {$API_ORIGIN}; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 		X-Frame-Options "DENY"
 	}
 

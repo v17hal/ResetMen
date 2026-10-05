@@ -6,6 +6,7 @@ import '../format.dart';
 import '../providers.dart';
 import '../theme/app_theme.dart';
 import '../theme/reset_tokens.dart';
+import '../widgets/shop_details_card.dart';
 import '../widgets/banner_carousel.dart';
 import '../widgets/common.dart';
 import '../widgets/complete_profile_banner.dart';
@@ -140,7 +141,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }) {
     // The shop's logo, if it has uploaded one. Read here rather than passed in: the store
     // is already fetched for the card at the foot of this screen.
-    final logoUrl = ref.watch(storeProvider).valueOrNull?.logoUrl;
+    final store = ref.watch(storeProvider).valueOrNull;
+    final logoUrl = store?.logoUrl;
 
     // Categories with nothing bookable are dropped rather than shown empty — an inert
     // heading reads as something that failed to load.
@@ -330,6 +332,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     title: 'No match for "$_query"',
                     message: 'Try a shorter word — "head", "back", "full body".',
                   ),
+          ),
+
+        // The shop's details, as at the foot of the website — every line set in the admin
+        // panel. Hidden while searching, where the matches are what matter.
+        if (_query.isEmpty && store != null)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(top: ResetTokens.spaceXl),
+              child: ShopDetailsCard(store: store, onAsk: _openHelp),
+            ),
           ),
 
         const SliverToBoxAdapter(child: SizedBox(height: ResetTokens.space3xl)),

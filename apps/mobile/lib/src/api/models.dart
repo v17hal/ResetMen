@@ -55,6 +55,10 @@ class StoreInfo {
     this.tagline,
     this.logoUrl,
     this.audience = 'MEN_ONLY',
+    this.city,
+    this.showPhone = false,
+    this.contactNote,
+    this.hours = const [],
   });
 
   final String id;
@@ -62,6 +66,31 @@ class StoreInfo {
   final String timezone;
   final String? address;
   final String? phone;
+
+  /// Shown after the name and under the address, as the website does: "RESET Pune".
+  final String? city;
+
+  /// Whether the details card shows the phone number. The shop's switch, in Admin → Shop
+  /// details; off means customers are sent to Help instead.
+  final bool showPhone;
+
+  /// The line under "Questions". Null means the standard wording.
+  final String? contactNote;
+
+  /// The week, Sunday first, as the booking engine reads it.
+  final List<StoreHour> hours;
+
+  /// The shop's own line, or the standard wording for who it serves — the same fallback
+  /// the website uses, so the two never describe the shop differently.
+  String get displayTagline {
+    final written = tagline?.trim();
+    if (written != null && written.isNotEmpty) return written;
+    return audience == 'EVERYONE'
+        ? 'Quick dry massage and wellness — head, neck, shoulder and full body. '
+            'Ten to thirty minutes, walk straight in.'
+        : 'Quick dry massage and wellness for men — head, neck, shoulder and full body. '
+            'Ten to thirty minutes, walk straight in.';
+  }
   final int bookingHorizonDays;
   final int cancellationWindowMinutes;
 
@@ -96,6 +125,33 @@ class StoreInfo {
         tagline: json['tagline'] as String?,
         logoUrl: json['logoUrl'] as String?,
         audience: json['audience'] as String? ?? 'MEN_ONLY',
+        city: json['city'] as String?,
+        showPhone: json['showPhone'] as bool? ?? false,
+        contactNote: json['contactNote'] as String?,
+        hours: _list(json['hours'], StoreHour.fromJson),
+      );
+}
+
+/// One day of the shop's week. Times are "HH:mm" in the store's timezone.
+class StoreHour {
+  const StoreHour({
+    required this.dayOfWeek,
+    required this.opensAt,
+    required this.closesAt,
+    required this.isClosed,
+  });
+
+  /// 0 = Sunday … 6 = Saturday.
+  final int dayOfWeek;
+  final String opensAt;
+  final String closesAt;
+  final bool isClosed;
+
+  factory StoreHour.fromJson(Map<String, dynamic> json) => StoreHour(
+        dayOfWeek: _int(json['dayOfWeek']),
+        opensAt: _str(json['opensAt']),
+        closesAt: _str(json['closesAt']),
+        isClosed: json['isClosed'] as bool? ?? false,
       );
 }
 

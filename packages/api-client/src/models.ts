@@ -151,6 +151,13 @@ export interface AddonGroupDto {
 
 export interface ServiceDetail extends ServiceListItem {
   addonGroups: AddonGroupDto[];
+  /** Banners the shop placed on this service's own page. */
+  banners: Array<{
+    id: string;
+    imageUrl: string;
+    mediaType: 'IMAGE' | 'VIDEO';
+    altText: string;
+  }>;
 }
 
 /** One request instead of four on a cold app open. */
@@ -172,9 +179,16 @@ export interface HomeDto {
 /** `serviceSlug` is null when the banner is decorative, or its service is unpublished. */
 export interface HomeBanner {
   id: string;
+  /** The picture or the MP4 — mediaType says which. */
   imageUrl: string;
+  mediaType: 'IMAGE' | 'VIDEO';
   altText: string;
+  /** Where a tap goes. */
   serviceSlug: string | null;
+  /** Where it belongs: the home strip, or the top of one category's section. */
+  placement: 'HOME' | 'CATEGORY';
+  /** Set when the placement is CATEGORY. */
+  categoryId: string | null;
 }
 
 // ── Help desk — apps/api/src/support/support.service.ts ──────────────────────
@@ -430,12 +444,21 @@ export interface AdminAllocationRuleRow {
 /** apps/api/src/admin/admin-banners.service.ts — a Prisma row plus its service. */
 export interface AdminBannerRow {
   id: string;
+  /** The picture or the MP4 — `mediaType` says which. */
   imageUrl: string;
+  mediaType: 'IMAGE' | 'VIDEO';
   altText: string;
+  /** Where a tap goes. */
   serviceId: string | null;
+  /** Where the banner appears, which is a different question from where a tap goes. */
+  placement: 'HOME' | 'CATEGORY' | 'SERVICE';
+  placementCategoryId: string | null;
+  placementServiceId: string | null;
   sortOrder: number;
   isActive: boolean;
   service: { id: string; name: string; slug: string } | null;
+  placementCategory: { id: string; name: string } | null;
+  placementService: { id: string; name: string } | null;
 }
 
 /** apps/api/src/admin/reports.service.ts `stations()` — earnings per station. */

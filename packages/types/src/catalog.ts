@@ -107,17 +107,50 @@ export const storeProfileInput = z.object({
 });
 export type StoreProfileInput = z.infer<typeof storeProfileInput>;
 
-export const bannerInput = z.object({
-  imageUrl: z.string().url(),
-  altText: z
-    .string()
-    .trim()
-    .min(3, 'Describe the picture — screen readers and Google cannot read the artwork.')
-    .max(160),
-  serviceId: uuid.nullable().default(null),
-  sortOrder: z.number().int().nonnegative().default(0),
-  isActive: z.boolean().default(true),
-});
+export const bannerMedia = z.enum(['IMAGE', 'VIDEO']);
+export type BannerMedia = z.infer<typeof bannerMedia>;
+
+/** Where a banner appears — client request 05/10/2026. */
+export const bannerPlacement = z.enum(['HOME', 'CATEGORY', 'SERVICE']);
+export type BannerPlacement = z.infer<typeof bannerPlacement>;
+
+export const bannerInput = z
+  .object({
+    /** The picture or the MP4. `mediaType` says which. */
+    imageUrl: z.string().url(),
+    mediaType: bannerMedia.default('IMAGE'),
+    altText: z
+      .string()
+      .trim()
+      .min(3, 'Describe the picture — screen readers and Google cannot read the artwork.')
+      .max(160),
+    /** Where a tap goes. Null makes the banner decorative. */
+    serviceId: uuid.nullable().default(null),
+    /** Where it appears, which is a different question from where a tap goes. */
+    placement: bannerPlacement.default('HOME'),
+    placementCategoryId: uuid.nullable().default(null),
+    placementServiceId: uuid.nullable().default(null),
+    sortOrder: z.number().int().nonnegative().default(0),
+    isActive: z.boolean().default(true),
+  })
+  .superRefine((value, ctx) => {
+    // A banner placed nowhere renders nowhere, and the shop would have no way of telling
+    // why the thing it just uploaded is invisible.
+    if (value.placement === 'CATEGORY' && value.placementCategoryId === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['placementCategoryId'],
+        message: 'Choose which category this banner belongs to.',
+      });
+    }
+    if (value.placement === 'SERVICE' && value.placementServiceId === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['placementServiceId'],
+        message: 'Choose which service this banner belongs to.',
+      });
+    }
+  });
 export type BannerInput = z.infer<typeof bannerInput>;
 
 export const addonGroupInput = z

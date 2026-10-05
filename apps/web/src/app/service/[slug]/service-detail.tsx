@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
+import { HomeBanners } from '@/components/home-banners';
 import { PriceTag, ServiceBadge } from '@/components/price-tag';
 import { ServiceImage } from '@/components/service-look';
 import { errorMessage } from '@/lib/auth';
@@ -108,6 +109,21 @@ export function ServiceDetail({
         className="h-[200px] w-full"
         rounded="sm:rounded-b-lg"
       />
+
+      {/* Banners the shop placed on this service's page — client request 05/10/2026. They
+          carry no link: the customer is already on the thing they would open. */}
+      {service.data.banners.length > 0 && (
+        <div className="px-base pt-base">
+          <HomeBanners
+            banners={service.data.banners.map((banner) => ({
+              ...banner,
+              serviceSlug: null,
+              placement: 'HOME' as const,
+              categoryId: null,
+            }))}
+          />
+        </div>
+      )}
 
       <div className="flex flex-col gap-lg p-base">
         <header className="flex flex-col gap-sm">

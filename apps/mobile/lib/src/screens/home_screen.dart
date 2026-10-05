@@ -240,7 +240,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 // and a picture above them pushes the first result off a small screen.
                 if (_query.isEmpty)
                   BannerCarousel(
-                    banners: data.banners,
+                    // The home strip only. Banners the shop placed inside a category travel
+                    // with that category's heading instead — client request 05/10/2026.
+                    banners: data.banners
+                        .where((b) => b.placement == 'HOME')
+                        .toList(growable: false),
                     onOpen: _openSlug,
                     padding: const EdgeInsets.only(top: ResetTokens.spaceBase),
                   ),
@@ -346,6 +350,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         .toList(growable: false);
     if (services.isEmpty) return const [];
 
+    final banners = data.banners
+        .where((b) => b.placement == 'CATEGORY' && b.categoryId == category.id)
+        .toList(growable: false);
+
     return [
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(
@@ -372,6 +380,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
       ),
+      if (banners.isNotEmpty)
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(
+            ResetTokens.gutter,
+            0,
+            ResetTokens.gutter,
+            ResetTokens.spaceSm,
+          ),
+          sliver: SliverToBoxAdapter(
+            child: BannerCarousel(banners: banners, onOpen: _openSlug),
+          ),
+        ),
       SliverPadding(
         padding: const EdgeInsets.symmetric(horizontal: ResetTokens.gutter),
         sliver: SliverList.separated(

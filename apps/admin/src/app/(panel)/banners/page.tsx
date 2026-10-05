@@ -23,6 +23,8 @@ import { adminClient } from '@/lib/client';
 import { keys, useServices } from '@/lib/queries';
 
 const MAX_BYTES = 5 * 1024 * 1024;
+/** A banner plays on the home screen, on the customer's data, before they ask for anything. */
+const MAX_VIDEO_BYTES = 15 * 1024 * 1024;
 
 /**
  * Home banners — client request 11/09/2026.
@@ -45,8 +47,12 @@ export default function BannersPage() {
     mutationFn: ({ banner, patch }: { banner: AdminBannerRow; patch: Partial<AdminBannerRow> }) =>
       adminClient().banners.update(banner.id, {
         imageUrl: banner.imageUrl,
+        mediaType: banner.mediaType,
         altText: banner.altText,
         serviceId: banner.serviceId,
+        placement: banner.placement,
+        placementCategoryId: banner.placementCategoryId,
+        placementServiceId: banner.placementServiceId,
         sortOrder: banner.sortOrder,
         isActive: banner.isActive,
         ...patch,
@@ -60,8 +66,12 @@ export default function BannersPage() {
     mutationFn: async ({ a, b }: { a: AdminBannerRow; b: AdminBannerRow }) => {
       const base = (row: AdminBannerRow) => ({
         imageUrl: row.imageUrl,
+        mediaType: row.mediaType,
         altText: row.altText,
         serviceId: row.serviceId,
+        placement: row.placement,
+        placementCategoryId: row.placementCategoryId,
+        placementServiceId: row.placementServiceId,
         isActive: row.isActive,
       });
       // Positions, not the stored numbers: every banner created on one day can share
@@ -210,16 +220,29 @@ function BannerDialog({
   const isNew = banner === 'new';
   const existing = banner === 'new' || banner === null ? null : banner;
 
+  const categories = useQuery({
+    queryKey: keys.categories,
+    queryFn: () => adminClient().catalog.categories(),
+  });
+
   const [imageUrl, setImageUrl] = useState('');
+  const [mediaType, setMediaType] = useState<'IMAGE' | 'VIDEO'>('IMAGE');
   const [altText, setAltText] = useState('');
   const [serviceId, setServiceId] = useState('');
+  const [placement, setPlacement] = useState<'HOME' | 'CATEGORY' | 'SERVICE'>('HOME');
+  const [placementCategoryId, setPlacementCategoryId] = useState('');
+  const [placementServiceId, setPlacementServiceId] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setImageUrl(existing?.imageUrl ?? '');
+    setMediaType(existing?.mediaType ?? 'IMAGE');
     setAltText(existing?.altText ?? '');
     setServiceId(existing?.serviceId ?? '');
+    setPlacement(existing?.placement ?? 'HOME');
+    setPlacementCategoryId(existing?.placementCategoryId ?? '');
+    setPlacementServiceId(existing?.placementServiceId ?? '');
     setIsActive(existing?.isActive ?? true);
     setError(null);
   }, [existing, isNew]);
@@ -228,6 +251,9 @@ function BannerDialog({
     mutationFn: (file: File) => adminClient().media.upload(file, file.name),
     onSuccess: (asset) => {
       setImageUrl(asset.url);
+      // Taken from what the server stored, not from the file name: a .mp4 renamed to .jpg
+      // would otherwise be saved as a picture and never play.
+      setMediaType(asset.mime.startsWith('video/') ? 'VIDEO' : 'IMAGE');
       setError(null);
     },
     onError: (caught) => setError(errorMessage(caught, 'The picture did not upload.')),
@@ -237,8 +263,14 @@ function BannerDialog({
     mutationFn: () => {
       const input = {
         imageUrl,
+        mediaType,
         altText: altText.trim(),
         serviceId: serviceId === '' ? null : serviceId,
+        placement,
+        placementCategoryId:
+          placement === 'CATEGORY' && placementCategoryId !== '' ? placementCategoryId : null,
+        placementServiceId:
+          placement === 'SERVICE' && placementServiceId !== '' ? placementServiceId : null,
         sortOrder: existing?.sortOrder ?? nextSortOrder,
         isActive,
       };
@@ -257,7 +289,14 @@ function BannerDialog({
   if (banner === null) return null;
 
   const published = (services.data ?? []).filter((service) => service.isActive);
-  const canSave = imageUrl !== '' && altText.trim().length >= 3 && !upload.isPending;
+  // A banner placed in a category or on a service without saying which would be saved
+  // and then never appear anywhere, with nothing to explain why.
+  const placed =
+    placement === 'HOME' ||
+    (placement === 'CATEGORY' && placementCategoryId !== '') ||
+    (placement === 'SERVICE' && placementServiceId !== '');
+  const canSave =
+    imageUrl !== '' && altText.trim().length >= 3 && placed && !upload.isPending;
 
   return (
     <Dialog
@@ -280,26 +319,43 @@ function BannerDialog({
       }
     >
       <div className="flex flex-col gap-base">
-        {imageUrl !== '' && (
-          <img
-            src={imageUrl}
-            alt=""
-            className="aspect-[16/10] w-full rounded-md bg-surface2 object-cover"
-          />
-        )}
+        {imageUrl !== '' &&
+          (mediaType === 'VIDEO' ? (
+            // Muted, looping and silent, exactly as it will play for a customer.
+            <video
+              src={imageUrl}
+              className="aspect-[16/10] w-full rounded-md bg-surface2 object-cover"
+              autoPlay
+              muted
+              loop
+              playsInline
+            />
+          ) : (
+            <img
+              src={imageUrl}
+              alt=""
+              className="aspect-[16/10] w-full rounded-md bg-surface2 object-cover"
+            />
+          ))}
 
         <label className="flex flex-col gap-xs text-body-sm font-medium">
-          {imageUrl === '' ? 'Picture' : 'Replace the picture'}
+          {imageUrl === '' ? 'Picture or video' : 'Replace it'}
           <input
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/jpeg,image/png,image/webp,video/mp4"
             disabled={upload.isPending}
             onChange={(event) => {
               const file = event.target.files?.[0];
               event.target.value = '';
               if (file === undefined) return;
-              if (file.size > MAX_BYTES) {
-                setError('That picture is over 5 MB. Export it smaller and try again.');
+              const video = file.type.startsWith('video/');
+              const limit = video ? MAX_VIDEO_BYTES : MAX_BYTES;
+              if (file.size > limit) {
+                setError(
+                  video
+                    ? 'That video is over 15 MB — about ten seconds. Trim it and try again.'
+                    : 'That picture is over 5 MB. Export it smaller and try again.',
+                );
                 return;
               }
               upload.mutate(file);
@@ -319,6 +375,49 @@ function BannerDialog({
         />
 
         <Select
+          label="Where it shows"
+          value={placement}
+          onChange={(event) => setPlacement(event.target.value as typeof placement)}
+          hint="The home strip, the top of one category's section, or the top of one service's page."
+        >
+          <option value="HOME">Home screen</option>
+          <option value="CATEGORY">Inside a category</option>
+          <option value="SERVICE">On a service page</option>
+        </Select>
+
+        {placement === 'CATEGORY' && (
+          <Select
+            label="Which category"
+            required
+            value={placementCategoryId}
+            onChange={(event) => setPlacementCategoryId(event.target.value)}
+          >
+            <option value="">Choose a category…</option>
+            {(categories.data ?? []).map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </Select>
+        )}
+
+        {placement === 'SERVICE' && (
+          <Select
+            label="Which service"
+            required
+            value={placementServiceId}
+            onChange={(event) => setPlacementServiceId(event.target.value)}
+          >
+            <option value="">Choose a service…</option>
+            {(services.data ?? []).map((service) => (
+              <option key={service.id} value={service.id}>
+                {service.name} · {service.category.name}
+              </option>
+            ))}
+          </Select>
+        )}
+
+        <Select
           label="Tapping it opens"
           value={serviceId}
           onChange={(event) => setServiceId(event.target.value)}
@@ -334,7 +433,7 @@ function BannerDialog({
         </Select>
 
         <Checkbox
-          label="Show on the home screen"
+          label="Show it to customers"
           checked={isActive}
           onChange={(event) => setIsActive(event.target.checked)}
         />

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 
 import '../api/models.dart';
 import '../theme/app_theme.dart';
@@ -122,7 +123,8 @@ class _BannerCarouselState extends State<BannerCarousel> {
   bool _onScroll(ScrollNotification notification) {
     // Only a drag counts. The carousel's own animation also starts and ends a scroll, and
     // treating that as the user would stop it after its first move.
-    if (notification is ScrollStartNotification && notification.dragDetails != null) {
+    if (notification is ScrollStartNotification &&
+        notification.dragDetails != null) {
       _dragging = true;
       _timer?.cancel();
     } else if (notification is ScrollEndNotification && _dragging) {
@@ -141,34 +143,35 @@ class _BannerCarouselState extends State<BannerCarousel> {
     return Padding(
       padding: widget.padding,
       child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AspectRatio(
-          aspectRatio: 16 / 10,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(ResetTokens.radiusLg),
-            child: NotificationListener<ScrollNotification>(
-              onNotification: _onScroll,
-              child: PageView.builder(
-                controller: _controller,
-                itemCount: visible.length,
-                onPageChanged: (page) => setState(() => _page = page),
-                itemBuilder: (context, index) => _slide(theme, visible[index]),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AspectRatio(
+            aspectRatio: 16 / 10,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(ResetTokens.radiusLg),
+              child: NotificationListener<ScrollNotification>(
+                onNotification: _onScroll,
+                child: PageView.builder(
+                  controller: _controller,
+                  itemCount: visible.length,
+                  onPageChanged: (page) => setState(() => _page = page),
+                  itemBuilder: (context, index) =>
+                      _slide(theme, visible[index]),
+                ),
               ),
             ),
           ),
-        ),
-        if (visible.length > 1) ...[
-          const SizedBox(height: ResetTokens.spaceSm),
-          // Position is visual only; each slide already announces itself.
-          ExcludeSemantics(
-            child: _Dots(
-              count: visible.length,
-              current: _page.clamp(0, visible.length - 1),
+          if (visible.length > 1) ...[
+            const SizedBox(height: ResetTokens.spaceSm),
+            // Position is visual only; each slide already announces itself.
+            ExcludeSemantics(
+              child: _Dots(
+                count: visible.length,
+                current: _page.clamp(0, visible.length - 1),
+              ),
             ),
-          ),
+          ],
         ],
-      ],
       ),
     );
   }
@@ -176,20 +179,26 @@ class _BannerCarouselState extends State<BannerCarousel> {
   Widget _slide(ThemeData theme, HomeBanner banner) {
     final placeholder = ColoredBox(color: theme.surface2Color);
 
-    final picture = Image(
-      image: widget.image(banner.imageUrl),
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      // The frame holds its final size from the start, so nothing below it jumps when the
-      // picture lands.
-      frameBuilder: (context, child, frame, synchronous) =>
-          synchronous || frame != null ? child : placeholder,
-      errorBuilder: (context, error, stackTrace) {
-        _drop(banner.id);
-        return placeholder;
-      },
-    );
+    final picture = banner.isVideo
+        ? _BannerVideo(
+            url: banner.imageUrl,
+            placeholder: placeholder,
+            onFailed: () => _drop(banner.id),
+          )
+        : Image(
+            image: widget.image(banner.imageUrl),
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            // The frame holds its final size from the start, so nothing below it jumps when the
+            // picture lands.
+            frameBuilder: (context, child, frame, synchronous) =>
+                synchronous || frame != null ? child : placeholder,
+            errorBuilder: (context, error, stackTrace) {
+              _drop(banner.id);
+              return placeholder;
+            },
+          );
 
     final slug = banner.serviceSlug;
 
@@ -239,11 +248,87 @@ class _Dots extends StatelessWidget {
             width: i == current ? 16 : 6,
             height: 6,
             decoration: BoxDecoration(
-              color: i == current ? theme.colorScheme.primary : theme.borderColor,
+              color: i == current
+                  ? theme.colorScheme.primary
+                  : theme.borderColor,
               borderRadius: BorderRadius.circular(ResetTokens.radiusFull),
             ),
           ),
       ],
+    );
+  }
+}
+
+/// A banner that moves — client request 05/10/2026.
+///
+/// Muted, looping and inline, exactly as the website plays it. Sound is never turned on: an
+/// advert that starts talking when a customer opens the app is the fastest way to be closed,
+/// and the phone may be in a quiet shop.
+///
+/// Holds the surface colour until the first frame is decoded, so the strip never collapses
+/// and springs back, and gives up quietly if the file will not play — the same treatment a
+/// picture that fails to load already gets.
+class _BannerVideo extends StatefulWidget {
+  const _BannerVideo({
+    required this.url,
+    required this.placeholder,
+    required this.onFailed,
+  });
+
+  final String url;
+  final Widget placeholder;
+  final VoidCallback onFailed;
+
+  @override
+  State<_BannerVideo> createState() => _BannerVideoState();
+}
+
+class _BannerVideoState extends State<_BannerVideo> {
+  VideoPlayerController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    _controller = controller;
+    controller
+        .initialize()
+        .then((_) async {
+          await controller.setLooping(true);
+          await controller.setVolume(0);
+          await controller.play();
+          if (mounted) setState(() {});
+        })
+        .catchError((Object _) {
+          if (mounted) widget.onFailed();
+        });
+  }
+
+  @override
+  void dispose() {
+    // The controller holds a platform player; leaking one leaves the codec running after
+    // the screen is gone.
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) {
+      return widget.placeholder;
+    }
+
+    // Cover, not contain: the frame is a fixed 16:10 band and letterboxing inside it would
+    // read as a mistake rather than as a choice.
+    return FittedBox(
+      fit: BoxFit.cover,
+      clipBehavior: Clip.hardEdge,
+      child: SizedBox(
+        width: controller.value.size.width,
+        height: controller.value.size.height,
+        child: VideoPlayer(controller),
+      ),
     );
   }
 }

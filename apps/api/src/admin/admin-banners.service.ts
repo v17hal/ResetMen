@@ -18,25 +18,39 @@ export class AdminBannersService {
     return this.prisma.banner.findMany({
       where: { storeId },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-      include: { service: { select: { id: true, name: true, slug: true } } },
+      include: {
+        service: { select: { id: true, name: true, slug: true } },
+        placementCategory: { select: { id: true, name: true } },
+        placementService: { select: { id: true, name: true } },
+      },
     });
   }
 
   async create(storeId: string, input: BannerInput) {
     await this.assertService(storeId, input.serviceId);
+    await this.assertPlacement(storeId, input);
     return this.prisma.banner.create({
       data: { storeId, ...input },
-      include: { service: { select: { id: true, name: true, slug: true } } },
+      include: {
+        service: { select: { id: true, name: true, slug: true } },
+        placementCategory: { select: { id: true, name: true } },
+        placementService: { select: { id: true, name: true } },
+      },
     });
   }
 
   async update(storeId: string, id: string, input: BannerInput) {
     const before = await this.find(storeId, id);
     await this.assertService(storeId, input.serviceId);
+    await this.assertPlacement(storeId, input);
     const after = await this.prisma.banner.update({
       where: { id },
       data: input,
-      include: { service: { select: { id: true, name: true, slug: true } } },
+      include: {
+        service: { select: { id: true, name: true, slug: true } },
+        placementCategory: { select: { id: true, name: true } },
+        placementService: { select: { id: true, name: true } },
+      },
     });
     return { before, after };
   }
@@ -51,6 +65,37 @@ export class AdminBannersService {
     const banner = await this.prisma.banner.findFirst({ where: { id, storeId } });
     if (banner === null) throw AppError.notFound('Banner');
     return banner;
+  }
+
+  /**
+   * The category or service a banner is placed on must belong to this store.
+   *
+   * Unlike the tap target, an unpublished one is allowed: a shop preparing a service can
+   * put its banner up first, and nobody sees either until the service is published.
+   */
+  private async assertPlacement(storeId: string, input: BannerInput): Promise<void> {
+    if (input.placement === 'CATEGORY' && input.placementCategoryId !== null) {
+      const category = await this.prisma.category.findFirst({
+        where: { id: input.placementCategoryId, storeId, deletedAt: null },
+        select: { id: true },
+      });
+      if (category === null) {
+        throw AppError.validation('That category does not exist.', {
+          field: 'placementCategoryId',
+        });
+      }
+    }
+    if (input.placement === 'SERVICE' && input.placementServiceId !== null) {
+      const service = await this.prisma.service.findFirst({
+        where: { id: input.placementServiceId, storeId, deletedAt: null },
+        select: { id: true },
+      });
+      if (service === null) {
+        throw AppError.validation('That service does not exist.', {
+          field: 'placementServiceId',
+        });
+      }
+    }
   }
 
   /**

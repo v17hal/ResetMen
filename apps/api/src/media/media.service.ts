@@ -14,9 +14,23 @@ const ALLOWED_MIME = new Map<string, string>([
   ['image/png', '.png'],
   ['image/webp', '.webp'],
   ['image/avif', '.avif'],
+  // Client request 05/10/2026: banners that move. MP4 only — it is what a phone records and
+  // what every browser and Android can play without a codec argument.
+  ['video/mp4', '.mp4'],
 ]);
 
+const VIDEO_MIME = new Set(['video/mp4']);
+
 const MAX_BYTES = 5 * 1024 * 1024;
+/**
+ * Three times the image limit, and deliberately not more.
+ *
+ * A banner autoplays on the home screen, so its weight is paid by every customer who opens
+ * the app, on their own data, before they have asked for anything. Fifteen megabytes is
+ * roughly ten seconds at a sane bitrate; a minute-long advert belongs on YouTube with a link
+ * to it, not in the first screen of a booking app.
+ */
+const MAX_VIDEO_BYTES = 15 * 1024 * 1024;
 
 /**
  * Rendition widths, in device-independent pixels.
@@ -60,18 +74,26 @@ export class MediaService {
     const extension = ALLOWED_MIME.get(file.mimetype);
     if (extension === undefined) {
       throw AppError.validation(
-        `${file.mimetype} is not an accepted image type. Use JPEG, PNG, WebP or AVIF.`,
+        `${file.mimetype} is not an accepted type. Use JPEG, PNG, WebP or AVIF for a picture, ` +
+          'or MP4 for a video.',
       );
     }
 
-    if (file.size > MAX_BYTES) {
-      throw AppError.validation(`Images must be under ${MAX_BYTES / 1024 / 1024} MB.`);
+    const isVideo = VIDEO_MIME.has(file.mimetype);
+    const limit = isVideo ? MAX_VIDEO_BYTES : MAX_BYTES;
+    if (file.size > limit) {
+      throw AppError.validation(
+        isVideo
+          ? `Videos must be under ${limit / 1024 / 1024} MB — about ten seconds. Trim it, or ` +
+              'export it smaller, and try again.'
+          : `Images must be under ${limit / 1024 / 1024} MB.`,
+      );
     }
 
     if (!hasMagicFor(file.mimetype, file.buffer)) {
       // The declared content-type is attacker-controlled. Checking the leading bytes stops
       // a .png header being put on something that is not a PNG.
-      throw AppError.validation('That file does not look like the image type it claims to be.');
+      throw AppError.validation('That file does not look like the type it claims to be.');
     }
 
     // Opaque key. The uploaded filename never reaches the filesystem — that is how path
@@ -82,11 +104,16 @@ export class MediaService {
     await mkdir(join(this.root, params.storeId), { recursive: true });
     await writeFile(this.pathFor(key), file.buffer);
 
-    const { width, height, variants } = await this.deriveVariants({
-      storeId: params.storeId,
-      stem,
-      buffer: file.buffer,
-    });
+    // Renditions are an image idea: sharp cannot open an MP4, and re-encoding video is a
+    // job for a transcoder this project does not run. A video is stored and served as it
+    // arrived, which is also why its size limit is tighter.
+    const { width, height, variants } = isVideo
+      ? { width: null, height: null, variants: {} as Record<string, string> }
+      : await this.deriveVariants({
+          storeId: params.storeId,
+          stem,
+          buffer: file.buffer,
+        });
 
     const asset = await this.prisma.mediaAsset.create({
       data: {
@@ -307,6 +334,9 @@ function hasMagicFor(mime: string, buffer: Buffer): boolean {
       return buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
         buffer.subarray(8, 12).toString('ascii') === 'WEBP';
     case 'image/avif':
+      return buffer.subarray(4, 8).toString('ascii') === 'ftyp';
+    // Same ISO base media container as AVIF: the box type at offset 4 is "ftyp" for both.
+    case 'video/mp4':
       return buffer.subarray(4, 8).toString('ascii') === 'ftyp';
     default:
       return false;

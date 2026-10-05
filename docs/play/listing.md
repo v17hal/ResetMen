@@ -1,8 +1,9 @@
 # Store listing — copy ready to paste
 
-**App name** (30 max)
+**App name** (30 max) — the client asked on 05/10/2026 for the store name to read RESET
+again, which is also what the icon label on the phone has always said.
 ```
-RESETMEN: Massage Booking
+RESET: Massage Booking
 ```
 
 **Short description** (80 max)
@@ -14,7 +15,7 @@ Book a 5 to 30 minute massage in Pune. Pick a time and walk straight in.
 16/09/2026. Re-read them before publishing: the client renames services, and a listing that
 advertises a price the shop no longer charges is worse than a vague one.
 ```
-RESETMEN is a quick dry massage and wellness studio in Sadashiv Peth, Pune. Pick a service, choose a time, and walk straight in. Most sessions take between five and thirty minutes, and there is nothing to arrange over the phone.
+RESET is a quick dry massage and wellness studio in Sadashiv Peth, Pune. Pick a service, choose a time, and walk straight in. Most sessions take between five and thirty minutes, and there is nothing to arrange over the phone.
 
 WHAT YOU CAN DO IN THE APP
 
@@ -42,7 +43,7 @@ WHERE WE ARE
 
 Shreenad Apartments, 3rd Floor, Tilak Road, behind Bank of Maharashtra, Sadashiv Peth, Pune. Open 9am to 9pm, closed on Mondays.
 
-RESETMEN provides non-medical wellness, relaxation and body-care services only. It does not provide medical treatment, diagnosis or physiotherapy.
+RESET provides non-medical wellness, relaxation and body-care services only. It does not provide medical treatment, diagnosis or physiotherapy.
 ```
 
 Keep the last paragraph. It matches the Terms, and it is what keeps the listing clear

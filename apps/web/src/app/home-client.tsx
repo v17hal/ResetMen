@@ -177,7 +177,11 @@ export function HomeClient({ initialHome }: { initialHome: HomeDto | null }) {
         </p>
       )}
 
-      <HomeBanners banners={home.data?.banners ?? []} />
+      {/* The home strip. Banners placed inside a category appear with that category's
+          services below, not here — client request 05/10/2026. */}
+      <HomeBanners
+        banners={(home.data?.banners ?? []).filter((banner) => banner.placement === 'HOME')}
+      />
 
       <CompleteProfileBanner />
 
@@ -290,6 +294,15 @@ export function HomeClient({ initialHome }: { initialHome: HomeDto | null }) {
                     </span>
                   )}
                 </div>
+
+                {/* Banners the shop placed inside this category — client request
+                    05/10/2026. Renders nothing when there are none. */}
+                <HomeBanners
+                  banners={home.data.banners.filter(
+                    (banner) =>
+                      banner.placement === 'CATEGORY' && banner.categoryId === category.id,
+                  )}
+                />
 
                 <ul className="flex flex-col">
                   {services.map((service, index) => (

@@ -74,19 +74,35 @@ export function HomeBanners({ banners }: { banners: HomeBanner[] }) {
         className="flex snap-x snap-mandatory overflow-x-auto rounded-lg shadow-card [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {shown.map((banner, i) => {
-          const image = (
-            // A plain <img>: these come from the media store, already resized on upload.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={banner.imageUrl}
-              alt={banner.altText}
-              // The first one is the largest thing on the page; the rest can wait.
-              loading={i === 0 ? 'eager' : 'lazy'}
-              decoding="async"
-              onError={() => setFailed((current) => new Set(current).add(banner.id))}
-              className="aspect-[16/10] w-full bg-surface2 object-cover"
-            />
-          );
+          const image =
+            banner.mediaType === 'VIDEO' ? (
+              // Muted, looping, inline and silent — an advert with sound on a shop's home
+              // screen is the fastest way to be closed. playsInline is what stops iOS
+              // taking it fullscreen the moment it starts.
+              <video
+                src={banner.imageUrl}
+                aria-label={banner.altText}
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload={i === 0 ? 'auto' : 'metadata'}
+                onError={() => setFailed((current) => new Set(current).add(banner.id))}
+                className="aspect-[16/10] w-full bg-surface2 object-cover"
+              />
+            ) : (
+              // A plain <img>: these come from the media store, already resized on upload.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={banner.imageUrl}
+                alt={banner.altText}
+                // The first one is the largest thing on the page; the rest can wait.
+                loading={i === 0 ? 'eager' : 'lazy'}
+                decoding="async"
+                onError={() => setFailed((current) => new Set(current).add(banner.id))}
+                className="aspect-[16/10] w-full bg-surface2 object-cover"
+              />
+            );
 
           return (
             <div

@@ -27,6 +27,20 @@ datasource db {
 /// Who the shop serves. Changes the wording customers and Google see — not the catalog,
 /// the stations or who may book. The client asked for the switch on 14/09/2026, for
 /// "when we open to women".
+/// A banner can be a still or a short film — client request 05/10/2026.
+enum BannerMedia {
+  IMAGE
+  VIDEO
+}
+
+/// Where a banner appears. The home strip, the top of one category's section, or the top of
+/// one service's page.
+enum BannerPlacement {
+  HOME
+  CATEGORY
+  SERVICE
+}
+
 enum StoreAudience {
   MEN_ONLY
   EVERYONE
@@ -424,6 +438,7 @@ model Category {
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   services Service[]
+  banners  Banner[]
 
   @@unique([storeId, slug])
   @@index([segmentId, sortOrder])
@@ -479,7 +494,8 @@ model Service {
   allocationRules AllocationRuleService[]
   bookings        Booking[]
   streakRules     StreakRule[]
-  banners         Banner[]
+  banners         Banner[] @relation("BannerTarget")
+  pageBanners     Banner[] @relation("BannerOnService")
 
   @@unique([storeId, slug])
   @@index([categoryId, sortOrder])
@@ -1090,13 +1106,25 @@ model Banner {
   storeId String @db.Uuid
   store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
-  imageUrl String
+  /// The picture or the film. Named for what it held first; `mediaType` says which it is.
+  imageUrl  String
+  mediaType BannerMedia @default(IMAGE)
   /// What the picture says, for screen readers and for search engines — the words baked
   /// into the artwork are invisible to both.
   altText  String
   /// Tapping opens this service. Null makes the banner decorative.
   serviceId String?  @db.Uuid
-  service   Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  service   Service? @relation("BannerTarget", fields: [serviceId], references: [id], onDelete: SetNull)
+
+  /// Where it appears. HOME is the strip under the search box; the other two put it at the
+  /// top of one category's section or one service's page. Kept separate from `serviceId`
+  /// above, which is where a tap goes — a banner on the home screen advertising a service
+  /// is a different thing from a banner that belongs to that service's page.
+  placement           BannerPlacement @default(HOME)
+  placementCategoryId String?         @db.Uuid
+  placementCategory   Category?       @relation(fields: [placementCategoryId], references: [id], onDelete: Cascade)
+  placementServiceId  String?         @db.Uuid
+  placementService    Service?        @relation("BannerOnService", fields: [placementServiceId], references: [id], onDelete: Cascade)
 
   sortOrder Int     @default(0)
   isActive  Boolean @default(true)

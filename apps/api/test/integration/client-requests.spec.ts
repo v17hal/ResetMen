@@ -4,8 +4,9 @@ import { PrismaClient } from '@prisma/client';
 import type { BookingStatus } from '@prisma/client';
 import { TERMS } from '@reset/types';
 import { DateTime } from 'luxon';
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { generatePublicId } from '../../src/booking/public-id.js';
 
@@ -179,6 +180,61 @@ describe('client requests of 11/09/2026', () => {
     });
   });
 
+  // ── Banners: where they go, and whether they move ──────────────────────────
+
+  /** Client requests of 05/10/2026: banners inside a category and a service, and video. */
+  describe('banner placement', () => {
+    const create = (body: Record<string, unknown>) =>
+      http()
+        .post('/api/v1/admin/banners')
+        .set('Authorization', adminAuth)
+        .send({ imageUrl: 'https://cdn.example/promo.mp4', altText: 'Ten minutes, head and neck', ...body });
+
+    afterEach(async () => {
+      await raw.banner.deleteMany({ where: { storeId } });
+    });
+
+    it('keeps a service banner off the home screen and on its own page', async () => {
+      const service = await raw.service.findUniqueOrThrow({ where: { id: headId } });
+      const created = await create({
+        mediaType: 'VIDEO',
+        placement: 'SERVICE',
+        placementServiceId: headId,
+      }).expect(201);
+      expect(created.body.mediaType).toBe('VIDEO');
+
+      const home = await http().get('/api/v1/catalog/home').expect(200);
+      expect(home.body.banners.map((b: { id: string }) => b.id)).not.toContain(created.body.id);
+
+      const detail = await http().get(`/api/v1/catalog/services/${service.slug}`).expect(200);
+      expect(detail.body.banners).toHaveLength(1);
+      expect(detail.body.banners[0]).toMatchObject({ mediaType: 'VIDEO' });
+    });
+
+    it('carries a category banner in the home payload, labelled with its category', async () => {
+      const service = await raw.service.findUniqueOrThrow({ where: { id: headId } });
+      const created = await create({
+        placement: 'CATEGORY',
+        placementCategoryId: service.categoryId,
+      }).expect(201);
+
+      const home = await http().get('/api/v1/catalog/home').expect(200);
+      const shown = home.body.banners.find((b: { id: string }) => b.id === created.body.id);
+      expect(shown).toMatchObject({
+        placement: 'CATEGORY',
+        categoryId: service.categoryId,
+        mediaType: 'IMAGE',
+      });
+    });
+
+    it('refuses a placement with nowhere to appear', async () => {
+      // Saved, it would be invisible for ever, with nothing to say why.
+      await create({ placement: 'CATEGORY' }).expect(422);
+      await create({ placement: 'SERVICE' }).expect(422);
+      await create({ placement: 'CATEGORY', placementCategoryId: randomUUID() }).expect(422);
+    });
+  });
+
   // ── Menu presentation ──────────────────────────────────────────────────────
 
   describe('menu presentation', () => {
@@ -251,8 +307,18 @@ describe('client requests of 11/09/2026', () => {
         .expect(201);
 
       const home = await http().get('/api/v1/catalog/home').expect(200);
+      // Exact, not partial: a field quietly added to this payload is a field the apps have
+      // to be taught about, and this assertion is where that conversation starts.
       expect(home.body.banners).toEqual([
-        { id: created.body.id, imageUrl, altText, serviceSlug: 'head' },
+        {
+          id: created.body.id,
+          imageUrl,
+          mediaType: 'IMAGE',
+          altText,
+          serviceSlug: 'head',
+          placement: 'HOME',
+          categoryId: null,
+        },
       ]);
     });
 

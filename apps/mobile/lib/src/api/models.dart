@@ -240,10 +240,25 @@ class HomeBanner {
     required this.imageUrl,
     required this.altText,
     required this.serviceSlug,
+    this.isVideo = false,
+    this.placement = 'HOME',
+    this.categoryId,
   });
 
   final String id;
+
+  /// The picture, or the MP4 when [isVideo].
   final String imageUrl;
+
+  /// Client request 05/10/2026: a banner may be a short film rather than a still.
+  final bool isVideo;
+
+  /// 'HOME' for the strip under the search box, 'CATEGORY' for the top of one category's
+  /// section. Kept as a string: an older build must not crash on a value added later.
+  final String placement;
+
+  /// Set when [placement] is 'CATEGORY'.
+  final String? categoryId;
 
   /// Read out by TalkBack. The picture carries the offer, so without this a screen-reader
   /// user hears nothing where everyone else sees the headline deal.
@@ -257,6 +272,9 @@ class HomeBanner {
         id: _str(json['id']),
         imageUrl: _str(json['imageUrl']),
         altText: _str(json['altText']),
+        isVideo: json['mediaType'] == 'VIDEO',
+        placement: json['placement'] as String? ?? 'HOME',
+        categoryId: json['categoryId'] as String?,
         serviceSlug: _optStr(json['serviceSlug']),
       );
 }
@@ -356,6 +374,7 @@ class ServiceDetail with ServicePresentation {
     this.tagline,
     this.compareAtPricePaise,
     this.badge,
+    this.banners = const [],
   });
 
   final String id;
@@ -366,6 +385,11 @@ class ServiceDetail with ServicePresentation {
   final int pricePaise;
   final int durationMinutes;
   final List<AddonGroup> addonGroups;
+
+  /// Banners the shop placed on this service's own page — client request 05/10/2026.
+  /// Empty for a service nobody has decorated, which is every service until someone does.
+  final List<HomeBanner> banners;
+
   @override
   final String? emoji;
   @override
@@ -376,6 +400,7 @@ class ServiceDetail with ServicePresentation {
   final String? badge;
 
   factory ServiceDetail.fromJson(Map<String, dynamic> json) => ServiceDetail(
+        banners: _list(json['banners'], HomeBanner.fromJson),
         id: _str(json['id']),
         name: _str(json['name']),
         description: json['description'] as String?,

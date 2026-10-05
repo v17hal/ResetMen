@@ -131,6 +131,14 @@ export class CatalogService {
             },
           },
         },
+        // Banners the shop has placed on this service's own page — client request
+        // 05/10/2026. Carried in the service payload so a customer arriving from a link
+        // sees them without a second request.
+        pageBanners: {
+          where: { isActive: true },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          select: { id: true, imageUrl: true, mediaType: true, altText: true },
+        },
       },
     });
     if (service === null) throw AppError.notFound('Service');
@@ -144,6 +152,7 @@ export class CatalogService {
       pricePaise: service.pricePaise,
       durationMinutes: service.durationMinutes,
       categoryId: service.categoryId,
+      banners: service.pageBanners,
       ...display(service),
       addonGroups: service.addonGroups
         .filter((link) => link.addonGroup.isActive)
@@ -182,7 +191,10 @@ export class CatalogService {
       select: {
         id: true,
         imageUrl: true,
+        mediaType: true,
         altText: true,
+        placement: true,
+        placementCategoryId: true,
         service: { select: { slug: true, isActive: true, deletedAt: true } },
       },
     });
@@ -193,9 +205,16 @@ export class CatalogService {
       // A link is only offered while its service is bookable. A service unpublished after
       // the banner went up leaves a picture that does nothing, not one that leads to a
       // "not found" page.
-      banners: banners.map((banner) => ({
+      // Every banner that belongs on this screen, home strip and category headers alike —
+      // the list is a handful of rows, and one payload beats a request per category.
+      banners: banners
+        .filter((banner) => banner.placement !== 'SERVICE')
+        .map((banner) => ({
         id: banner.id,
         imageUrl: banner.imageUrl,
+        mediaType: banner.mediaType,
+        placement: banner.placement,
+        categoryId: banner.placementCategoryId,
         altText: banner.altText,
         serviceSlug:
           banner.service !== null && banner.service.isActive && banner.service.deletedAt === null

@@ -6,6 +6,7 @@ import '../format.dart';
 import '../providers.dart';
 import '../theme/app_theme.dart';
 import '../theme/reset_tokens.dart';
+import '../widgets/banner_carousel.dart';
 import '../widgets/common.dart';
 import '../widgets/service_tile.dart';
 import 'slots_screen.dart';
@@ -83,6 +84,14 @@ class _ServiceScreenState extends ConsumerState<ServiceScreen> {
                         height: 180,
                       ),
                     ),
+                    // Banners the shop placed on this service's page — client request
+                    // 05/10/2026. No link: the customer is already where a tap would go.
+                    if (data.banners.isNotEmpty)
+                      BannerCarousel(
+                        banners: data.banners,
+                        onOpen: (_) {},
+                        padding: const EdgeInsets.only(top: ResetTokens.spaceBase),
+                      ),
                     const SizedBox(height: ResetTokens.spaceBase),
 
                     ServiceName(

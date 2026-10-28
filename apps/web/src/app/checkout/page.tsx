@@ -51,6 +51,12 @@ function Checkout() {
   const [error, setError] = useState<string | null>(null);
   /** The Terms checkbox — client requirement 11/09/2026. Unticked on every visit. */
   const [agreed, setAgreed] = useState(false);
+  /**
+   * Online or at the counter — client request 28/10/2026, their choice. The counter is
+   * preselected: it is the way this shop has always worked and the path every regular
+   * already knows. Only offered at all while the store has online payment switched on.
+   */
+  const [method, setMethod] = useState<'ONLINE' | 'COUNTER'>('COUNTER');
 
   /**
    * One key for the whole checkout, generated when the screen mounts.
@@ -63,6 +69,9 @@ function Checkout() {
   const orderKey = useRef(`order-${crypto.randomUUID()}`);
 
   const store = useQuery({ queryKey: ['store'], queryFn: () => api().catalog.store() });
+  /** Online payment is only offered while the store has a gateway switched on. */
+  const onlineAvailable = store.data?.paymentsEnabled === true;
+  const payingOnline = onlineAvailable && method === 'ONLINE';
 
   const quote = useQuery({
     queryKey: ['quote', serviceId, addonOptionIds, rewardId],
@@ -81,7 +90,14 @@ function Checkout() {
     mutationFn: () =>
       api().bookings.hold(
         // The version goes with the booking, so the record says which wording was agreed to.
-        { serviceId, startsAt, addonOptionIds, rewardId, termsVersion: TERMS.version },
+        {
+          serviceId,
+          startsAt,
+          addonOptionIds,
+          rewardId,
+          termsVersion: TERMS.version,
+          paymentMethod: onlineAvailable ? method : 'COUNTER',
+        },
         holdKey.current,
       ),
     onSuccess: (created) => {
@@ -108,10 +124,17 @@ function Checkout() {
       const booked = hold ?? (await createHold.mutateAsync());
       setHold(booked);
 
-      // Nothing to charge: the store takes money at the counter, so the hold came back
-      // already CONFIRMED. Asking for a payment order here is what produced "this booking
-      // is already paid for" on a booking that had just been made successfully.
+      // Paying at the counter: the booking came back already CONFIRMED and there is nothing
+      // to charge. Asking for a payment order here is what produced "this booking is already
+      // paid for" on a booking that had just been made successfully.
       if (booked.paymentRequired === false) return booked;
+
+      // They chose online, the payment did not go through, and they switched to the counter.
+      // The held booking is converted rather than a second one made beside it.
+      if (method === 'COUNTER') {
+        await api().bookings.payAtCounter(booked.bookingId);
+        return booked;
+      }
 
       const order = await api().payments.createOrder(
         { bookingId: booked.bookingId },
@@ -248,7 +271,7 @@ function Checkout() {
       {!hasToken || user === null ? (
         <Card className="flex flex-col gap-base">
           <h2 className="font-display text-h2">
-            {store.data?.paymentsEnabled === false ? 'Sign in to book' : 'Sign in to pay'}
+            Sign in to book
           </h2>
           <SignIn reason="Your slot is held while you do this." />
         </Card>
@@ -260,6 +283,49 @@ function Checkout() {
         <PhoneRequired />
       ) : (
         <>
+        {onlineAvailable && (
+          <Card className="flex flex-col gap-sm">
+            <span className="text-body-sm font-medium">How would you like to pay?</span>
+            {(
+              [
+                {
+                  value: 'ONLINE',
+                  title: 'Pay online now',
+                  detail: 'UPI, card or netbanking. Your entry QR is ready straight away.',
+                },
+                {
+                  value: 'COUNTER',
+                  title: 'Pay at the counter',
+                  detail: 'Pay when you arrive. Your entry QR is issued once you have paid.',
+                },
+              ] as const
+            ).map((option) => (
+              <label
+                key={option.value}
+                className={
+                  'flex cursor-pointer items-start gap-sm rounded-md border p-sm text-body-sm ' +
+                  (method === option.value ? 'border-primary bg-primary/5' : 'border-border')
+                }
+              >
+                <input
+                  type="radio"
+                  name="payment-method"
+                  value={option.value}
+                  checked={method === option.value}
+                  onChange={() => {
+                    setMethod(option.value);
+                    setError(null);
+                  }}
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-primary"
+                />
+                <span className="flex flex-col">
+                  <span className="font-medium">{option.title}</span>
+                  <span className="text-caption text-text-muted">{option.detail}</span>
+                </span>
+              </label>
+            ))}
+          </Card>
+        )}
         <Card>
           <label className="flex cursor-pointer items-start gap-sm text-body-sm">
             <input
@@ -295,10 +361,10 @@ function Checkout() {
             disabled={quote.data === undefined || !agreed}
             onClick={() => pay.mutate()}
           >
-            {/* "Pay" is a promise the screen cannot keep while payment happens at the
-                counter — the button confirms a booking and takes no money. */}
-            {/* Payments are off, so this button books and takes no money. */}
-            {store.data?.paymentsEnabled === false
+            {/* "Pay" only when money is actually taken here. Paying at the counter, this
+                button books and charges nothing — promising otherwise is how people end up
+                paying twice. */}
+            {!payingOnline
               ? 'Book'
               : quote.data === undefined
                 ? 'Pay'
@@ -318,7 +384,7 @@ function Checkout() {
       <p className="text-caption text-text-muted">
         {/* Said before booking, not after. Someone expecting to pay online should learn
             otherwise while they can still change their mind. */}
-        {store.data?.paymentsEnabled === false && 'Pay at the counter. '}
+        {payingOnline ? 'Paid securely through Razorpay. ' : 'Pay at the counter. '}
         Free cancellation up to {Math.round((store.data?.cancellationWindowMinutes ?? 120) / 60)}{' '}
         hours before your slot.
       </p>

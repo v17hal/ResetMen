@@ -151,6 +151,7 @@ class ResetRepository {
     List<String> addonOptionIds = const [],
     String? rewardId,
     String? termsVersion,
+    String paymentMethod = 'COUNTER',
     required String idempotencyKey,
   }) async =>
       Hold.fromJson(await _api.post<Map<String, dynamic>>(
@@ -161,6 +162,8 @@ class ResetRepository {
           'addonOptionIds': addonOptionIds,
           'rewardId': rewardId,
           if (termsVersion != null) 'termsVersion': termsVersion,
+          // Online or at the counter — the customer's choice since 28/10/2026.
+          'paymentMethod': paymentMethod,
         },
         idempotencyKey: idempotencyKey,
       ));
@@ -217,11 +220,27 @@ class ResetRepository {
   Future<Booking> booking(String id) async =>
       Booking.fromJson(await _api.get<Map<String, dynamic>>('/bookings/$id'));
 
-  Future<Booking> cancelBooking(String id, {String? reason}) async =>
-      Booking.fromJson(await _api.post<Map<String, dynamic>>(
-        '/bookings/$id/cancel',
-        body: {if (reason != null) 'reason': reason},
-      ));
+  /// Cancels, and reports what went back to the card or UPI for a booking paid online.
+  Future<({Booking booking, int refundedPaise, bool refundFailed})> cancelBooking(
+    String id, {
+    String? reason,
+  }) async {
+    final json = await _api.post<Map<String, dynamic>>(
+      '/bookings/$id/cancel',
+      body: {if (reason != null) 'reason': reason},
+    );
+    final refund = json['refund'] as Map<String, dynamic>?;
+    return (
+      booking: Booking.fromJson(json),
+      refundedPaise: (refund?['refundedPaise'] as num?)?.toInt() ?? 0,
+      refundFailed: refund?['failed'] as bool? ?? false,
+    );
+  }
+
+  /// Switches a held, unpaid online booking to paying at the counter — for the customer
+  /// whose UPI payment failed or who changed their mind on the payment sheet.
+  Future<void> payAtCounter(String id) =>
+      _api.post<Map<String, dynamic>>('/bookings/$id/pay-at-counter');
 
   Future<void> reschedule(String id, String startsAt) =>
       _api.post<Map<String, dynamic>>('/bookings/$id/reschedule',

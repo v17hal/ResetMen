@@ -48,8 +48,22 @@ export default function BookingsPage() {
 
   const cancel = useMutation({
     mutationFn: (id: string) => api().bookings.cancel(id),
-    onSuccess: () => {
-      toast.success('Cancelled. The slot is free again.');
+    onSuccess: (result) => {
+      // Paid online: say what is coming back, and when. A refund the gateway refused is
+      // not hidden behind "Cancelled" — the shop has it on its list and will deal with it.
+      const refunded = result.refund?.refundedPaise ?? 0;
+      if (result.refund?.failed === true) {
+        toast.success(
+          'Cancelled. Your refund could not be started automatically — the shop will send it.',
+        );
+      } else if (refunded > 0) {
+        toast.success(
+          `Cancelled. ${formatMoney(refunded)} is on its way back to your card or UPI — ` +
+            'usually within 5–7 working days.',
+        );
+      } else {
+        toast.success('Cancelled. The slot is free again.');
+      }
       void queryClient.invalidateQueries({ queryKey: ['bookings'] });
       setCancelling(null);
     },
@@ -200,9 +214,12 @@ export default function BookingsPage() {
         description={
           cancelling === null
             ? undefined
-            : // No card was charged — the store takes payment at the counter — so promising
-              // a refund to one is telling the customer something that cannot happen.
-              `${cancelling.serviceName}, ${formatDateTime(cancelling.startsAt, zone)}. The slot goes back for someone else to book.`
+            : // Paid online, the money goes back to the same card or UPI automatically. Paid
+              // at the counter — or not yet paid — there is nothing online to refund.
+              `${cancelling.serviceName}, ${formatDateTime(cancelling.startsAt, zone)}. The slot goes back for someone else to book.` +
+              (cancelling.isPaid
+                ? ' If you paid online, it is refunded to the same card or UPI.'
+                : '')
         }
         confirmLabel="Yes, cancel"
         cancelLabel="Keep it"

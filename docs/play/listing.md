@@ -21,7 +21,7 @@ WHAT YOU CAN DO IN THE APP
 
 • See every service with its price and how long it takes
 • Choose from times that are genuinely free today or later this week
-• Book in seconds — no card needed, you pay at the counter
+• Book in seconds, and pay online or at the counter — your choice
 • Show your entry QR when you arrive and walk straight to your chair
 • Keep every visit in one place, and rebook a favourite in two taps
 • Ask us anything from Help, and read our reply in the app
@@ -37,7 +37,7 @@ Premium — ₹299, 30 minutes.
 
 PAYING
 
-Sessions are paid at the counter when you arrive. The app never asks for card details.
+Pay online when you book — UPI, card or netbanking, through Razorpay — or pay at the counter when you arrive. Cancel in time and an online payment is refunded automatically to the same card or UPI.
 
 WHERE WE ARE
 
@@ -60,7 +60,7 @@ of Play's health-claims rules.
 | Target audience | 18 and over. Not appealing to children. |
 | Data safety | See the table in README.md — it matches the code |
 | Government apps | No |
-| Financial features | No. Money is taken at the counter; the app processes no payment. Revisit if online payment is switched on. |
+| Financial features | **None of these.** Paying for a session through Razorpay is not one of the listed financial features (lending, banking, wallets, crypto, P2P transfers). |
 | Health | Not a health app. No health data is collected, and no medical or therapeutic claim is made. |
 | Category | **Lifestyle** (not Health & Fitness — it invites health declarations this app does not need) |
 | Contact details | The client's email and `https://resetmen.in`. A phone number is optional; the shop answers in writing through Help. |

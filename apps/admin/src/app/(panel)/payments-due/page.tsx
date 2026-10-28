@@ -170,13 +170,25 @@ export default function PaymentsDuePage() {
     onError: (error: unknown) => toast.error(errorMessage(error)),
   });
 
-  const orderRows = unpaidOrders.data ?? [];
+  /**
+   * An order whose online payment is under way is not owed at the counter.
+   *
+   * Customers choose online or counter since 28/10/2026. A counter order has no payment row
+   * at all; one with a payment CREATED or AUTHORIZED is a customer on the Razorpay screen
+   * right now. Listing it here with a "Mark paid" button is how someone pays twice. Left
+   * unpaid, the abandoned-checkout job releases it after half an hour.
+   */
+  const orderRows = (unpaidOrders.data ?? []).filter(
+    (order) => order.paymentStatus !== 'CREATED' && order.paymentStatus !== 'AUTHORIZED',
+  );
   const ordersOutstanding = orderRows.reduce((sum, order) => sum + order.totalPaise, 0);
 
-  // Cancelled and expired bookings are not money anybody is owed.
+  // Cancelled and expired bookings are not money anybody is owed — and nor is a HELD one:
+  // that is a customer paying online at this moment, or a checkout that lapses on its own.
+  // Offering "Mark paid" on it is how a booking gets paid for twice.
   const collectable = timeline.data
     .flatMap((station) => station.bookings)
-    .filter((b) => b.status !== 'CANCELLED' && b.status !== 'EXPIRED')
+    .filter((b) => b.status !== 'CANCELLED' && b.status !== 'EXPIRED' && b.status !== 'HELD')
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
 
   const rows = onlyUnpaid ? collectable.filter((b) => !b.isPaid) : collectable;

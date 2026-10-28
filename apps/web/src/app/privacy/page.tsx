@@ -34,7 +34,7 @@ export default async function PrivacyPage() {
           ← Book a session
         </Link>
         <h1 className="font-display text-h1">Privacy Policy</h1>
-        <p className="text-body-sm text-text-muted">Last updated 15 September 2026.</p>
+        <p className="text-body-sm text-text-muted">Last updated 28 October 2026.</p>
       </header>
 
       <Section title="Who we are">
@@ -61,8 +61,8 @@ export default async function PrivacyPage() {
             arrived. This is the service itself, and what your entry QR is checked against.
           </li>
           <li>
-            <strong>Payments</strong>, recorded when you pay at the counter: amount, method, date.
-            We never see or store card details.
+            <strong>Payments</strong>: the amount, the method and the date. If you pay online,
+            your card or UPI details go straight to Razorpay — we never see or store them.
           </li>
           <li>
             <strong>Questions you send us</strong> through Help, and our replies.
@@ -96,8 +96,8 @@ export default async function PrivacyPage() {
           <li><strong>Google (Firebase)</strong> — signing you in, and delivering notifications.</li>
           <li><strong>MSG91</strong> — sending an SMS, where we send one.</li>
           <li>
-            <strong>Razorpay</strong> — only if paying online is switched on. Today every booking is
-            settled at the counter, so nothing reaches a payment gateway.
+            <strong>Razorpay</strong> — when you choose to pay online. Razorpay processes the
+            payment and any refund; card and UPI details go to them, not to us.
           </li>
         </ul>
         <p>Our servers are in India. Nobody else receives your details, unless the law requires it.</p>

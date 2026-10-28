@@ -571,6 +571,49 @@ export class PaymentService {
   }
 
   /**
+   * Refunds whatever a customer paid online for a booking they have just cancelled.
+   *
+   * Counter payments are left alone: that money was handed over in person and goes back
+   * the same way, recorded from the admin panel.
+   *
+   * Never throws. The cancellation has already happened; a gateway outage must not turn it
+   * into an error screen. A failed refund is logged and the payment stays CAPTURED, which is
+   * exactly what the admin Payments page offers to refund.
+   */
+  async refundOnlinePaymentsForCancellation(
+    bookingId: string,
+  ): Promise<{ refundedPaise: number; failed: boolean }> {
+    const paid = await this.prisma.payment.findMany({
+      where: {
+        bookingId,
+        gateway: 'RAZORPAY',
+        status: { in: ['CAPTURED', 'PARTIALLY_REFUNDED'] },
+      },
+      select: { id: true },
+    });
+
+    let refundedPaise = 0;
+    let failed = false;
+    for (const payment of paid) {
+      try {
+        const result = await this.refund({
+          paymentId: payment.id,
+          reason: 'Cancelled by the customer within the cancellation window',
+          adminId: null,
+        });
+        refundedPaise += result.amountPaise;
+      } catch (error) {
+        failed = true;
+        this.logger.error(
+          `Automatic refund failed for payment ${payment.id}: ` +
+            (error instanceof Error ? error.message : String(error)),
+        );
+      }
+    }
+    return { refundedPaise, failed };
+  }
+
+  /**
    * Money handed back across the counter.
    *
    * The gateway refund path above cannot run here, and refuses to try: it needs a

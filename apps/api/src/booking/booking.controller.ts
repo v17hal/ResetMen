@@ -32,6 +32,7 @@ import { loadEnv } from '../config/env.js';
 import { StoreIdHeader, StoreScopeService } from '../common/store-scope.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { BookingLifecycleService } from './booking-lifecycle.service.js';
+import { PaymentService } from '../payments/payment.service.js';
 import { BookingService } from './booking.service.js';
 
 @ApiTags('bookings')
@@ -44,6 +45,9 @@ export class BookingController {
     private readonly bookings: BookingService,
     private readonly lifecycle: BookingLifecycleService,
     private readonly scope: StoreScopeService,
+    // Here, not in the lifecycle service: PaymentService already depends on the lifecycle,
+    // and the reverse injection is a cycle Nest resolves to undefined at boot.
+    private readonly payments: PaymentService,
   ) {}
 
   @Post('quote')
@@ -103,7 +107,19 @@ export class BookingController {
      * point — the slot is kept while someone goes to find their phone — and the payment step
      * claims it afterwards.
      */
-    if (!this.paymentsEnabled && userId === null) {
+    /**
+     * Online payment is offered only while the gateway is configured. A client that asks for
+     * it anyway — an app built for a store that has since switched it off — is told plainly
+     * rather than left holding a slot it can never pay for.
+     */
+    if (body.paymentMethod === 'ONLINE' && !this.paymentsEnabled) {
+      throw AppError.validation(
+        'Paying online is not available right now. Choose to pay at the counter instead.',
+        { field: 'paymentMethod' },
+      );
+    }
+
+    if ((body.paymentMethod === 'COUNTER' || !this.paymentsEnabled) && userId === null) {
       throw new AppError(
         'UNAUTHENTICATED',
         401,
@@ -152,12 +168,14 @@ export class BookingController {
      * Signing in is still required, but only because an anonymous booking has nobody to
      * notify and no QR to show.
      */
-    if (!this.paymentsEnabled) {
+    if (body.paymentMethod === 'COUNTER') {
       await this.lifecycle.confirm(hold.bookingId, userId);
-      return { ...hold, status: 'CONFIRMED', paymentRequired: false };
+      return { ...hold, status: 'CONFIRMED', paymentRequired: false, paymentMethod: 'COUNTER' };
     }
 
-    return { ...hold, paymentRequired: true };
+    // Online: the hold keeps the slot while the customer pays. Unpaid, it lapses on its own
+    // after the store's hold window, exactly as a gateway checkout always has.
+    return { ...hold, paymentRequired: true, paymentMethod: 'ONLINE' };
   }
 
   @Get()
@@ -206,6 +224,15 @@ export class BookingController {
     });
   }
 
+  /** Pay at the counter instead — see BookingLifecycleService.switchToCounter. */
+  @Post(':id/pay-at-counter')
+  @ApiBearerAuth()
+  @UseGuards(CustomerGuard)
+  async payAtCounter(@CurrentAuth() auth: TokenClaims, @Param('id') id: string) {
+    const result = await this.lifecycle.switchToCounter(id, auth.sub);
+    return { ...result, paymentRequired: false, paymentMethod: 'COUNTER' as const };
+  }
+
   @Post(':id/cancel')
   @ApiBearerAuth()
   @UseGuards(CustomerGuard)
@@ -214,7 +241,19 @@ export class BookingController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(cancelRequest)) body: z.infer<typeof cancelRequest>,
   ) {
-    return this.lifecycle.cancelByCustomer(id, auth.sub, body.reason);
+    const result = await this.lifecycle.cancelByCustomer(id, auth.sub, body.reason);
+
+    /**
+     * Money paid online goes back online.
+     *
+     * With the counter as the only way to pay, a cancellation needed no refund — nothing had
+     * been taken. A customer who paid online and cancels within the window has paid, and
+     * until now the money stayed with the shop until someone remembered the Refund button.
+     * The booking is cancelled either way; a refund the gateway refuses is reported, not
+     * thrown, and the payment stays on the admin Payments page as refundable.
+     */
+    const refund = await this.payments.refundOnlinePaymentsForCancellation(id);
+    return { ...result, refund };
   }
 
   /**

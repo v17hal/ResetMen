@@ -41,6 +41,13 @@ export default function ShopPage() {
 
   const products = useQuery({ queryKey: ['products'], queryFn: () => api().products.list() });
   const store = useQuery({ queryKey: ['store'], queryFn: () => api().catalog.store() });
+  /**
+   * Online now, or at the store when collecting — client request 28/10/2026, the same choice
+   * as a booking. Collecting is preselected: it is how every shop order has been paid so far.
+   */
+  const [method, setMethod] = useState<'ONLINE' | 'COUNTER'>('COUNTER');
+  const onlineAvailable = store.data?.paymentsEnabled === true;
+  const payingOnline = onlineAvailable && method === 'ONLINE';
 
   const lines = useMemo(
     () =>
@@ -74,7 +81,9 @@ export default function ShopPage() {
        *
        * The booking flow has always skipped payment the same way. This is that.
        */
-      if (store.data?.paymentsEnabled !== true) return order;
+      // Paying on collection: the order is a reservation, and nothing is charged here. The
+      // abandoned-cart job leaves it alone because no online payment was ever started.
+      if (!payingOnline) return order;
 
       const payment = await api().payments.createOrder(
         { productOrderId: order.id },
@@ -100,7 +109,7 @@ export default function ShopPage() {
     },
     onSuccess: () => {
       toast.success(
-        store.data?.paymentsEnabled === true
+        payingOnline
           ? 'Paid. We will text you when it is ready to collect.'
           : 'Ordered. Pay at the store when you collect it.',
       );
@@ -128,7 +137,9 @@ export default function ShopPage() {
     <div className="flex flex-col gap-base p-base">
       <header className="flex flex-col gap-xs">
         <h1 className="font-display text-h1">Shop</h1>
-        <p className="text-body-sm text-text-muted">Pay online, collect at the counter.</p>
+        <p className="text-body-sm text-text-muted">
+          {onlineAvailable ? 'Pay online or when you collect.' : 'Pay when you collect it.'}
+        </p>
       </header>
 
       {products.isError ? (
@@ -211,20 +222,52 @@ export default function ShopPage() {
           {!hasToken && signInOpen ? (
             <Card>
               <SignIn
-                reason="Sign in to pay and collect."
+                reason="Sign in to order and collect."
                 onSignedIn={() => setSignInOpen(false)}
               />
             </Card>
           ) : (
-            <Button
-              size="lg"
-              fullWidth
-              loading={checkout.isPending}
-              onClick={() => (hasToken ? checkout.mutate() : setSignInOpen(true))}
-            >
-              Pay {formatMoney(total)} · {lines.reduce((sum, line) => sum + line.qty, 0)} item
-              {lines.reduce((sum, line) => sum + line.qty, 0) === 1 ? '' : 's'}
-            </Button>
+            <div className="flex flex-col gap-xs">
+              {onlineAvailable && (
+                <div
+                  role="radiogroup"
+                  aria-label="How would you like to pay?"
+                  className="grid grid-cols-2 gap-xs rounded-lg bg-surface p-xs shadow-card"
+                >
+                  {(
+                    [
+                      ['ONLINE', 'Pay online now'],
+                      ['COUNTER', 'Pay when I collect'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={method === value}
+                      onClick={() => setMethod(value)}
+                      className={
+                        'min-h-touch rounded-md px-sm text-body-sm font-medium ' +
+                        (method === value ? 'bg-primary text-primary-fg' : 'text-text')
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <Button
+                size="lg"
+                fullWidth
+                loading={checkout.isPending}
+                onClick={() => (hasToken ? checkout.mutate() : setSignInOpen(true))}
+              >
+                {/* "Pay" only when money is taken here; otherwise the button reserves. */}
+                {payingOnline ? 'Pay ' : 'Order '}
+                {formatMoney(total)} · {lines.reduce((sum, line) => sum + line.qty, 0)} item
+                {lines.reduce((sum, line) => sum + line.qty, 0) === 1 ? '' : 's'}
+              </Button>
+            </div>
           )}
         </div>
       )}

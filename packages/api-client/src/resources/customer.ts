@@ -208,7 +208,14 @@ export class BookingsResource {
     });
   }
 
-  cancel(id: string, reason?: string): Promise<BookingDetail> {
+  /**
+   * `refund` reports what went back to the card or UPI for a booking paid online. A counter
+   * booking has nothing to refund online and reports zero.
+   */
+  cancel(
+    id: string,
+    reason?: string,
+  ): Promise<BookingDetail & { refund?: { refundedPaise: number; failed: boolean } }> {
     return this.http.post(`/bookings/${encodeURIComponent(id)}/cancel`, {
       body: { reason },
     });
@@ -222,6 +229,13 @@ export class BookingsResource {
    */
   confirm(id: string): Promise<{ booking: BookingDetail }> {
     return this.http.post(`/bookings/${encodeURIComponent(id)}/confirm`);
+  }
+
+  /** Switch a held, unpaid booking to paying at the counter (payment failed, mind changed). */
+  payAtCounter(
+    id: string,
+  ): Promise<{ status: 'CONFIRMED'; changed: boolean; paymentRequired: false; paymentMethod: 'COUNTER' }> {
+    return this.http.post(`/bookings/${encodeURIComponent(id)}/pay-at-counter`);
   }
 }
 

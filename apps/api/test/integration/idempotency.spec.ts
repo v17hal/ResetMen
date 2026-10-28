@@ -84,7 +84,8 @@ describe('idempotency', () => {
     const held = await request(app.getHttpServer())
       .post('/api/v1/bookings/hold')
       .set('Authorization', `Bearer ${token}`)
-      .send({ serviceId, startsAt: cursor.set({ hour: 13 }).toISO() })
+      // Online: these tests are about payment orders, which a counter booking never creates.
+      .send({ serviceId, startsAt: cursor.set({ hour: 13 }).toISO(), paymentMethod: 'ONLINE' })
       .expect(201);
 
     bookingId = held.body.bookingId;

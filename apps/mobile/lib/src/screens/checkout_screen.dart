@@ -61,6 +61,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   Quote? _quote;
   Hold? _hold;
+
+  /// Online or at the counter — client request 28/10/2026. The counter is preselected: it is
+  /// how this shop has always worked and the path every regular knows.
+  String _method = 'COUNTER';
   String? _rewardId;
   String? _error;
 
@@ -134,6 +138,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             addonOptionIds: widget.addonIds,
             rewardId: _rewardId,
             termsVersion: _agreedVersion,
+            // Only offered while the store has online payment switched on.
+            paymentMethod: (ref.read(storeProvider).valueOrNull?.paymentsEnabled ?? false)
+                ? _method
+                : 'COUNTER',
             idempotencyKey: _holdKey,
           );
       if (mounted) setState(() => _hold = hold);
@@ -212,6 +220,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       // already CONFIRMED. Asking for a payment order here is what produced "this booking
       // is already paid for" on a booking that had just been made successfully.
       if (!hold.paymentRequired) {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => ConfirmationScreen(bookingId: hold.bookingId),
+          ),
+        );
+        return;
+      }
+
+      // They chose online, the payment did not go through, and they switched to the
+      // counter. The held booking is converted rather than a second one made beside it —
+      // on a single-station service the second would find the first in its way.
+      if (_method == 'COUNTER') {
+        await repository.payAtCounter(hold.bookingId);
         if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
@@ -363,6 +385,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
                 ],
 
+                if (paymentsEnabled) ...[
+                  const SizedBox(height: ResetTokens.spaceXl),
+                  _PaymentChoice(
+                    value: _method,
+                    onChanged: (value) => setState(() {
+                      _method = value;
+                      _error = null;
+                    }),
+                  ),
+                ],
+
                 const SizedBox(height: ResetTokens.spaceXl),
                 _TermsAgreement(
                   terms: termsAsync,
@@ -373,9 +406,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 ),
                 const SizedBox(height: ResetTokens.spaceBase),
                 PrimaryButton(
-                  // "Pay" is a promise the screen cannot keep while payment happens at the
-                  // counter — the button confirms a booking and takes no money.
-                  label: switch ((paymentsEnabled, quote)) {
+                  // "Pay" only when money is taken here. Paying at the counter, the
+                  // button books and charges nothing.
+                  label: switch ((paymentsEnabled && _method == 'ONLINE', quote)) {
                     (false, _) => 'Book',
                     (true, null) => 'Pay',
                     (true, final q?) => 'Pay ${formatMoney(q.payablePaise)}',
@@ -393,7 +426,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   [
                     // Said before confirming, not after. Someone expecting to pay in the
                     // app should learn otherwise while they can still change their mind.
-                    if (!paymentsEnabled) 'Pay at the counter.',
+                    if (paymentsEnabled && _method == 'ONLINE')
+                      'Paid securely through Razorpay.'
+                    else
+                      'Pay at the counter.',
                     'Free cancellation up to '
                         '${((ref.watch(storeProvider).valueOrNull?.cancellationWindowMinutes ?? 120) / 60).round()} '
                         'hours before your slot.',
@@ -409,6 +445,89 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
 class _PaymentCancelled implements Exception {
   const _PaymentCancelled();
+}
+
+/// Online now, or at the counter on arrival — the customer's choice.
+class _PaymentChoice extends StatelessWidget {
+  const _PaymentChoice({required this.value, required this.onChanged});
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const options = [
+      (
+        'ONLINE',
+        'Pay online now',
+        'UPI, card or netbanking. Your entry QR is ready straight away.',
+      ),
+      (
+        'COUNTER',
+        'Pay at the counter',
+        'Pay when you arrive. Your entry QR is issued once you have paid.',
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('How would you like to pay?', style: ResetTokens.h2),
+        const SizedBox(height: ResetTokens.spaceSm),
+        for (final (method, title, detail) in options)
+          Padding(
+            padding: const EdgeInsets.only(bottom: ResetTokens.spaceSm),
+            child: Semantics(
+              inMutuallyExclusiveGroup: true,
+              checked: value == method,
+              child: InkWell(
+                onTap: () => onChanged(method),
+                borderRadius: BorderRadius.circular(ResetTokens.radiusMd),
+                child: Container(
+                  padding: const EdgeInsets.all(ResetTokens.spaceMd),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(ResetTokens.radiusMd),
+                    border: Border.all(
+                      color: value == method
+                          ? theme.colorScheme.primary
+                          : theme.borderColor,
+                      width: value == method ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        value == method
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked,
+                        color: value == method
+                            ? theme.colorScheme.primary
+                            : theme.mutedColor,
+                      ),
+                      const SizedBox(width: ResetTokens.spaceMd),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(title, style: ResetTokens.body),
+                            Text(
+                              detail,
+                              style: ResetTokens.caption.copyWith(color: theme.mutedColor),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 /// The Terms checkbox — client request of 11/09/2026, and a legal one.

@@ -35,6 +35,7 @@ and all of it deletable in-app (**You → Delete my account**):
 | Messages → Other in-app messages | Help conversations | Customer support | **Yes** |
 | App activity → Other actions | Visits and check-ins | App functionality | No |
 | Device or other IDs | The notification token, if notifications are allowed | App functionality (delivering the message) | **Yes** |
+| Financial info → User payment info | Card / UPI details, entered into the Razorpay checkout when the customer chooses to pay online | App functionality (payments) | **Yes** — only when paying online |
 
 Firebase publishes the FCM registration token as a *Device or other ID*, which is why it
 is in the table even though the app never reads an advertising ID or an IMEI.
@@ -43,8 +44,11 @@ Answer **no** to: location, contacts, photos, files, health, calendar, SMS, call
 installed apps, advertising IDs, and any analytics or crash SDK — none are in the app. The only permissions are `INTERNET` and, if the customer agrees,
 `POST_NOTIFICATIONS`.
 
-Card details are **not** collected: money is taken at the counter. If online payment is
-switched on later, Razorpay handles the card and this table gains a payment-info row.
+Customers choose online or counter since 28/10/2026. Card and UPI details are entered into
+Razorpay's own checkout and go to Razorpay, never to RESET's servers — but the Razorpay SDK is
+inside the app, so Play counts that as collected, hence the payment-info row above. Mark it
+**collected, not shared** (Razorpay is the payment processor acting for the shop), and
+**optional**.
 
 Encryption in transit: **yes** (HTTPS only; cleartext is disabled in the release manifest).
 Deletion: **yes**, in-app and at https://resetmen.in/account — policy at

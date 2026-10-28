@@ -574,6 +574,11 @@ export interface HoldResponse {
    * booking that has, in fact, just succeeded.
    */
   paymentRequired?: boolean;
+  /**
+   * What this booking was made as — client request 28/10/2026. COUNTER is confirmed and paid
+   * on arrival; ONLINE is held until the gateway says it is paid.
+   */
+  paymentMethod?: 'ONLINE' | 'COUNTER';
 }
 
 // ── Admin timeline — apps/api/src/booking/booking-lifecycle.service.ts ───────

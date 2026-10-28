@@ -72,8 +72,12 @@ class TermsScreen extends ConsumerWidget {
             const SizedBox(height: ResetTokens.spaceSm),
             Text(
               'Free cancellation up to $hours ${hours == 1 ? 'hour' : 'hours'} before your '
-              'slot, from Visits in the app. Payment is taken at the counter, and any '
-              'refund is made at the counter.',
+              'slot, from Visits in the app.\n\n'
+              'You choose how to pay when you book: online, by UPI, card or netbanking '
+              'through Razorpay, or at the counter when you arrive.\n\n'
+              'If you paid online and cancel in time, the full amount is refunded '
+              'automatically to the same card or UPI, usually within 5–7 working days. If '
+              'you paid at the counter, any refund is made at the counter.',
               style: ResetTokens.body,
             ),
 

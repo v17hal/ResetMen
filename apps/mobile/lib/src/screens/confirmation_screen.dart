@@ -210,7 +210,9 @@ class _ConfirmationScreenState extends ConsumerState<ConfirmationScreen> {
                         // this booking, not only by the store's setting.
                         '${formatDuration(booking.durationMinutes)} · '
                         '${formatMoney(booking.payablePaise)}'
-                        '${(store?.paymentsEnabled ?? true) || booking.isPaid ? ' paid' : ' to pay'}',
+                        // Customers choose online or counter now, so the store-wide switch
+                        // says nothing about whether *this* booking still owes anything.
+                        '${booking.isPaid ? ' paid' : ' to pay'}',
                         style: ResetTokens.bodySm.copyWith(color: theme.mutedColor),
                       ),
                       if (booking.addonNames.isNotEmpty) ...[

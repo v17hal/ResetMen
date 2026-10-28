@@ -104,6 +104,35 @@ export class BookingLifecycleService {
   }
 
   /** Customer cancellation, subject to the store's cancellation window. */
+  /**
+   * Turns a held, unpaid online booking into one paid at the counter.
+   *
+   * For the customer whose UPI payment failed, or who changed their mind on the payment
+   * sheet. Their booking is already holding the slot, so booking again would collide with
+   * it — on a service only one station can do, the second attempt finds its own hold in the
+   * way and reports the time as taken.
+   */
+  async switchToCounter(bookingId: string, userId: string) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId, userId },
+      select: { id: true, status: true },
+    });
+    if (booking === null) throw AppError.notFound('Booking');
+
+    // Pressed twice, or the payment landed a moment earlier: either way it is booked.
+    if (booking.status === 'CONFIRMED') return { status: 'CONFIRMED' as const, changed: false };
+
+    if (booking.status !== 'HELD') {
+      throw AppError.validation(
+        'This booking can no longer be changed. Choose a time again to book.',
+        { status: booking.status },
+      );
+    }
+
+    await this.confirm(bookingId, userId);
+    return { status: 'CONFIRMED' as const, changed: true };
+  }
+
   async cancelByCustomer(bookingId: string, userId: string, reason?: string) {
     const booking = await this.prisma.booking.findFirst({
       where: { id: bookingId, userId },

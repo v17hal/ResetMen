@@ -257,7 +257,8 @@ class _BookingList extends ConsumerWidget {
           '${booking.serviceName}, ${formatDateTime(booking.startsAt)}. '
           // No card was charged — the store takes payment at the counter — so promising
           // a refund to one tells the customer something that cannot happen.
-          'The slot goes back for someone else to book.',
+          'The slot goes back for someone else to book.'
+          '${booking.isPaid ? ' If you paid online, it is refunded to the same card or UPI.' : ''}',
         ),
         actions: [
           TextButton(
@@ -275,11 +276,20 @@ class _BookingList extends ConsumerWidget {
     if (confirmed != true || !context.mounted) return;
 
     try {
-      await ref.read(repositoryProvider).cancelBooking(booking.id);
+      final result = await ref.read(repositoryProvider).cancelBooking(booking.id);
       ref.invalidate(bookingsProvider('upcoming'));
       ref.invalidate(bookingsProvider('cancelled'));
       if (context.mounted) {
-        showMessage(context, 'Cancelled. The slot is free again.');
+        showMessage(
+          context,
+          result.refundFailed
+              ? 'Cancelled. Your refund could not be started automatically — the shop '
+                  'will send it.'
+              : result.refundedPaise > 0
+                  ? 'Cancelled. ${formatMoney(result.refundedPaise)} is on its way back to '
+                      'your card or UPI — usually within 5–7 working days.'
+                  : 'Cancelled. The slot is free again.',
+        );
       }
     } catch (error) {
       if (context.mounted) {

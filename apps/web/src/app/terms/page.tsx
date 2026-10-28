@@ -66,9 +66,14 @@ export default async function TermsPage() {
             and we will do what we can.
           </li>
           <li className="pl-xs">
-            Payment is taken at the counter when you arrive. Nothing is charged online.
+            You choose how to pay when you book: online, by UPI, card or netbanking through
+            Razorpay, or at the counter when you arrive.
           </li>
-          <li className="pl-xs">Where a refund is due, it is made at the counter.</li>
+          <li className="pl-xs">
+            If you paid online and cancel in time, the full amount is refunded automatically to
+            the same card or UPI, usually within 5–7 working days.
+          </li>
+          <li className="pl-xs">If you paid at the counter, any refund is made at the counter.</li>
         </ul>
       </section>
 

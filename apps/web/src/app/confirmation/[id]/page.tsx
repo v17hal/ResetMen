@@ -89,9 +89,14 @@ export default function ConfirmationPage() {
   const zone = store.data?.timezone;
   const pending = shown.status === 'HELD';
 
-  // No gateway: the booking is real, the money is not collected yet, and saying otherwise
-  // sends someone to the counter believing they have already paid.
-  const payAtCounter = store.data?.paymentsEnabled === false;
+  /**
+   * This booking is to be paid at the counter: confirmed, money not yet taken.
+   *
+   * Decided by the booking, not the store. Customers now choose online or counter
+   * (28/10/2026), so the store-wide switch says nothing about whether *this* booking still
+   * owes anything — and saying "paid" sends someone to the counter believing they have.
+   */
+  const payAtCounter = shown.status !== 'HELD' && !shown.isPaid;
 
   return (
     <div className="flex flex-col items-center gap-lg p-base text-center">
@@ -99,7 +104,8 @@ export default function ConfirmationPage() {
         {pending ? (
           <>
             <h1 className="font-display text-h1">
-              {payAtCounter ? 'Finishing your booking…' : 'Confirming your payment…'}
+              {/* Only an online booking waits here: a counter booking is confirmed at once. */}
+              Confirming your payment…
             </h1>
             <p className="text-body text-text-muted">
               This usually takes a second or two. You can stay on this screen.
@@ -175,10 +181,10 @@ export default function ConfirmationPage() {
           {/* Whether *this* booking is settled, not whether the store takes money online.
               Deciding it from the store setting alone left "₹59 to pay · Payment pending"
               under "You're booked" and the QR, on a booking the counter had marked paid. */}
-          {formatMoney(shown.payablePaise)} {payAtCounter && !shown.isPaid ? 'to pay' : 'paid'}
+          {formatMoney(shown.payablePaise)} {payAtCounter ? 'to pay' : 'paid'}
         </p>
 
-        {payAtCounter && !shown.isPaid && (
+        {payAtCounter && (
           <p className="rounded-md bg-warning/10 px-sm py-xs text-caption text-warning">
             Payment pending — pay at the counter when you arrive.
           </p>

@@ -37,7 +37,15 @@ export class ProductJobs {
     const cutoff = new Date(Date.now() - ABANDON_AFTER_MINUTES * 60_000);
 
     const abandoned = await this.prisma.productOrder.findMany({
-      where: { status: 'PENDING', createdAt: { lt: cutoff } },
+      // Only orders where an online payment was started and never finished. A counter
+      // order has no gateway payment at all — it is a reservation the customer will pay for
+      // on arrival — and before customers could choose, switching online payment on would
+      // have cancelled every one of them half an hour after it was placed.
+      where: {
+        status: 'PENDING',
+        createdAt: { lt: cutoff },
+        payment: { is: { gateway: 'RAZORPAY', status: { not: 'CAPTURED' } } },
+      },
       include: { items: true, payment: { select: { status: true } } },
       take: 100,
     });

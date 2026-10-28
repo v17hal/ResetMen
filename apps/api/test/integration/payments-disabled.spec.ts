@@ -164,6 +164,27 @@ describe('booking with payments disabled', () => {
     expect(after.status).toBe('CONFIRMED');
   });
 
+  /**
+   * An app built while the store took payment online, opened after it stopped: asking to
+   * pay online is answered plainly, before any slot is held for a payment that can never
+   * happen.
+   */
+  it('refuses to take an online booking while online payment is switched off', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/bookings/hold')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        serviceId,
+        startsAt: nextSlot(150),
+        addonOptionIds: [],
+        rewardId: null,
+        paymentMethod: 'ONLINE',
+      })
+      .expect(422);
+
+    expect(response.body.detail).toMatch(/pay at the counter/i);
+  });
+
   it('refuses an anonymous booking, because there would be nobody to send the QR to', async () => {
     await request(app.getHttpServer())
       .post('/api/v1/bookings/hold')

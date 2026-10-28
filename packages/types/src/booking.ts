@@ -45,12 +45,25 @@ export const holdRequest = z.object({
    * is not the current one rather than recording agreement to text nobody was shown.
    */
   termsVersion: z.string().max(20).optional(),
+  /**
+   * How the customer will pay — client request 28/10/2026: online or at the counter, their
+   * choice. COUNTER confirms the booking at once and the money is taken on arrival; ONLINE
+   * keeps it held until the gateway says it is paid.
+   *
+   * Absent means the counter. That is what every app installed before the choice existed
+   * expects, and defaulting the other way would send those customers to a payment screen
+   * their app has never shown them.
+   */
+  paymentMethod: z.enum(['ONLINE', 'COUNTER']).default('COUNTER'),
 });
 export type HoldRequest = z.infer<typeof holdRequest>;
+export type PaymentMethod = HoldRequest['paymentMethod'];
 
 /** Staff-created booking. Without this the engine's picture of the store drifts from
  *  reality within a day — see docs/10-open-questions.md#q4. */
-export const walkInRequest = holdRequest.extend({
+// A walk-in is paid at the counter by definition, so the online-or-counter choice is not
+// asked of the staff member entering it.
+export const walkInRequest = holdRequest.omit({ paymentMethod: true }).extend({
   /**
    * The same rule every other phone field uses.
    *

@@ -109,11 +109,14 @@ void main() {
       scrollable: find.byType(Scrollable).last,
     );
     expect(find.text('Cancellation & refunds'), findsOneWidget);
-    expect(
-      find.text('Free cancellation up to 2 hours before your slot, from Visits in the '
-          'app. Payment is taken at the counter, and any refund is made at the counter.'),
-      findsOneWidget,
-    );
+    // Both ways to pay, and both ways to be refunded — customers choose since 28/10/2026.
+    final policy = find.textContaining('Free cancellation up to 2 hours before your slot');
+    expect(policy, findsOneWidget);
+    final text = tester.widget<Text>(policy).data!;
+    expect(text, contains('online, by UPI, card or netbanking'));
+    expect(text, contains('at the counter when you arrive'));
+    expect(text, contains('refunded automatically to the same card or UPI'));
+    expect(text, contains('If you paid at the counter, any refund is made at the counter'));
 
     await tester.pageBack();
     await settle(tester);

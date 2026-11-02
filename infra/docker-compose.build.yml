@@ -27,6 +27,9 @@ services:
     build:
       context: ..
       dockerfile: infra/Dockerfile.api
+      args:
+        # Empty unless .env.prod sets it — only a small server needs it. See Dockerfile.next.
+        NODE_OPTIONS: ${BUILD_NODE_OPTIONS:-}
 
   web:
     image: reset-web:latest
@@ -45,6 +48,7 @@ services:
         # Optional, and empty until Search Console issues one. `:-` rather than `:?`: an
         # unverified site should still build and deploy.
         NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: ${NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION:-}
+        NODE_OPTIONS: ${BUILD_NODE_OPTIONS:-}
 
   admin:
     image: reset-admin:latest
@@ -56,3 +60,4 @@ services:
         # Staff sign in with an email and password against our own API, not Firebase, so the
         # admin bundle needs the API URL and nothing else.
         NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?set API_DOMAIN}
+        NODE_OPTIONS: ${BUILD_NODE_OPTIONS:-}

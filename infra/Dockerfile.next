@@ -14,6 +14,10 @@ ARG PORT=3000
 # ── Dependencies ───────────────────────────────────────────────────────────────
 FROM node:22-alpine AS deps
 ARG APP
+# Empty everywhere except a small server. Node caps its heap at a quarter of the machine's
+# memory, which on a 1 GB box is too little for `next build`; BUILD_NODE_OPTIONS in
+# .env.prod raises it for the build stages only and never reaches the running container.
+ARG NODE_OPTIONS=
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@10.18.1 --activate
@@ -31,6 +35,7 @@ RUN pnpm install --frozen-lockfile --filter @reset/${APP}...
 # ── Build ──────────────────────────────────────────────────────────────────────
 FROM deps AS build
 ARG APP
+ARG NODE_OPTIONS=
 WORKDIR /app
 
 # Inlined into the client bundle at build time, so it cannot be changed at deploy. A

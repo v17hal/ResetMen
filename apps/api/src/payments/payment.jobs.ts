@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
+import { AppError } from '../common/errors.js';
 import { PrismaService } from '../database/prisma.service.js';
-import { PaymentService } from './payment.service.js';
+import { CANCELLATION_REFUND_REASON, PaymentService } from './payment.service.js';
 import { RazorpayClient } from './razorpay.client.js';
 
 /** How long a payment may sit unresolved before the job goes and asks the gateway. */
 const STALE_AFTER_MINUTES = 15;
+
+/** How long a refused cancellation refund keeps being retried before it is left to staff. */
+const REFUND_RETRY_HOURS = 24;
 
 /**
  * Payment reconciliation.
@@ -51,6 +55,17 @@ export class PaymentJobs {
     let resolved = 0;
 
     for (const payment of stale) {
+      // Opened by the simulated gateway before real keys were configured. Razorpay has never
+      // heard of it and answers 404, which used to be logged as an error every ten minutes.
+      if (payment.gatewayOrderId.startsWith('order_sim')) {
+        await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: { status: 'FAILED', failureReason: 'Opened by the simulated gateway; never reached Razorpay' },
+        });
+        resolved += 1;
+        continue;
+      }
+
       try {
         const attempts = await this.gateway.fetchPaymentsForOrder(payment.gatewayOrderId);
         const captured = attempts.find((p) => p.status === 'captured');
@@ -116,6 +131,56 @@ export class PaymentJobs {
       } catch (error) {
         this.logger.error(
           `Could not settle booking ${payment.bookingId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Refunds Razorpay refused when the customer cancelled.
+   *
+   * Its usual reason is timing: a refund asked for within moments of the capture is
+   * rejected, and the same request goes through a minute later. The cancellation left a
+   * FAILED row saying what is owed (PaymentService.recordOwedRefund); this asks again, and
+   * removes the row once the refund is real or there is nothing left to give back.
+   */
+  @Cron(CronExpression.EVERY_5_MINUTES, { name: 'retry-cancellation-refunds' })
+  async retryCancellationRefunds(): Promise<void> {
+    const now = Date.now();
+    const owed = await this.prisma.refund.findMany({
+      where: {
+        status: 'FAILED',
+        gatewayRefundId: null,
+        reason: CANCELLATION_REFUND_REASON,
+        // Give the gateway a minute; after a day it is not timing, and staff need to look.
+        createdAt: {
+          lt: new Date(now - 60_000),
+          gt: new Date(now - REFUND_RETRY_HOURS * 3_600_000),
+        },
+      },
+      select: { id: true, paymentId: true },
+      take: 50,
+    });
+
+    for (const placeholder of owed) {
+      try {
+        await this.payments.refund({
+          paymentId: placeholder.paymentId,
+          reason: CANCELLATION_REFUND_REASON,
+          adminId: null,
+        });
+        await this.prisma.refund.delete({ where: { id: placeholder.id } });
+        this.logger.log(`Refund for payment ${placeholder.paymentId} went through on retry`);
+      } catch (error) {
+        if (error instanceof AppError && error.code === 'PAYMENT_NOT_REFUNDABLE') {
+          // Refunded by hand meanwhile, or nothing left to refund: nothing is owed.
+          await this.prisma.refund.delete({ where: { id: placeholder.id } });
+          continue;
+        }
+        this.logger.error(
+          `Refund retry failed for payment ${placeholder.paymentId}: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );

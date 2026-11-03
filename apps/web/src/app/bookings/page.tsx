@@ -54,7 +54,9 @@ export default function BookingsPage() {
       const refunded = result.refund?.refundedPaise ?? 0;
       if (result.refund?.failed === true) {
         toast.success(
-          'Cancelled. Your refund could not be started automatically — the shop will send it.',
+          // Usually Razorpay refusing a refund moments after the payment; the server retries
+          // every few minutes (PaymentJobs.retryCancellationRefunds).
+          'Cancelled. Your refund starts in a few minutes, back to the same card or UPI.',
         );
       } else if (refunded > 0) {
         toast.success(

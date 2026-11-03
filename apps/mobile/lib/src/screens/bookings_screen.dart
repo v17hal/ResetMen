@@ -283,8 +283,10 @@ class _BookingList extends ConsumerWidget {
         showMessage(
           context,
           result.refundFailed
-              ? 'Cancelled. Your refund could not be started automatically — the shop '
-                  'will send it.'
+              // Usually Razorpay refusing a refund moments after the payment; the server
+              // retries every few minutes.
+              ? 'Cancelled. Your refund starts in a few minutes, back to the same card or '
+                  'UPI.'
               : result.refundedPaise > 0
                   ? 'Cancelled. ${formatMoney(result.refundedPaise)} is on its way back to '
                       'your card or UPI — usually within 5–7 working days.'

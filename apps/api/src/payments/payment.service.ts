@@ -20,6 +20,13 @@ const HANDLED_EVENTS = new Set([
   'order.paid',
 ]);
 
+/**
+ * The reason on every refund a customer's own cancellation triggers. It also marks the
+ * FAILED rows PaymentJobs.retryCancellationRefunds picks up, so it must not change while
+ * such a row could still be waiting.
+ */
+export const CANCELLATION_REFUND_REASON = 'Cancelled by the customer within the cancellation window';
+
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
@@ -589,7 +596,7 @@ export class PaymentService {
         gateway: 'RAZORPAY',
         status: { in: ['CAPTURED', 'PARTIALLY_REFUNDED'] },
       },
-      select: { id: true },
+      select: { id: true, amountPaise: true, refunds: { select: { amountPaise: true, status: true } } },
     });
 
     let refundedPaise = 0;
@@ -598,7 +605,7 @@ export class PaymentService {
       try {
         const result = await this.refund({
           paymentId: payment.id,
-          reason: 'Cancelled by the customer within the cancellation window',
+          reason: CANCELLATION_REFUND_REASON,
           adminId: null,
         });
         refundedPaise += result.amountPaise;
@@ -608,9 +615,51 @@ export class PaymentService {
           `Automatic refund failed for payment ${payment.id}: ` +
             (error instanceof Error ? error.message : String(error)),
         );
+        await this.recordOwedRefund(payment);
       }
     }
     return { refundedPaise, failed };
+  }
+
+  /**
+   * Leaves a FAILED refund row saying what the customer is still owed, for
+   * PaymentJobs.retryCancellationRefunds to try again.
+   *
+   * Razorpay answers "invalid request sent" to a refund asked for in the first half-minute
+   * or so after capture, and a customer who pays and cancels straight away lands exactly
+   * there — found with a real test payment on 3/11/2026. Without this row nothing would ever
+   * try again, and the money would sit with the shop until somebody noticed.
+   *
+   * FAILED rows are not counted as refunded, so the row blocks nothing: staff can still
+   * refund by hand, and the retry stands down when it finds nothing left to refund.
+   */
+  private async recordOwedRefund(payment: {
+    id: string;
+    amountPaise: number;
+    refunds: { amountPaise: number; status: string }[];
+  }): Promise<void> {
+    const owed =
+      payment.amountPaise -
+      payment.refunds
+        .filter((r) => r.status !== 'FAILED')
+        .reduce((sum, r) => sum + r.amountPaise, 0);
+    if (owed <= 0) return;
+
+    try {
+      await this.prisma.refund.create({
+        data: {
+          paymentId: payment.id,
+          amountPaise: owed,
+          status: 'FAILED',
+          reason: CANCELLATION_REFUND_REASON,
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Could not record the refund owed on payment ${payment.id}: ` +
+          (error instanceof Error ? error.message : String(error)),
+      );
+    }
   }
 
   /**

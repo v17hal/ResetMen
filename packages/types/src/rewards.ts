@@ -141,6 +141,45 @@ export const scratchCampaignInput = z
   });
 export type ScratchCampaignInput = z.infer<typeof scratchCampaignInput>;
 
+// ── Coupon codes ────────────────────────────────────────────────────────────
+
+/**
+ * A code as a customer types it. Spaces are dropped and case ignored, so "reset20",
+ * "RESET20" and " Reset 20 " are one code — the version that reached the counter by word of
+ * mouth is rarely the one on the poster.
+ */
+export const couponCode = z
+  .string()
+  .transform((v) => v.replace(/\s+/g, '').toUpperCase())
+  .pipe(z.string().regex(/^[A-Z0-9]{3,20}$/, 'A code is 3 to 20 letters or digits.'));
+
+/** Client request 06/11/2026: codes the shop creates and hands out. */
+export const couponInput = z
+  .object({
+    code: couponCode,
+    /** For staff only — where the code was handed out. */
+    note: z.string().max(120).nullable().default(null),
+    rewardType,
+    rewardValue: z.number().int().min(0),
+    minOrderPaise: paise.default(0),
+    validFrom: instant.nullable().default(null),
+    validTill: instant.nullable().default(null),
+    /** Across all customers; null = unlimited. */
+    maxUses: z.number().int().min(1).nullable().default(null),
+    /** Per customer; null = unlimited. One by default, because that is what a code usually means. */
+    maxUsesPerCustomer: z.number().int().min(1).nullable().default(1),
+    isActive: z.boolean().default(true),
+  })
+  .refine((v) => v.rewardType !== 'PERCENT_OFF' || v.rewardValue <= 100, {
+    message: 'A percentage cannot be more than 100.',
+    path: ['rewardValue'],
+  })
+  .refine(
+    (v) => v.validFrom === null || v.validTill === null || new Date(v.validFrom) < new Date(v.validTill),
+    { message: 'The code must start before it ends.', path: ['validTill'] },
+  );
+export type CouponInput = z.infer<typeof couponInput>;
+
 /** Manually granted reward — the "sorry about the wait" lever every counter needs. */
 export const grantRewardInput = z.object({
   userId: uuid,

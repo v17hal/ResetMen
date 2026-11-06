@@ -204,6 +204,78 @@ void main() {
       expect(stale.needsPhone, isFalse);
       expect(phoneMissing().termsOutdated, isFalse);
     });
+
+    test('recognises a coupon code the server will not take', () {
+      // As `priceWith` in apps/api/src/rewards/coupon.service.ts refuses one.
+      final refused = ResetApiException(
+        code: ErrorCode.tryParse('COUPON_INVALID'),
+        status: 422,
+        title: 'Code cannot be used',
+        detail: 'This code has expired.',
+        meta: const {'code': 'RESET20'},
+      );
+
+      expect(refused.isCouponInvalid, isTrue);
+      expect(refused.toString(), 'This code has expired.');
+      expect(phoneMissing().isCouponInvalid, isFalse);
+    });
+  });
+
+  group('Quote', () {
+    /// As `quote` in apps/api/src/booking/booking.service.ts returns it.
+    Map<String, dynamic> payload({Map<String, dynamic>? coupon}) => {
+          'serviceId': 'svc-tension',
+          'serviceName': 'Tension Relief',
+          'durationMinutes': 10,
+          'basePricePaise': 24500,
+          'addonsPricePaise': 0,
+          'discountPaise': (coupon?['discountPaise'] as int?) ?? 0,
+          'payablePaise': 24500 - ((coupon?['discountPaise'] as int?) ?? 0),
+          'addons': <Object>[],
+          'appliedReward': null,
+          'appliedCoupon': coupon,
+        };
+
+    test('reads the applied code beside the reward', () {
+      final quote = Quote.fromJson(payload(coupon: {
+        'id': 'cpn-1',
+        'code': 'RESET20',
+        'label': '20% off',
+        'discountPaise': 4900,
+        'postVisitCreditPaise': 0,
+      }));
+
+      expect(quote.appliedReward, isNull);
+      expect(quote.appliedCoupon?.id, 'cpn-1');
+      expect(quote.appliedCoupon?.code, 'RESET20');
+      expect(quote.appliedCoupon?.label, '20% off');
+      expect(quote.appliedCoupon?.discountPaise, 4900);
+      expect(quote.appliedCoupon?.postVisitCreditPaise, 0);
+      expect(quote.payablePaise, 19600, reason: 'the total already includes the code');
+    });
+
+    test('a cashback code takes nothing off and says what comes back', () {
+      final quote = Quote.fromJson(payload(coupon: {
+        'id': 'cpn-2',
+        'code': 'BACK50',
+        'label': '₹50 cashback',
+        'discountPaise': 0,
+        'postVisitCreditPaise': 5000,
+      }));
+
+      expect(quote.appliedCoupon?.discountPaise, 0);
+      expect(quote.appliedCoupon?.postVisitCreditPaise, 5000);
+      expect(quote.payablePaise, 24500);
+    });
+
+    test('a server from before codes is a quote without one, not a crash', () {
+      expect(Quote.fromJson(payload()).appliedCoupon, isNull);
+
+      final json = payload()..remove('appliedCoupon');
+      final quote = Quote.fromJson(json);
+      expect(quote.appliedCoupon, isNull);
+      expect(quote.serviceName, 'Tension Relief');
+    });
   });
 
   group('ServiceSummary and ServiceDetail', () {

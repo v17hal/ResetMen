@@ -240,6 +240,7 @@ model Store {
   auditLogs        AuditLog[]
   banners          Banner[]
   supportThreads   SupportThread[]
+  coupons          Coupon[]
 
   @@map("stores")
 }
@@ -681,6 +682,10 @@ model Booking {
   appliedRewardId String?     @db.Uuid
   appliedReward   UserReward? @relation("RewardRedemption", fields: [appliedRewardId], references: [id])
 
+  /// A typed coupon code. One discount per booking: this or `appliedReward`, never both.
+  appliedCouponId String? @db.Uuid
+  appliedCoupon   Coupon? @relation(fields: [appliedCouponId], references: [id])
+
   idempotencyKey String?
   notes          String?
 
@@ -709,6 +714,7 @@ model Booking {
   @@index([userId, startsAt(sort: Desc)])
   @@index([stationId, startsAt])
   @@index([status, holdExpiresAt])
+  @@index([appliedCouponId])
   @@map("bookings")
 }
 
@@ -948,6 +954,44 @@ model ScratchCard {
 
   @@index([userId, status])
   @@map("scratch_cards")
+}
+
+/// A code the shop hands out — "RESET20" — that any signed-in customer types at checkout.
+/// Client request 06/11/2026.
+///
+/// Unlike a `UserReward` it belongs to nobody until used, so its limits are counted from the
+/// bookings that carry it rather than from a status on the row: a cancelled or expired
+/// booking gives its use back without anything having to remember to.
+model Coupon {
+  id      String @id @default(uuid()) @db.Uuid
+  storeId String @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  /// Upper case, letters and digits. Stored as typed by staff after normalising.
+  code        String
+  /// For staff only: where the code was handed out.
+  note        String?
+  rewardType  RewardType
+  /// Paise for money types, a whole number for PERCENT_OFF — as on `UserReward`.
+  rewardValue Int
+  minOrderPaise Int @default(0)
+
+  validFrom DateTime? @db.Timestamptz(3)
+  validTill DateTime? @db.Timestamptz(3)
+
+  /// Across all customers. Null means unlimited.
+  maxUses         Int?
+  /// Per customer. Null means unlimited.
+  maxUsesPerCustomer Int? @default(1)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  bookings Booking[]
+
+  @@unique([storeId, code])
+  @@map("coupons")
 }
 
 /// The redeemable ledger. Redemption takes `SELECT … FOR UPDATE` on the row inside the

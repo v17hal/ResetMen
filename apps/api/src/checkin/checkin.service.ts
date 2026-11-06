@@ -238,6 +238,42 @@ export class CheckinService {
     return checkin satisfies CheckinResult;
   }
 
+  /**
+   * What a visit earns, for a check-in recorded some other way than scanning or typing the
+   * code: the "Checked in" button on a booking in the admin panel.
+   *
+   * That button moved the status and nothing else, so a customer checked in from it earned
+   * no streak visit, no scratch card and no cashback — found 06/11/2026. Called once the
+   * status is already CHECKED_IN; the guard on the status is what stops a scan afterwards
+   * from paying out twice. Never throws: the customer is already standing at the counter.
+   */
+  async awardVisit(bookingId: string, adminId: string | null): Promise<void> {
+    try {
+      const booking = await this.prisma.booking.findUnique({
+        where: { id: bookingId },
+        select: { storeId: true, userId: true },
+      });
+
+      // The QR is spent either way, as it is when it is scanned.
+      await this.prisma.checkinToken.updateMany({
+        where: { bookingId, usedAt: null },
+        data: { usedAt: new Date(), usedByAdminId: adminId },
+      });
+
+      if (booking?.userId == null) return;
+      const userId = booking.userId;
+
+      const outcome = await this.prisma.$transaction((tx) =>
+        this.streaks.accrue(tx, booking.storeId, userId),
+      );
+      await this.streaks.afterCheckin({ storeId: booking.storeId, userId, bookingId, outcome });
+    } catch (error) {
+      this.logger.error(
+        `Visit rewards for ${bookingId} failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   private sign(publicId: string, token: string): string {
     return createHmac('sha256', this.secret)
       .update(`${publicId}:${token}`)

@@ -3,6 +3,7 @@
 import type { CustomerSummary } from '@reset/api-client';
 import {
   Badge,
+  type BadgeTone,
   BookingStatusBadge,
   Button,
   ConfirmDialog,
@@ -24,6 +25,21 @@ import { errorMessage } from '@/lib/auth';
 import { adminClient } from '@/lib/client';
 import { keys } from '@/lib/queries';
 import { useDebounced } from '@/lib/use-debounced';
+
+/**
+ * Wallet statuses as the server sends them — `RewardStatus` in the Prisma schema.
+ *
+ * The wallet checked for 'AVAILABLE', which the server has never sent (the shared model
+ * declares AVAILABLE/USED; the database says ACTIVE/REDEEMED). So no reward ever looked
+ * usable, and the Revoke button never appeared. Keyed by plain string for that reason: the
+ * declared type would refuse the real values.
+ */
+const WALLET_STATUS: Record<string, { tone: BadgeTone; label: string; revocable: boolean }> = {
+  ACTIVE: { tone: 'success', label: 'Available', revocable: true },
+  REDEEMED: { tone: 'neutral', label: 'Used', revocable: false },
+  EXPIRED: { tone: 'neutral', label: 'Expired', revocable: false },
+  REVOKED: { tone: 'danger', label: 'Revoked', revocable: false },
+};
 
 export default function CustomersPage() {
   const [search, setSearch] = useState('');
@@ -300,34 +316,38 @@ function CustomerDialog({
             <p className="text-caption text-text-muted">Nothing in their wallet.</p>
           ) : (
             <ul className="flex flex-col divide-y divide-border">
-              {detail.data.rewards.map((reward) => (
-                <li key={reward.id} className="flex items-center justify-between gap-sm py-sm">
-                  <div className="flex flex-col">
-                    <span className="text-body-sm">{reward.label}</span>
-                    <span className="text-caption text-text-muted">
-                      {reward.source === 'MANUAL' ? 'Granted by staff' : 'Earned'} · expires{' '}
-                      {formatDate(reward.validTill)}
-                    </span>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-xs">
-                    {reward.status === 'AVAILABLE' ? (
-                      <Badge tone="success">Available</Badge>
-                    ) : (
-                      <Badge>{reward.status.toLowerCase()}</Badge>
-                    )}
-                    {reward.status === 'AVAILABLE' && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-danger"
-                        onClick={() => setRevoking({ id: reward.id, label: reward.label })}
-                      >
-                        Revoke
-                      </Button>
-                    )}
-                  </div>
-                </li>
-              ))}
+              {detail.data.rewards.map((reward) => {
+                const status = WALLET_STATUS[reward.status] ?? {
+                  tone: 'neutral' as const,
+                  label: reward.status.toLowerCase(),
+                  revocable: false,
+                };
+
+                return (
+                  <li key={reward.id} className="flex items-center justify-between gap-sm py-sm">
+                    <div className="flex flex-col">
+                      <span className="text-body-sm">{reward.label}</span>
+                      <span className="text-caption text-text-muted">
+                        {reward.source === 'MANUAL' ? 'Granted by staff' : 'Earned'} · expires{' '}
+                        {formatDate(reward.validTill)}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-xs">
+                      <Badge tone={status.tone}>{status.label}</Badge>
+                      {status.revocable && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-danger"
+                          onClick={() => setRevoking({ id: reward.id, label: reward.label })}
+                        >
+                          Revoke
+                        </Button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

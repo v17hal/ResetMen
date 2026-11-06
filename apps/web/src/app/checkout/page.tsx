@@ -1,6 +1,6 @@
 'use client';
 
-import type { HoldResponse, WalletEntry } from '@reset/api-client';
+import type { HoldResponse, QuoteResponse, WalletEntry } from '@reset/api-client';
 import { isResetApiError } from '@reset/api-client';
 import { TERMS } from '@reset/types';
 import {
@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   ErrorState,
+  Input,
   Skeleton,
   cn,
   formatCountdown,
@@ -17,7 +18,7 @@ import {
   secondsUntil,
   useToast,
 } from '@reset/ui';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
@@ -40,6 +41,7 @@ function Checkout() {
   const router = useRouter();
   const search = useSearchParams();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const { user, hasToken } = useAuth();
 
   const serviceId = search.get('serviceId') ?? '';
@@ -47,6 +49,13 @@ function Checkout() {
   const addonOptionIds = useMemo(() => search.getAll('addon'), [search]);
 
   const [rewardId, setRewardId] = useState<string | null>(null);
+  /**
+   * A coupon code — client request 06/11/2026. Only ever set from the server's answer, so it
+   * is the stored form ("RESET20"), not whatever was typed. One discount per booking: this
+   * and `rewardId` are never both set.
+   */
+  const [couponCode, setCouponCode] = useState<string | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
   const [hold, setHold] = useState<HoldResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** The Terms checkbox — client requirement 11/09/2026. Unticked on every visit. */
@@ -74,10 +83,42 @@ function Checkout() {
   const payingOnline = onlineAvailable && method === 'ONLINE';
 
   const quote = useQuery({
-    queryKey: ['quote', serviceId, addonOptionIds, rewardId],
-    queryFn: () => api().bookings.quote({ serviceId, addonOptionIds, rewardId }),
+    queryKey: ['quote', serviceId, addonOptionIds, rewardId, couponCode],
+    queryFn: () => api().bookings.quote({ serviceId, addonOptionIds, rewardId, couponCode }),
     enabled: serviceId !== '',
   });
+
+  /**
+   * A typed code is tried as a request of its own, not by putting it straight into the quote
+   * above. A wrong code then costs nothing: the price stays where it was and the reason
+   * appears under the box, instead of the whole checkout flashing to an error and back.
+   */
+  const applyCoupon = useMutation({
+    mutationFn: (code: string) =>
+      api().bookings.quote({ serviceId, addonOptionIds, rewardId: null, couponCode: code }),
+    onSuccess: (priced) => {
+      const code = priced.appliedCoupon?.code ?? null;
+      // This is the quote the page is about to ask for, so it is not asked for twice.
+      queryClient.setQueryData(['quote', serviceId, addonOptionIds, null, code], priced);
+      setRewardId(null);
+      setCouponCode(code);
+      setError(null);
+    },
+    onError: (caught) => setCouponError(errorMessage(caught)),
+  });
+
+  /**
+   * A code that was accepted can stop being acceptable: the basket fell below its minimum,
+   * or its last use went to someone else. It is dropped and the reason shown under the box,
+   * and the quote runs again without it. Left in place, the price card would sit on an
+   * error with nothing to press but Retry, which fails the same way every time.
+   */
+  const couponRefused = couponCode !== null && quote.isError && isCouponError(quote.error);
+  useEffect(() => {
+    if (!couponRefused) return;
+    setCouponError(errorMessage(quote.error));
+    setCouponCode(null);
+  }, [couponRefused, quote.error]);
 
   /** Priced against this exact basket, so each row knows what it is worth here. */
   const wallet = useQuery({
@@ -95,6 +136,7 @@ function Checkout() {
           startsAt,
           addonOptionIds,
           rewardId,
+          couponCode,
           termsVersion: TERMS.version,
           paymentMethod: onlineAvailable ? method : 'COUNTER',
         },
@@ -108,6 +150,9 @@ function Checkout() {
     },
     onError: (caught) => {
       setError(errorMessage(caught));
+      // The code passed the quote and not the booking: its last use went while they were
+      // deciding. Dropped, so the price on screen is the one the next tap books at.
+      if (isCouponError(caught)) setCouponCode(null);
       if (isResetApiError(caught) && caught.isSlotGone) {
         // The slot went while they were deciding. Send them back with the basket intact.
         const query = new URLSearchParams({ serviceId });
@@ -197,6 +242,9 @@ function Checkout() {
 
   const zone = store.data?.timezone;
   const applied = quote.data?.appliedReward ?? null;
+  const appliedCoupon = quote.data?.appliedCoupon ?? null;
+  const postVisitCreditPaise =
+    applied?.postVisitCreditPaise ?? appliedCoupon?.postVisitCreditPaise ?? 0;
 
   return (
     <div className="flex flex-col gap-base p-base">
@@ -205,7 +253,9 @@ function Checkout() {
         {hold !== null && <HoldCountdown expiresAt={hold.holdExpiresAt} />}
       </header>
 
-      {quote.isPending || store.isPending ? (
+      {/* A refused code is about to be dropped and the quote asked for again without it;
+          the error belongs under the code box, not in place of the price. */}
+      {quote.isPending || store.isPending || couponRefused ? (
         <Skeleton className="h-40 w-full" />
       ) : quote.isError ? (
         <ErrorState description={errorMessage(quote.error)} onRetry={() => void quote.refetch()} />
@@ -229,7 +279,11 @@ function Checkout() {
 
           {quote.data.discountPaise > 0 && (
             <div className="flex items-baseline justify-between gap-sm text-body-sm text-primary">
-              <span>{applied?.label ?? 'Reward'}</span>
+              <span>
+                {appliedCoupon !== null
+                  ? `${appliedCoupon.code} · ${appliedCoupon.label}`
+                  : (applied?.label ?? 'Reward')}
+              </span>
               <span className="font-mono">−{formatMoney(quote.data.discountPaise)}</span>
             </div>
           )}
@@ -240,10 +294,10 @@ function Checkout() {
           </div>
 
           {/* Cashback discounts nothing now, so it is stated separately rather than
-              appearing as a reward that did nothing. */}
-          {applied !== null && applied.postVisitCreditPaise > 0 && (
+              appearing as a reward that did nothing. A cashback code reads the same. */}
+          {postVisitCreditPaise > 0 && (
             <Badge tone="accent">
-              {formatMoney(applied.postVisitCreditPaise)} back after your visit
+              {formatMoney(postVisitCreditPaise)} back after your visit
             </Badge>
           )}
         </Card>
@@ -255,10 +309,30 @@ function Checkout() {
           selected={rewardId}
           onSelect={(id) => {
             setRewardId(id);
+            // One discount per booking: a reward replaces a code, as a code replaces a reward.
+            setCouponCode(null);
+            setCouponError(null);
             setError(null);
           }}
         />
       )}
+
+      {/* Offered signed out too. The server answers with "Sign in, then enter the code
+          again.", which says more than a missing box would. */}
+      <CouponCode
+        applied={appliedCoupon}
+        applying={applyCoupon.isPending}
+        error={couponError}
+        onApply={(code) => {
+          setCouponError(null);
+          applyCoupon.mutate(code);
+        }}
+        onRemove={() => {
+          setCouponCode(null);
+          setCouponError(null);
+          setError(null);
+        }}
+      />
 
       {error !== null && (
         <Card className="border-danger/40 bg-danger/5">
@@ -479,5 +553,127 @@ function RewardPicker({
         })}
       </ul>
     </section>
+  );
+}
+
+/**
+ * "Have a coupon code?" — client request 06/11/2026: codes the shop creates and hands out.
+ *
+ * Folded away until asked for. Most bookings have no code, and an open box at checkout sends
+ * people off to search for one. What was typed survives a refusal, so a misspelling is
+ * corrected rather than typed again.
+ */
+function CouponCode({
+  applied,
+  applying,
+  error,
+  onApply,
+  onRemove,
+}: {
+  applied: QuoteResponse['appliedCoupon'];
+  applying: boolean;
+  error: string | null;
+  onApply: (code: string) => void;
+  onRemove: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+  const input = useRef<HTMLInputElement>(null);
+
+  // Focused when they open it, and only then. The box also comes back on its own — a reward
+  // chosen, a code refused — and a keyboard springing up unasked hides half a phone screen.
+  useEffect(() => {
+    if (open) input.current?.focus();
+  }, [open]);
+
+  return (
+    <section className="flex flex-col">
+      {/* Always in the page, so the applied code is read out when it appears. */}
+      <div aria-live="polite">
+        {applied !== null && (
+          <div className="flex min-h-touch items-center gap-base rounded-md border border-accent bg-accent/10 p-base">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-body font-semibold">{applied.code}</p>
+              <p className="text-body-sm text-text-muted">
+                {applied.label} ·{' '}
+                <span className="font-mono">
+                  {applied.discountPaise > 0
+                    ? `−${formatMoney(applied.discountPaise)}`
+                    : `${formatMoney(applied.postVisitCreditPaise)} back after your visit`}
+                </span>
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              onClick={() => {
+                setOpen(false);
+                setDraft('');
+                onRemove();
+              }}
+            >
+              Remove
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {applied === null &&
+        (open || error !== null ? (
+          <form
+            className="flex items-start gap-sm"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (draft.trim() !== '' && !applying) onApply(draft.trim());
+            }}
+          >
+            {/* The server drops spaces and ignores case, so the box only has to look like a
+                code. Upper case is display only: rewriting the value on every keystroke
+                throws the cursor to the end and fights the phone keyboard's suggestions. */}
+            <Input
+              ref={input}
+              aria-label="Coupon code"
+              placeholder="Enter code"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              autoCapitalize="characters"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              error={error}
+              containerClassName="min-w-0 flex-1"
+              className="uppercase placeholder:normal-case"
+            />
+            <Button
+              type="submit"
+              variant="secondary"
+              className="shrink-0"
+              loading={applying}
+              disabled={draft.trim() === ''}
+            >
+              Apply
+            </Button>
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="min-h-touch self-start rounded-md text-body-sm text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            Have a coupon code?
+          </button>
+        ))}
+    </section>
+  );
+}
+
+/** The code itself was refused, as opposed to the quote failing for some other reason. */
+function isCouponError(error: unknown): boolean {
+  return (
+    isResetApiError(error) &&
+    // Every refusal of a code is COUPON_INVALID, the unknown-code 404 included. The
+    // one-discount rule is a validation error that names the code as its field.
+    (error.code === 'COUPON_INVALID' || error.meta?.field === 'couponCode')
   );
 }

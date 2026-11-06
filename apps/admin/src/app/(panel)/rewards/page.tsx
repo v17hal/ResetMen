@@ -1,6 +1,13 @@
 'use client';
 
-import type { AdminCampaignRow, RewardType, ScratchTrigger } from '@reset/api-client';
+import type {
+  AdminCampaignRow,
+  AdminCouponRow,
+  CustomerSummary,
+  RewardType,
+  ScratchTrigger,
+} from '@reset/api-client';
+import type { CouponInput } from '@reset/types';
 import {
   Badge,
   Button,
@@ -15,6 +22,7 @@ import {
   Textarea,
   formatMoney,
   formatPercent,
+  formatPhone,
   paiseToRupees,
   rupeesToPaise,
   useToast,
@@ -25,7 +33,14 @@ import { useEffect, useState } from 'react';
 import { errorMessage } from '@/lib/auth';
 import { adminClient } from '@/lib/client';
 import { keys } from '@/lib/queries';
-import { STORE_TIMEZONE, isoToLocalInput, localInputToIso } from '@/lib/time';
+import {
+  STORE_TIMEZONE,
+  isoToLocalInput,
+  localDateIn,
+  localDateToIso,
+  localInputToIso,
+} from '@/lib/time';
+import { useDebounced } from '@/lib/use-debounced';
 
 const TRIGGERS: ReadonlyArray<{ value: ScratchTrigger; label: string; hint: string }> = [
   { value: 'ON_CHECKIN', label: 'Every check-in', hint: 'A card each time someone arrives.' },
@@ -50,20 +65,23 @@ const REWARD_TYPES: ReadonlyArray<{ value: RewardType; label: string; unit: stri
 ];
 
 export default function RewardsPage() {
-  const [tab, setTab] = useState<'streaks' | 'campaigns' | 'grants'>('streaks');
+  // Codes first: they are the newest lever (client request 06/11/2026) and the one that
+  // changes with every promotion. Streak rules are set once and left alone.
+  const [tab, setTab] = useState<'coupons' | 'streaks' | 'campaigns' | 'grants'>('coupons');
 
   return (
     <div className="flex flex-col gap-base">
       <header>
         <h1 className="font-display text-h1">Rewards</h1>
         <p className="text-body-sm text-text-muted">
-          Streaks reward coming back. Scratch cards reward turning up.
+          Codes are for promotions. Streaks reward coming back. Scratch cards reward turning up.
         </p>
       </header>
 
       <div role="tablist" className="flex flex-wrap gap-xs">
         {(
           [
+            ['coupons', 'Coupon codes'],
             ['streaks', 'Streak rules'],
             ['campaigns', 'Scratch campaigns'],
             ['grants', 'Manual grant'],
@@ -82,9 +100,502 @@ export default function RewardsPage() {
         ))}
       </div>
 
-      {tab === 'streaks' ? <StreakRules /> : tab === 'campaigns' ? <Campaigns /> : <Grant />}
+      {tab === 'coupons' ? (
+        <Coupons />
+      ) : tab === 'streaks' ? (
+        <StreakRules />
+      ) : tab === 'campaigns' ? (
+        <Campaigns />
+      ) : (
+        <Grant />
+      )}
     </div>
   );
+}
+
+// ── Coupon codes ────────────────────────────────────────────────────────────
+
+/**
+ * Codes customers type at checkout — RESET20 on a poster. Client request 06/11/2026.
+ *
+ * There is no delete, on the server or here: bookings keep pointing at the code they used,
+ * and its uses column is the record of what a promotion cost. Turning one off is an update
+ * with `isActive: false` that sends the rest of the row back unchanged.
+ */
+function Coupons() {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState<AdminCouponRow | 'new' | null>(null);
+  const [turningOff, setTurningOff] = useState<AdminCouponRow | null>(null);
+
+  const coupons = useQuery({
+    queryKey: keys.coupons,
+    queryFn: () => adminClient().rewards.coupons(),
+  });
+
+  const setRunning = useMutation({
+    mutationFn: ({ coupon, isActive }: { coupon: AdminCouponRow; isActive: boolean }) =>
+      adminClient().rewards.updateCoupon(coupon.id, { ...couponInputFrom(coupon), isActive }),
+    onSuccess: (_result, { coupon, isActive }) => {
+      toast.success(
+        isActive
+          ? `${coupon.code} is on. Customers can use it again.`
+          : `${coupon.code} turned off. Customers can no longer use it.`,
+      );
+      setTurningOff(null);
+      void queryClient.invalidateQueries({ queryKey: keys.coupons });
+    },
+    onError: (caught) => toast.error(errorMessage(caught)),
+  });
+
+  if (coupons.isError) {
+    return (
+      <ErrorState description={errorMessage(coupons.error)} onRetry={() => void coupons.refetch()} />
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-base">
+      <Card className="text-body-sm text-text-muted">
+        Customers type the code at checkout on the website and in the app. A booking takes one
+        code or one wallet reward, never both. Cashback codes take nothing off at checkout —
+        the amount comes back after the visit, as a voucher in their wallet.
+      </Card>
+
+      <div className="flex justify-end">
+        <Button onClick={() => setEditing('new')}>+ New code</Button>
+      </div>
+
+      <DataTable
+        loading={coupons.isPending}
+        rows={coupons.data ?? []}
+        rowKey={(row) => row.id}
+        onRowClick={setEditing}
+        empty={{
+          title: 'No codes yet',
+          description: 'Make one for a poster or a post — RESET20, DIWALI.',
+        }}
+        columns={[
+          {
+            key: 'code',
+            header: 'Code',
+            cell: (row) => (
+              <div className="flex flex-col">
+                <span className="font-mono font-medium">{row.code}</span>
+                {row.note !== null && row.note !== '' && (
+                  <span className="text-caption text-text-muted">{row.note}</span>
+                )}
+              </div>
+            ),
+          },
+          {
+            key: 'gives',
+            header: 'Gives',
+            cell: (row) => (
+              <div className="flex flex-col">
+                <span>{row.label}</span>
+                {row.minOrderPaise > 0 && (
+                  <span className="text-caption text-text-muted">
+                    min {formatMoney(row.minOrderPaise)}
+                  </span>
+                )}
+              </div>
+            ),
+          },
+          { key: 'valid', header: 'Valid', cell: (row) => validWindow(row) },
+          {
+            key: 'used',
+            header: 'Used',
+            align: 'right',
+            cell: (row) => (
+              <div className="flex flex-col items-end">
+                <span>{row.maxUses === null ? row.uses : `${row.uses} of ${row.maxUses}`}</span>
+                {row.maxUsesPerCustomer !== null && (
+                  <span className="text-caption text-text-muted">
+                    {row.maxUsesPerCustomer} per customer
+                  </span>
+                )}
+              </div>
+            ),
+          },
+          {
+            key: 'active',
+            header: '',
+            align: 'right',
+            cell: (row) => (row.isActive ? <Badge tone="success">Running</Badge> : <Badge>Off</Badge>),
+          },
+          {
+            key: 'actions',
+            header: '',
+            align: 'right',
+            cell: (row) => (
+              <div className="flex justify-end gap-xs">
+                <Button variant="secondary" size="sm" onClick={() => setEditing(row)}>
+                  Edit
+                </Button>
+                {row.isActive ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-danger"
+                    onClick={() => setTurningOff(row)}
+                  >
+                    Turn off
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    loading={setRunning.isPending && setRunning.variables?.coupon.id === row.id}
+                    onClick={() => setRunning.mutate({ coupon: row, isActive: true })}
+                  >
+                    Turn on
+                  </Button>
+                )}
+              </div>
+            ),
+          },
+        ]}
+      />
+
+      <ConfirmDialog
+        open={turningOff !== null}
+        onOpenChange={(open) => {
+          if (!open) setTurningOff(null);
+        }}
+        title={`Turn off ${turningOff?.code ?? ''}?`}
+        description={
+          'Customers who type it at checkout will be told it is no longer active. Bookings ' +
+          'already made with it keep their discount, and a cashback code still pays out after ' +
+          'the visit. It stays in this list and can be turned back on.'
+        }
+        confirmLabel="Yes, turn it off"
+        cancelLabel="Leave it on"
+        destructive
+        loading={setRunning.isPending}
+        onConfirm={() =>
+          turningOff !== null && setRunning.mutate({ coupon: turningOff, isActive: false })
+        }
+      />
+
+      <CouponDialog coupon={editing} onClose={() => setEditing(null)} />
+    </div>
+  );
+}
+
+/** The coupon form, as strings, because inputs hold strings. Empty means none or unlimited. */
+interface CouponDraft {
+  code: string;
+  rewardType: RewardType;
+  rewardValue: string;
+  minOrder: string;
+  /** `YYYY-MM-DD`, a day in the store. */
+  validFrom: string;
+  validTill: string;
+  maxUses: string;
+  maxUsesPerCustomer: string;
+  note: string;
+  isActive: boolean;
+}
+
+function draftFrom(coupon: AdminCouponRow | null): CouponDraft {
+  if (coupon === null) {
+    return {
+      code: '',
+      rewardType: 'PERCENT_OFF',
+      rewardValue: '20',
+      minOrder: '',
+      validFrom: '',
+      validTill: '',
+      maxUses: '',
+      // One each is what a code usually means, and the server's own default.
+      maxUsesPerCustomer: '1',
+      note: '',
+      isActive: true,
+    };
+  }
+
+  return {
+    code: coupon.code,
+    rewardType: coupon.rewardType,
+    // Money is stored in paise and typed in rupees; percentages are neither.
+    rewardValue: String(
+      isMoney(coupon.rewardType) ? paiseToRupees(coupon.rewardValue) : coupon.rewardValue,
+    ),
+    minOrder: coupon.minOrderPaise === 0 ? '' : String(paiseToRupees(coupon.minOrderPaise)),
+    validFrom:
+      coupon.validFrom === null ? '' : localDateIn(STORE_TIMEZONE, new Date(coupon.validFrom)),
+    validTill:
+      coupon.validTill === null ? '' : localDateIn(STORE_TIMEZONE, new Date(coupon.validTill)),
+    maxUses: coupon.maxUses === null ? '' : String(coupon.maxUses),
+    maxUsesPerCustomer:
+      coupon.maxUsesPerCustomer === null ? '' : String(coupon.maxUsesPerCustomer),
+    note: coupon.note ?? '',
+    isActive: coupon.isActive,
+  };
+}
+
+function CouponDialog({
+  coupon,
+  onClose,
+}: {
+  coupon: AdminCouponRow | 'new' | null;
+  onClose: () => void;
+}) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const isNew = coupon === 'new';
+  const existing = coupon === 'new' || coupon === null ? null : coupon;
+
+  const [form, setForm] = useState<CouponDraft>(() => draftFrom(null));
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setForm(draftFrom(existing));
+    setError(null);
+  }, [existing, isNew]);
+
+  const save = useMutation({
+    mutationFn: () => {
+      const input: CouponInput = {
+        code: form.code,
+        note: form.note.trim() === '' ? null : form.note.trim(),
+        rewardType: form.rewardType,
+        rewardValue: isMoney(form.rewardType)
+          ? rupeesToPaise(Number(form.rewardValue))
+          : Number(form.rewardValue),
+        minOrderPaise: form.minOrder.trim() === '' ? 0 : rupeesToPaise(Number(form.minOrder)),
+        // Whole days in the store: from the first minute of the start day to the last
+        // second of the end day, so "until the 30th" includes the 30th.
+        validFrom:
+          form.validFrom === '' ? null : localDateToIso(form.validFrom, STORE_TIMEZONE, 'start'),
+        validTill:
+          form.validTill === '' ? null : localDateToIso(form.validTill, STORE_TIMEZONE, 'end'),
+        maxUses: form.maxUses.trim() === '' ? null : Number(form.maxUses),
+        maxUsesPerCustomer:
+          form.maxUsesPerCustomer.trim() === '' ? null : Number(form.maxUsesPerCustomer),
+        isActive: form.isActive,
+      };
+
+      return isNew
+        ? adminClient().rewards.createCoupon(input)
+        : adminClient().rewards.updateCoupon(existing!.id, input);
+    },
+    onSuccess: (saved) => {
+      toast.success(isNew ? `${saved.code} created.` : 'Saved.');
+      void queryClient.invalidateQueries({ queryKey: keys.coupons });
+      onClose();
+    },
+    onError: (caught) => setError(errorMessage(caught)),
+  });
+
+  if (coupon === null) return null;
+
+  const unit = REWARD_TYPES.find((type) => type.value === form.rewardType)?.unit ?? '';
+  const value = Number(form.rewardValue);
+
+  // The server checks all of this too, mostly in these words. Checking first keeps Create
+  // greyed out until the form can actually succeed.
+  const problem = !/^[A-Z0-9]{3,20}$/.test(form.code)
+    ? 'A code is 3 to 20 letters or digits.'
+    : form.rewardValue.trim() === '' || !Number.isFinite(value) || value < 0
+      ? 'Say what the code gives.'
+      : form.rewardType === 'PERCENT_OFF' && (!Number.isInteger(value) || value < 1 || value > 100)
+        ? 'A percentage is a whole number from 1 to 100.'
+        : (form.rewardType === 'FLAT_OFF' || form.rewardType === 'CASHBACK') && value === 0
+          ? 'A code worth ₹0 gives nothing.'
+          : form.minOrder.trim() !== '' &&
+              (!Number.isFinite(Number(form.minOrder)) || Number(form.minOrder) < 0)
+            ? 'The minimum booking is an amount in rupees, or empty for none.'
+            : !isBlankOrCount(form.maxUses)
+              ? 'Total uses is a whole number, or empty for unlimited.'
+              : !isBlankOrCount(form.maxUsesPerCustomer)
+                ? 'Uses per customer is a whole number, or empty for unlimited.'
+                : form.validFrom !== '' && form.validTill !== '' && form.validFrom > form.validTill
+                  ? 'The code must start before it ends.'
+                  : null;
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      variant="sheet"
+      title={isNew ? 'New code' : 'Edit code'}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            loading={save.isPending}
+            disabled={problem !== null}
+            onClick={() => save.mutate()}
+          >
+            {isNew ? 'Create' : 'Save'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-base">
+        <Input
+          label="Code"
+          required
+          value={form.code}
+          maxLength={20}
+          autoComplete="off"
+          // Shown as it will be stored: the server upper-cases it and drops spaces anyway.
+          onChange={(event) =>
+            setForm((c) => ({ ...c, code: event.target.value.replace(/\s+/g, '').toUpperCase() }))
+          }
+          className="font-mono"
+          hint="Letters and digits, e.g. RESET20. Customers can type it in any case."
+        />
+
+        <div className="flex flex-col gap-base sm:flex-row">
+          <Select
+            label="Gives"
+            value={form.rewardType}
+            onChange={(event) =>
+              setForm((c) => ({ ...c, rewardType: event.target.value as RewardType }))
+            }
+            containerClassName="flex-1"
+          >
+            {REWARD_TYPES.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </Select>
+          <Input
+            label={`Value (${unit})`}
+            type="number"
+            min={0}
+            value={form.rewardValue}
+            onChange={(event) => setForm((c) => ({ ...c, rewardValue: event.target.value }))}
+            containerClassName="flex-1"
+          />
+        </div>
+
+        <Input
+          label="Minimum booking (₹)"
+          type="number"
+          min={0}
+          value={form.minOrder}
+          onChange={(event) => setForm((c) => ({ ...c, minOrder: event.target.value }))}
+          hint="Leave empty for no minimum."
+        />
+
+        <div className="flex flex-col gap-base sm:flex-row">
+          <Input
+            label="Starts (optional)"
+            type="date"
+            value={form.validFrom}
+            onChange={(event) => setForm((c) => ({ ...c, validFrom: event.target.value }))}
+            containerClassName="flex-1"
+            hint="Leave empty to work as soon as it is on."
+          />
+          <Input
+            label="Ends (optional)"
+            type="date"
+            value={form.validTill}
+            onChange={(event) => setForm((c) => ({ ...c, validTill: event.target.value }))}
+            containerClassName="flex-1"
+            hint="Works until the end of that day. Empty runs until turned off."
+          />
+        </div>
+
+        <div className="flex flex-col gap-base sm:flex-row">
+          <Input
+            label="Total uses"
+            type="number"
+            min={1}
+            value={form.maxUses}
+            onChange={(event) => setForm((c) => ({ ...c, maxUses: event.target.value }))}
+            containerClassName="flex-1"
+            hint="Across everyone. Empty for unlimited. A cancelled booking gives its use back."
+          />
+          <Input
+            label="Uses per customer"
+            type="number"
+            min={1}
+            value={form.maxUsesPerCustomer}
+            onChange={(event) =>
+              setForm((c) => ({ ...c, maxUsesPerCustomer: event.target.value }))
+            }
+            containerClassName="flex-1"
+            hint="Empty for unlimited."
+          />
+        </div>
+
+        <Input
+          label="Note for staff"
+          value={form.note}
+          maxLength={120}
+          onChange={(event) => setForm((c) => ({ ...c, note: event.target.value }))}
+          hint="Optional, e.g. “Diwali poster”. Customers never see it."
+        />
+
+        <Checkbox
+          label="Running"
+          hint="Off means anyone who types it is told it is no longer active."
+          checked={form.isActive}
+          onChange={(event) => setForm((c) => ({ ...c, isActive: event.target.checked }))}
+        />
+
+        {problem !== null && <p className="text-caption text-danger">{problem}</p>}
+        {error !== null && <p className="text-caption text-danger">{error}</p>}
+      </div>
+    </Dialog>
+  );
+}
+
+/** A listed code, sent back as it is — how Turn off and Turn on change one field and no other. */
+function couponInputFrom(coupon: AdminCouponRow): CouponInput {
+  return {
+    code: coupon.code,
+    note: coupon.note,
+    rewardType: coupon.rewardType,
+    rewardValue: coupon.rewardValue,
+    minOrderPaise: coupon.minOrderPaise,
+    validFrom: coupon.validFrom,
+    validTill: coupon.validTill,
+    maxUses: coupon.maxUses,
+    maxUsesPerCustomer: coupon.maxUsesPerCustomer,
+    isActive: coupon.isActive,
+  };
+}
+
+/** Empty, or a whole number of at least one — the two things a uses limit can be. */
+function isBlankOrCount(value: string): boolean {
+  if (value.trim() === '') return true;
+  const count = Number(value);
+  return Number.isInteger(count) && count >= 1;
+}
+
+/** "Until 30 Nov", "From 1 Dec", "Always" — when a code works, in the store's days. */
+function validWindow({ validFrom, validTill }: AdminCouponRow): string {
+  const now = Date.now();
+
+  if (validTill !== null && new Date(validTill).getTime() < now) {
+    return `Ended ${dayMonth(validTill)}`;
+  }
+  if (validFrom !== null && new Date(validFrom).getTime() > now) {
+    return validTill === null
+      ? `From ${dayMonth(validFrom)}`
+      : `${dayMonth(validFrom)} – ${dayMonth(validTill)}`;
+  }
+  return validTill === null ? 'Always' : `Until ${dayMonth(validTill)}`;
+}
+
+/** `30 Nov`, read in the store's timezone whatever the tablet is set to. */
+function dayMonth(iso: string): string {
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: STORE_TIMEZONE,
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date(iso));
 }
 
 // ── Streak rules ────────────────────────────────────────────────────────────
@@ -883,13 +1394,40 @@ function isMoney(type: RewardType): boolean {
   return type !== 'PERCENT_OFF';
 }
 
+/**
+ * What `GET /admin/rewards/campaigns/:id/stats` returns — `campaignStats` in
+ * apps/api/src/admin/admin-rewards.service.ts.
+ *
+ * This used to declare `issued`, `scratched`, `redeemed` and `costPerCardPaise`, none of which
+ * the server has ever sent, so the dialog showed blanks and ₹NaN. There is no redeemed count
+ * at all: the cost figures are expectations worked out from the prize weights, not a tally.
+ */
 interface CampaignStatsDto {
-  issued: number;
-  scratched: number;
-  redeemed: number;
-  costPaise: number;
-  costPerCardPaise: number;
-  byReward?: Array<{ label: string; won: number; stockTotal: number | null }>;
+  campaignId: string;
+  name: string;
+  isActive: boolean;
+  cardsIssued: number;
+  cardsScratched: number;
+  /** What percent-off and free-session prizes are valued against. */
+  averageBookingPaise: number;
+  /** The weighted mean payout of one scratch. */
+  expectedCostPerCardPaise: number;
+  /** `expectedCostPerCardPaise` × every card issued so far, scratched or not. */
+  projectedCostAtCurrentVolumePaise: number;
+  /** Only the prizes still in the draw: on, weighted above zero and in stock. */
+  slices: Array<{
+    label: string;
+    rewardType: RewardType;
+    rewardValue: number;
+    weight: number;
+    chancePercent: number;
+    estimatedValuePaise: number;
+    stockTotal: number | null;
+    stockUsed: number;
+    stockRemaining: number | null;
+  }>;
+  /** Nothing left to win — cards cannot be scratched until a prize is restocked. */
+  exhausted: boolean;
 }
 
 function CampaignStats({
@@ -915,7 +1453,7 @@ function CampaignStats({
       }}
       variant="sheet"
       title={campaign.name}
-      description="What this campaign has cost, and what it has produced."
+      description="How many cards have gone out, and what each one is expected to cost."
     >
       {stats.isError ? (
         <ErrorState description={errorMessage(stats.error)} />
@@ -923,35 +1461,71 @@ function CampaignStats({
         <p className="text-body-sm text-text-muted">Loading…</p>
       ) : (
         <div className="flex flex-col gap-base">
+          {stats.data.exhausted && (
+            <Card className="text-body-sm text-warning">
+              Nothing left to win — every prize is off or out of stock. Cards stay unscratched
+              in wallets until you edit the campaign and restock or add a prize.
+            </Card>
+          )}
+
           <dl className="grid grid-cols-2 gap-base text-body-sm">
             <div>
               <dt className="text-text-muted">Cards issued</dt>
-              <dd className="font-medium">{stats.data.issued}</dd>
+              <dd className="font-medium">{stats.data.cardsIssued}</dd>
             </div>
             <div>
               <dt className="text-text-muted">Scratched</dt>
               <dd className="font-medium">
-                {stats.data.scratched}
-                {stats.data.issued > 0 && (
+                {stats.data.cardsScratched}
+                {stats.data.cardsIssued > 0 && (
                   <span className="ml-xs text-caption text-text-muted">
-                    {formatPercent((stats.data.scratched / stats.data.issued) * 100)}
+                    {formatPercent((stats.data.cardsScratched / stats.data.cardsIssued) * 100)}
                   </span>
                 )}
               </dd>
             </div>
             <div>
-              <dt className="text-text-muted">Redeemed</dt>
-              <dd className="font-medium">{stats.data.redeemed}</dd>
+              <dt className="text-text-muted">Expected cost per card</dt>
+              <dd className="font-medium">{formatMoney(stats.data.expectedCostPerCardPaise)}</dd>
             </div>
             <div>
-              <dt className="text-text-muted">Cost per card</dt>
-              <dd className="font-medium">{formatMoney(stats.data.costPerCardPaise)}</dd>
+              <dt className="text-text-muted">Expected cost of cards issued</dt>
+              <dd className="font-medium">
+                {formatMoney(stats.data.projectedCostAtCurrentVolumePaise)}
+              </dd>
             </div>
           </dl>
 
+          {stats.data.slices.length > 0 && (
+            <section className="flex flex-col gap-sm border-t border-border pt-base">
+              <h3 className="text-body-sm font-medium">In the draw now</h3>
+              <ul className="flex flex-col divide-y divide-border">
+                {stats.data.slices.map((slice, index) => (
+                  <li
+                    key={`${index}-${slice.label}`}
+                    className="flex items-center justify-between gap-sm py-sm"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-body-sm">{slice.label}</span>
+                      <span className="text-caption text-text-muted">
+                        {formatPercent(slice.chancePercent)} of draws · won {slice.stockUsed}
+                        {slice.stockTotal === null ? '' : ` of ${slice.stockTotal}`}
+                      </span>
+                    </div>
+                    <span className="shrink-0 text-body-sm tabular-nums">
+                      ≈ {formatMoney(slice.estimatedValuePaise)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           <p className="text-caption text-text-muted">
-            Cost counts rewards actually <em>redeemed</em>, not issued. An unscratched card
-            costs nothing.
+            These are expectations from the prize weights, not a tally of what has been
+            redeemed. Percent-off and free-session prizes are valued against the average booking
+            of {formatMoney(stats.data.averageBookingPaise)}, because what they cost depends on
+            what people book. The second figure assumes every card issued gets scratched.
           </p>
         </div>
       )}
@@ -964,13 +1538,16 @@ function CampaignStats({
 /**
  * The "sorry about the wait" lever every counter needs.
  *
- * Audited, and deliberately a little slow to use: it takes a customer id rather than a name
- * search, so it cannot be fired off by accident.
+ * Audited. It used to ask for a customer id copied "from the address bar", but the customer
+ * pop-up never puts one there and the id is shown nowhere, so nobody could use it. Now the
+ * customer is picked from a search, and their name stays on screen until the grant is made —
+ * a reward cannot land on someone nobody looked at.
  */
 function Grant() {
   const toast = useToast();
+  const [customer, setCustomer] = useState<CustomerSummary | null>(null);
+  const [search, setSearch] = useState('');
   const [form, setForm] = useState({
-    userId: '',
     rewardType: 'FLAT_OFF' as RewardType,
     rewardValue: '100',
     validityDays: '30',
@@ -978,10 +1555,20 @@ function Grant() {
   });
   const [error, setError] = useState<string | null>(null);
 
+  // The Customers page's own search: name or phone, one request per pause in typing.
+  const query = useDebounced(search, 300).trim();
+  const params = { q: query, limit: 8 };
+
+  const matches = useQuery({
+    queryKey: keys.customers(params),
+    queryFn: () => adminClient().customers.list(params),
+    enabled: customer === null && query !== '',
+  });
+
   const grant = useMutation({
-    mutationFn: () =>
+    mutationFn: (target: CustomerSummary) =>
       adminClient().rewards.grant({
-        userId: form.userId.trim(),
+        userId: target.id,
         rewardType: form.rewardType,
         rewardValue:
           form.rewardType === 'PERCENT_OFF'
@@ -991,9 +1578,11 @@ function Grant() {
         validityDays: Number(form.validityDays),
         ...(form.reason.trim() === '' ? {} : { reason: form.reason.trim() }),
       }),
-    onSuccess: () => {
-      toast.success('Reward granted. It is in their wallet now.');
-      setForm((c) => ({ ...c, userId: '', reason: '' }));
+    onSuccess: (_result, target) => {
+      toast.success(`Reward granted to ${target.name ?? 'the customer'}. It is in their wallet now.`);
+      setCustomer(null);
+      setSearch('');
+      setForm((c) => ({ ...c, reason: '' }));
       setError(null);
     },
     onError: (caught) => setError(errorMessage(caught)),
@@ -1004,17 +1593,73 @@ function Grant() {
   return (
     <Card className="flex max-w-lg flex-col gap-base">
       <p className="text-body-sm text-text-muted">
-        Find the customer under Customers, copy their id from the address bar, and paste it
-        here. Every grant is recorded in the audit log with whoever made it.
+        Search for the customer by name or phone and pick them from the list. Every grant is
+        recorded in the audit log with whoever made it.
       </p>
 
-      <Input
-        label="Customer id"
-        required
-        value={form.userId}
-        onChange={(event) => setForm((c) => ({ ...c, userId: event.target.value }))}
-        className="font-mono"
-      />
+      {customer === null ? (
+        <div className="flex flex-col gap-xs">
+          <Input
+            label="Customer"
+            required
+            placeholder="Name or phone"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            autoComplete="off"
+            hint="Type part of their name or phone number, then pick them below."
+          />
+
+          {query !== '' &&
+            (matches.isError ? (
+              <p className="text-caption text-danger">{errorMessage(matches.error)}</p>
+            ) : matches.isPending ? (
+              <p className="text-caption text-text-muted">Searching…</p>
+            ) : matches.data.data.length === 0 ? (
+              <p className="text-caption text-text-muted">
+                Nobody matches that. Only customers who have booked at least once can be found.
+              </p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
+                {matches.data.data.map((row) => (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomer(row);
+                        setError(null);
+                      }}
+                      className="flex min-h-touch-admin w-full flex-col items-start justify-center rounded-md px-sm py-xs text-left hover:bg-surface2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      <span className="text-body-sm font-medium">{row.name ?? 'Guest'}</span>
+                      <span className="text-caption text-text-muted">
+                        {row.phone === null ? 'No phone on file' : formatPhone(row.phone)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ))}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-xs">
+          <span className="text-body-sm font-medium text-text">Customer</span>
+          <div className="flex items-center justify-between gap-sm rounded-md border border-border px-sm py-xs">
+            <div className="flex flex-col">
+              <span className="text-body-sm font-medium">{customer.name ?? 'Guest'}</span>
+              <span className="text-caption text-text-muted">
+                {customer.phone === null ? 'No phone on file' : formatPhone(customer.phone)}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCustomer(null)}
+              className="shrink-0 text-caption text-primary underline underline-offset-2"
+            >
+              Change
+            </button>
+          </div>
+        </div>
+      )}
 
       <Select
         label="Reward"
@@ -1058,8 +1703,8 @@ function Grant() {
 
       <Button
         loading={grant.isPending}
-        disabled={form.userId.trim() === ''}
-        onClick={() => grant.mutate()}
+        disabled={customer === null}
+        onClick={() => customer !== null && grant.mutate(customer)}
       >
         Grant reward
       </Button>

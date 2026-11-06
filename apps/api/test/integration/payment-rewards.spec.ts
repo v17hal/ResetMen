@@ -22,6 +22,7 @@ import { NotificationService } from '../../src/notifications/notification.servic
 import { PaymentService } from '../../src/payments/payment.service.js';
 import { RazorpayClient } from '../../src/payments/razorpay.client.js';
 import { ProductService } from '../../src/products/product.service.js';
+import { CouponService } from '../../src/rewards/coupon.service.js';
 import { RewardsService } from '../../src/rewards/rewards.service.js';
 import { ScratchService } from '../../src/rewards/scratch.service.js';
 import { StreakService } from '../../src/rewards/streak.service.js';
@@ -65,6 +66,7 @@ describe('payments, rewards and stock', () => {
         PaymentService,
         RazorpayClient,
         RewardsService,
+        CouponService,
         ScratchService,
         StreakService,
         NotificationService,

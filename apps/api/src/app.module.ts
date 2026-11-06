@@ -58,6 +58,7 @@ import { WebhookController } from './payments/webhook.controller.js';
 import { ProductController, ProductOrderController } from './products/product.controller.js';
 import { ProductJobs } from './products/product.jobs.js';
 import { ProductService } from './products/product.service.js';
+import { CouponService } from './rewards/coupon.service.js';
 import { RewardsController } from './rewards/rewards.controller.js';
 import { RewardsJobs } from './rewards/rewards.jobs.js';
 import { RewardsService } from './rewards/rewards.service.js';
@@ -139,6 +140,7 @@ import { SupportService } from './support/support.service.js';
     RewardsService,
     ScratchService,
     StreakService,
+    CouponService,
     // Notifications. Push is primary; SMS and WhatsApp are fallbacks, email is additive.
     FcmProvider,
     SmsProvider,

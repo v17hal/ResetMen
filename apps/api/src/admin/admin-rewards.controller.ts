@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { grantRewardInput, scratchCampaignInput, streakRuleInput } from '@reset/types';
+import { couponInput, grantRewardInput, scratchCampaignInput, streakRuleInput } from '@reset/types';
 import type { z } from 'zod';
 
 import { AdminGuard, CurrentAuth, Roles, RolesGuard } from '../auth/auth.guards.js';
@@ -9,6 +9,7 @@ import { AuditService } from '../common/audit.service.js';
 import { StoreIdHeader, StoreScopeService } from '../common/store-scope.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { NotificationService } from '../notifications/notification.service.js';
+import { CouponService } from '../rewards/coupon.service.js';
 import { labelFor } from '../rewards/reward-math.js';
 import { RewardsService } from '../rewards/rewards.service.js';
 import { AdminRewardsService } from './admin-rewards.service.js';
@@ -32,6 +33,7 @@ export class AdminRewardsController {
     private readonly notifications: NotificationService,
     private readonly audit: AuditService,
     private readonly scope: StoreScopeService,
+    private readonly coupons: CouponService,
   ) {}
 
   private async storeFor(auth: TokenClaims, header?: string): Promise<string> {
@@ -249,5 +251,58 @@ export class AdminRewardsController {
     });
 
     return revoked;
+  }
+
+  // ── Coupon codes ───────────────────────────────────────────────────────────
+  // Client request 06/11/2026. Codes are turned off, never deleted: bookings keep pointing at
+  // the code they used, and the uses column is the record of what a promotion cost.
+
+  @Get('coupons')
+  async listCoupons(@CurrentAuth() auth: TokenClaims, @StoreIdHeader() header?: string) {
+    return { data: await this.coupons.list(await this.storeFor(auth, header)) };
+  }
+
+  @Post('coupons')
+  async createCoupon(
+    @CurrentAuth() auth: TokenClaims,
+    @Body(new ZodValidationPipe(couponInput)) body: z.infer<typeof couponInput>,
+    @StoreIdHeader() header?: string,
+  ) {
+    const storeId = await this.storeFor(auth, header);
+    const created = await this.coupons.create(storeId, body);
+
+    await this.audit.record({
+      storeId,
+      adminUserId: auth.sub,
+      action: 'coupon.created',
+      entityType: 'Coupon',
+      entityId: created.id,
+      after: created,
+    });
+
+    return created;
+  }
+
+  @Put('coupons/:id')
+  async updateCoupon(
+    @CurrentAuth() auth: TokenClaims,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(couponInput)) body: z.infer<typeof couponInput>,
+    @StoreIdHeader() header?: string,
+  ) {
+    const storeId = await this.storeFor(auth, header);
+    const { before, after } = await this.coupons.update(storeId, id, body);
+
+    await this.audit.record({
+      storeId,
+      adminUserId: auth.sub,
+      action: 'coupon.updated',
+      entityType: 'Coupon',
+      entityId: id,
+      before,
+      after,
+    });
+
+    return after;
   }
 }

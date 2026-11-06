@@ -88,6 +88,15 @@ const envSchema = z.object({
   EMAIL_API_KEY: optionalSecret,
   EMAIL_FROM: optionalSecret,
 
+  /**
+   * Who hears about a new booking — client request 06/11/2026, "booking hone ke baad mujhe
+   * notifications nahi aa raha". Comma-separated addresses. Absent → the shop is not emailed
+   * (the admin panel's own new-booking alert still works while it is open).
+   */
+  STORE_ALERT_EMAIL: optionalSecret,
+  /** The admin panel's host, e.g. `admin.resetmen.in`, for the link in that email. */
+  ADMIN_DOMAIN: optionalSecret,
+
   /** Days a soft-deleted account is retained before its personal data is purged. */
   DATA_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
 

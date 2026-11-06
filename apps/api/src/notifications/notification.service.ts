@@ -3,6 +3,7 @@ import type { DevicePlatform, NotificationChannel, Prisma } from '@prisma/client
 import type { NotificationTemplate } from '@reset/types';
 import { DateTime } from 'luxon';
 
+import { loadEnv } from '../config/env.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { EmailProvider, SmsProvider, WhatsAppProvider } from './channel.providers.js';
 import { FcmProvider } from './fcm.provider.js';
@@ -39,8 +40,10 @@ interface TemplateSpec {
 const TEMPLATES: Record<NotificationTemplate, TemplateSpec> = {
   booking_confirmed: {
     render: (v) => ({
+      // Not "show your QR": a booking paid at the counter has no QR until it is paid, so the
+      // code is what the customer gives on arrival.
       title: 'Booking confirmed',
-      body: `${v.serviceName} on ${v.when}. Show your QR at the counter.`,
+      body: `${v.serviceName} on ${v.when}. Your booking code is ${v.publicId}.`,
       deepLink: `reset://bookings/${v.bookingId}`,
     }),
     fallbackToSms: true,
@@ -51,7 +54,8 @@ const TEMPLATES: Record<NotificationTemplate, TemplateSpec> = {
         `Reference: ${v.publicId}\n` +
         `Session:   ${v.serviceName}\n` +
         `When:      ${v.when}\n\n` +
-        `Show the QR in the app at the counter. You can reschedule or cancel from the app.`,
+        `Give your booking code at the counter when you arrive. You can reschedule or ` +
+        `cancel from My bookings at resetmen.in or in the app.`,
     }),
   },
   booking_reminder_60: {
@@ -366,6 +370,68 @@ export class NotificationService {
         when,
       },
     });
+  }
+
+  /**
+   * Tells the shop a customer has booked.
+   *
+   * Client request 06/11/2026: "booking hone ke baad mujhe notifications nahi aa raha".
+   * Nothing told the shop at all — every message here went to the customer. Email, because
+   * the owner's phone is not a device the customer push path can reach; the admin panel adds
+   * its own sound-and-pop-up alert while it is open.
+   *
+   * Walk-ins are skipped: the person who would be told is the one who typed it in.
+   */
+  async notifyStoreOfBooking(bookingId: string): Promise<void> {
+    const env = loadEnv();
+    const recipients = (env.STORE_ALERT_EMAIL ?? '')
+      .split(',')
+      .map((address) => address.trim())
+      .filter((address) => address.length > 0);
+    if (recipients.length === 0) return;
+
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        store: { select: { timezone: true } },
+        user: { select: { name: true, phone: true, email: true } },
+        appliedCoupon: { select: { code: true } },
+        payments: { where: { status: 'CAPTURED', gateway: 'RAZORPAY' }, select: { id: true } },
+      },
+    });
+    if (booking === null || booking.source === 'ADMIN_WALKIN') return;
+
+    const when = DateTime.fromJSDate(booking.startsAt)
+      .setZone(booking.store.timezone)
+      .toFormat('ccc d LLL, h:mm a');
+    const price = `₹${(booking.payablePaise / 100).toFixed(booking.payablePaise % 100 === 0 ? 0 : 2)}`;
+
+    const subject = `New booking: ${booking.serviceNameSnapshot}, ${when}`;
+    const body = [
+      `${booking.user?.name ?? 'A customer'} has booked.`,
+      '',
+      `Session:   ${booking.serviceNameSnapshot}`,
+      `When:      ${when}`,
+      `Price:     ${price}${booking.appliedCoupon === null ? '' : ` (code ${booking.appliedCoupon.code})`}`,
+      `Payment:   ${booking.payments.length > 0 ? 'Paid online' : 'Pay at the counter'}`,
+      `Phone:     ${booking.user?.phone ?? '—'}`,
+      `Reference: ${booking.publicId}`,
+      ...(env.ADMIN_DOMAIN === undefined ? [] : ['', `Open the admin panel: https://${env.ADMIN_DOMAIN}`]),
+    ].join('\n');
+
+    for (const to of recipients) {
+      const log = await this.prisma.notificationLog.create({
+        data: {
+          userId: null,
+          channel: 'EMAIL',
+          template: 'store_new_booking',
+          payload: { bookingId, publicId: booking.publicId, to, title: subject, body } as Prisma.InputJsonValue,
+          status: 'QUEUED',
+        },
+      });
+      const outcome = await this.email.send(to, subject, body);
+      await this.finish(log.id, outcome.ok, outcome.error ?? null);
+    }
   }
 
   async notifyBookingCancelled(bookingId: string): Promise<void> {

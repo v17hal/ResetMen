@@ -10,6 +10,7 @@ import type {
   BlockCustomerInput,
   BookingDetail,
   CategoryInput,
+  CouponInput,
   CustomerSummary,
   GrantRewardInput,
   NoShowReport,
@@ -44,6 +45,7 @@ import type {
   AdminBlackoutRow,
   AdminCampaignRow,
   AdminCategoryRow,
+  AdminCouponRow,
   AdminCustomerDetail,
   AdminLoginResponse,
   AdminPaymentRow,
@@ -60,6 +62,7 @@ import type {
   MediaAsset,
   Page,
   StationEarningsReport,
+  NewBookingAlert,
   TimelineDto,
   AdminStoreProfile,
 } from '../models.js';
@@ -109,6 +112,17 @@ export class AdminBookingsResource {
   /** One store-day, by station. The screen the counter lives on. */
   timeline(date: string, signal?: AbortSignal): Promise<TimelineDto> {
     return this.http.get('/admin/bookings/timeline', { query: { date }, signal });
+  }
+
+  /**
+   * Customer bookings confirmed after `after` — the new-booking bell. Call it first with no
+   * `after`: that returns no bookings, only the server's clock to poll from. Pass back the
+   * `now` each answer gives, never the browser's own time.
+   */
+  confirmedSince(after?: string): Promise<{ now: string; bookings: NewBookingAlert[] }> {
+    return this.http.get('/admin/bookings/confirmed-since', {
+      query: after === undefined ? {} : { after },
+    });
   }
 
   /**
@@ -487,6 +501,19 @@ export class AdminRewardsResource {
    */
   revokeGrant(id: string): Promise<unknown> {
     return this.http.post(`/admin/rewards/grants/${encodeURIComponent(id)}/revoke`);
+  }
+
+  /** Coupon codes customers type at checkout — client request 06/11/2026. */
+  async coupons(): Promise<AdminCouponRow[]> {
+    const { data } = await this.http.get<{ data: AdminCouponRow[] }>('/admin/rewards/coupons');
+    return data;
+  }
+  createCoupon(input: CouponInput): Promise<AdminCouponRow> {
+    return this.http.post('/admin/rewards/coupons', { body: input });
+  }
+  /** Also how a code is turned off: send it back with `isActive: false`. Codes are never deleted. */
+  updateCoupon(id: string, input: CouponInput): Promise<AdminCouponRow> {
+    return this.http.put(`/admin/rewards/coupons/${encodeURIComponent(id)}`, { body: input });
   }
 }
 

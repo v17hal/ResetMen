@@ -595,6 +595,39 @@ class AppliedReward {
       );
 }
 
+/// A code the shop handed out, typed at checkout — client request 06/11/2026.
+///
+/// The same money fields as [AppliedReward]. [code] is as the server spelled it back —
+/// upper case, no spaces — which is what the screen shows and what the hold sends.
+class AppliedCoupon {
+  AppliedCoupon({
+    required this.id,
+    required this.code,
+    required this.label,
+    required this.discountPaise,
+    required this.postVisitCreditPaise,
+  });
+
+  final String id;
+  final String code;
+
+  /// What the code does — "20% off", "₹50 cashback". Never includes the code itself.
+  final String label;
+  final int discountPaise;
+
+  /// A cashback code takes nothing off now: [discountPaise] is zero and this is what comes
+  /// back after the visit.
+  final int postVisitCreditPaise;
+
+  factory AppliedCoupon.fromJson(Map<String, dynamic> json) => AppliedCoupon(
+        id: _str(json['id']),
+        code: _str(json['code']),
+        label: _str(json['label']),
+        discountPaise: _int(json['discountPaise']),
+        postVisitCreditPaise: _int(json['postVisitCreditPaise']),
+      );
+}
+
 class Quote {
   Quote({
     required this.serviceId,
@@ -606,6 +639,7 @@ class Quote {
     required this.payablePaise,
     required this.addons,
     required this.appliedReward,
+    required this.appliedCoupon,
   });
 
   final String serviceId;
@@ -617,6 +651,9 @@ class Quote {
   final int payablePaise;
   final List<({String id, String name, int pricePaise})> addons;
   final AppliedReward? appliedReward;
+
+  /// One discount per booking, so at most one of this and [appliedReward] is set.
+  final AppliedCoupon? appliedCoupon;
 
   factory Quote.fromJson(Map<String, dynamic> json) => Quote(
         serviceId: _str(json['serviceId']),
@@ -638,6 +675,11 @@ class Quote {
             ? null
             : AppliedReward.fromJson(
                 json['appliedReward'] as Map<String, dynamic>),
+        // Absent from a server older than codes, which is the same as no code.
+        appliedCoupon: json['appliedCoupon'] == null
+            ? null
+            : AppliedCoupon.fromJson(
+                json['appliedCoupon'] as Map<String, dynamic>),
       );
 }
 

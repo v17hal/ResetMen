@@ -5,8 +5,6 @@ import type { OrderResponse } from '@reset/types';
 import { BookingLifecycleService } from '../booking/booking-lifecycle.service.js';
 import { AppError } from '../common/errors.js';
 import { PrismaService } from '../database/prisma.service.js';
-import { NotificationService } from '../notifications/notification.service.js';
-import { RewardsService } from '../rewards/rewards.service.js';
 import { RazorpayClient } from './razorpay.client.js';
 import type { GatewayPayment } from './razorpay.client.js';
 
@@ -35,8 +33,6 @@ export class PaymentService {
     private readonly prisma: PrismaService,
     private readonly gateway: RazorpayClient,
     private readonly lifecycle: BookingLifecycleService,
-    private readonly rewards: RewardsService,
-    private readonly notifications: NotificationService,
   ) {}
 
   /**
@@ -458,8 +454,9 @@ export class PaymentService {
    * goes back instead, automatically, without anyone having to notice.
    */
   private async confirmBooking(bookingId: string, paymentId: string): Promise<void> {
+    let changed: boolean;
     try {
-      await this.lifecycle.confirm(bookingId, null);
+      ({ changed } = await this.lifecycle.confirm(bookingId, null));
     } catch (error) {
       if (error instanceof AppError && error.code === 'HOLD_EXPIRED') {
         this.logger.warn(`Payment ${paymentId} landed after hold ${bookingId} expired — refunding`);
@@ -473,18 +470,12 @@ export class PaymentService {
       throw error;
     }
 
-    const booking = await this.prisma.booking.findUniqueOrThrow({
-      where: { id: bookingId },
-      include: { store: { select: { timezone: true } } },
-    });
-
     // The applied reward was already claimed at hold time, so there is nothing to consume
     // here. Payment is what makes that claim permanent: from this point the expiry and
-    // cancellation paths no longer hand it back.
-    if (booking.userId !== null) {
-      await this.rewards.onBookingConfirmed(booking.storeId, booking.userId, bookingId);
-      await this.notifications.notifyBookingConfirmed(bookingId);
-    }
+    // cancellation paths no longer hand it back. The customer's confirmation, any
+    // nth-booking scratch card and the shop's alert all go out through the one method every
+    // confirming path shares — once, not again for Razorpay's repeat deliveries.
+    if (changed) await this.lifecycle.announceConfirmed(bookingId);
   }
 
   /**

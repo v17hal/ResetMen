@@ -91,7 +91,7 @@ export function labelFor(reward: RewardLike): string {
   }
 }
 
-function rupees(paise: number): string {
+export function rupees(paise: number): string {
   return (paise / 100).toFixed(paise % 100 === 0 ? 0 : 2);
 }
 

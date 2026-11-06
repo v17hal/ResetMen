@@ -472,6 +472,8 @@ String friendlyMessage(Object error, [String fallback = 'Something went wrong.']
         'This account cannot book online. Please message us from Help.',
       ErrorCode.rewardInvalid =>
         error.detail ?? 'That reward cannot be used on this booking.',
+      ErrorCode.couponInvalid =>
+        error.detail ?? 'That code cannot be used on this booking.',
       ErrorCode.scratchAlreadyUsed => 'That card has already been scratched.',
       ErrorCode.outOfStock => 'That has just sold out.',
       ErrorCode.rateLimited =>

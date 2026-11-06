@@ -63,6 +63,7 @@ export class BookingController {
       addonOptionIds: body.addonOptionIds,
       userId,
       rewardId: body.rewardId,
+      couponCode: body.couponCode,
     });
   }
 
@@ -149,6 +150,7 @@ export class BookingController {
       startsAt: body.startsAt,
       userId,
       rewardId: body.rewardId,
+      couponCode: body.couponCode,
       source: 'WEB',
       idempotencyKey,
       termsVersion: body.termsVersion ?? null,
@@ -170,6 +172,8 @@ export class BookingController {
      */
     if (body.paymentMethod === 'COUNTER') {
       await this.lifecycle.confirm(hold.bookingId, userId);
+      // Not awaited: emails and pushes go out while the customer already sees "Booked".
+      void this.lifecycle.announceConfirmed(hold.bookingId);
       return { ...hold, status: 'CONFIRMED', paymentRequired: false, paymentMethod: 'COUNTER' };
     }
 
@@ -268,6 +272,7 @@ export class BookingController {
   @UseGuards(CustomerGuard)
   async confirm(@CurrentAuth() auth: TokenClaims, @Param('id') id: string) {
     const result = await this.lifecycle.confirm(id, auth.sub);
+    if (result.changed) void this.lifecycle.announceConfirmed(id);
     return { ...result, booking: await this.lifecycle.detailForUser(id, auth.sub) };
   }
 }

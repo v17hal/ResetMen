@@ -7,7 +7,7 @@
 // the server disagree about a status or an error code, and the symptom shows up as a blank
 // screen rather than as a compile error.
 //
-// 19 enums, 99 values.
+// 23 enums, 111 values.
 
 enum AdminRole {
   owner('OWNER'),
@@ -73,6 +73,53 @@ enum AllocationRecurrence {
   static AllocationRecurrence? tryParse(String? value) {
     if (value == null) return null;
     for (final entry in AllocationRecurrence.values) {
+      if (entry.wire == value) return entry;
+    }
+    return null;
+  }
+}
+
+enum BannerMedia {
+  image('IMAGE'),
+  video('VIDEO');
+
+  const BannerMedia(this.wire);
+
+  /// The exact string the API sends and expects.
+  final String wire;
+
+  /// Parses a wire value.
+  ///
+  /// Returns null for anything unrecognised rather than throwing: a server newer than this
+  /// build will send values that did not exist when it shipped, and a crash on an unknown
+  /// status is a worse outcome than a row the app renders plainly.
+  static BannerMedia? tryParse(String? value) {
+    if (value == null) return null;
+    for (final entry in BannerMedia.values) {
+      if (entry.wire == value) return entry;
+    }
+    return null;
+  }
+}
+
+enum BannerPlacement {
+  home('HOME'),
+  category('CATEGORY'),
+  service('SERVICE');
+
+  const BannerPlacement(this.wire);
+
+  /// The exact string the API sends and expects.
+  final String wire;
+
+  /// Parses a wire value.
+  ///
+  /// Returns null for anything unrecognised rather than throwing: a server newer than this
+  /// build will send values that did not exist when it shipped, and a crash on an unknown
+  /// status is a worse outcome than a row the app renders plainly.
+  static BannerPlacement? tryParse(String? value) {
+    if (value == null) return null;
+    for (final entry in BannerPlacement.values) {
       if (entry.wire == value) return entry;
     }
     return null;
@@ -170,6 +217,7 @@ enum ErrorCode {
   webhookSignatureInvalid('WEBHOOK_SIGNATURE_INVALID'),
   bookingNotCancellable('BOOKING_NOT_CANCELLABLE'),
   rewardInvalid('REWARD_INVALID'),
+  couponInvalid('COUPON_INVALID'),
   scratchAlreadyUsed('SCRATCH_ALREADY_USED'),
   outOfStock('OUT_OF_STOCK'),
   customerBlocked('CUSTOMER_BLOCKED'),
@@ -283,7 +331,8 @@ enum NotificationTemplate {
   scratchCardIssued('scratch_card_issued'),
   streakMilestone('streak_milestone'),
   cashbackCredited('cashback_credited'),
-  productOrderReady('product_order_ready');
+  productOrderReady('product_order_ready'),
+  supportReply('support_reply');
 
   const NotificationTemplate(this.wire);
 
@@ -362,7 +411,8 @@ enum ReportKind {
   utilisation('utilisation'),
   noShow('no-show'),
   retention('retention'),
-  bookings('bookings');
+  bookings('bookings'),
+  stations('stations');
 
   const ReportKind(this.wire);
 
@@ -501,6 +551,52 @@ enum ScratchTrigger {
   static ScratchTrigger? tryParse(String? value) {
     if (value == null) return null;
     for (final entry in ScratchTrigger.values) {
+      if (entry.wire == value) return entry;
+    }
+    return null;
+  }
+}
+
+enum StoreAudience {
+  menOnly('MEN_ONLY'),
+  everyone('EVERYONE');
+
+  const StoreAudience(this.wire);
+
+  /// The exact string the API sends and expects.
+  final String wire;
+
+  /// Parses a wire value.
+  ///
+  /// Returns null for anything unrecognised rather than throwing: a server newer than this
+  /// build will send values that did not exist when it shipped, and a crash on an unknown
+  /// status is a worse outcome than a row the app renders plainly.
+  static StoreAudience? tryParse(String? value) {
+    if (value == null) return null;
+    for (final entry in StoreAudience.values) {
+      if (entry.wire == value) return entry;
+    }
+    return null;
+  }
+}
+
+enum SupportStatus {
+  open('OPEN'),
+  closed('CLOSED');
+
+  const SupportStatus(this.wire);
+
+  /// The exact string the API sends and expects.
+  final String wire;
+
+  /// Parses a wire value.
+  ///
+  /// Returns null for anything unrecognised rather than throwing: a server newer than this
+  /// build will send values that did not exist when it shipped, and a crash on an unknown
+  /// status is a worse outcome than a row the app renders plainly.
+  static SupportStatus? tryParse(String? value) {
+    if (value == null) return null;
+    for (final entry in SupportStatus.values) {
       if (entry.wire == value) return entry;
     }
     return null;

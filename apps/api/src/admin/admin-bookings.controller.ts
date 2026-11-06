@@ -1,6 +1,12 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { adminStatusChange, localDate, rescheduleRequest, walkInRequest } from '@reset/types';
+import {
+  adminStatusChange,
+  instant,
+  localDate,
+  rescheduleRequest,
+  walkInRequest,
+} from '@reset/types';
 import { z } from 'zod';
 
 import { AdminGuard, CurrentAuth, Roles, RolesGuard } from '../auth/auth.guards.js';
@@ -18,6 +24,8 @@ const markPaidRequest = z.object({
 });
 
 const timelineQuery = z.object({ date: localDate });
+
+const confirmedSinceQuery = z.object({ after: instant.optional() });
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -43,6 +51,26 @@ export class AdminBookingsController {
     @StoreIdHeader() header?: string,
   ) {
     return this.lifecycle.timeline(await this.storeFor(auth, header), query.date);
+  }
+
+  /**
+   * Customer bookings confirmed after a moment — what the admin panel polls to ring a bell
+   * when someone books. Client report 06/11/2026: nothing told the shop at all.
+   *
+   * Without `after` it returns no bookings, only the server's clock: the panel's first call
+   * sets its starting point, so opening the panel does not replay the day's bookings as
+   * alerts. Every role, because whoever is at the counter is who needs to hear it.
+   */
+  @Get('confirmed-since')
+  async confirmedSince(
+    @CurrentAuth() auth: TokenClaims,
+    @Query(new ZodValidationPipe(confirmedSinceQuery)) query: z.infer<typeof confirmedSinceQuery>,
+    @StoreIdHeader() header?: string,
+  ) {
+    return this.lifecycle.confirmedSince(
+      await this.storeFor(auth, header),
+      query.after === undefined ? null : new Date(query.after),
+    );
   }
 
   /**

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { phone } from './auth.js';
 import { instant, paise, uuid } from './common.js';
+import { couponCode } from './rewards.js';
 
 export const bookingStatus = z.enum([
   'HELD',
@@ -21,6 +22,8 @@ export const quoteRequest = z.object({
   serviceId: uuid,
   addonOptionIds: z.array(uuid).default([]),
   rewardId: uuid.nullable().default(null),
+  /** A typed coupon code. One discount per booking: a code or a reward, not both. */
+  couponCode: couponCode.nullable().default(null),
 });
 export type QuoteRequest = z.infer<typeof quoteRequest>;
 
@@ -37,6 +40,7 @@ export const holdRequest = z.object({
   startsAt: instant,
   addonOptionIds: z.array(uuid).default([]),
   rewardId: uuid.nullable().default(null),
+  couponCode: couponCode.nullable().default(null),
   /**
    * The Terms & Conditions version the customer ticked — `TERMS.version`.
    *
@@ -63,7 +67,8 @@ export type PaymentMethod = HoldRequest['paymentMethod'];
  *  reality within a day — see docs/10-open-questions.md#q4. */
 // A walk-in is paid at the counter by definition, so the online-or-counter choice is not
 // asked of the staff member entering it.
-export const walkInRequest = holdRequest.omit({ paymentMethod: true }).extend({
+// Nor is a coupon code: a walk-in has no account for a code's per-customer limit to count.
+export const walkInRequest = holdRequest.omit({ paymentMethod: true, couponCode: true }).extend({
   /**
    * The same rule every other phone field uses.
    *

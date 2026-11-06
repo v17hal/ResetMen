@@ -114,7 +114,7 @@ function world(payment: Partial<PaymentRow> = {}) {
     })),
   };
 
-  const service = new PaymentService(prisma as never, gateway as never, {} as never, {} as never, {} as never);
+  const service = new PaymentService(prisma as never, gateway as never, {} as never);
   const jobs = new PaymentJobs(prisma as never, service, gateway as never);
 
   /** Moves every waiting row back in time, as if the job ran a few minutes later. */

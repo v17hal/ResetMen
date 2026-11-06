@@ -124,10 +124,14 @@ class ResetRepository {
 
   // ── Booking ─────────────────────────────────────────────────────────────
 
+  /// [couponCode] is sent as typed: the server strips spaces and upper-cases it. One
+  /// discount per booking — a reward and a code together is refused with a 422, and a code
+  /// it will not take is refused with its reason in `detail`.
   Future<Quote> quote({
     required String serviceId,
     List<String> addonOptionIds = const [],
     String? rewardId,
+    String? couponCode,
   }) async =>
       Quote.fromJson(await _api.post<Map<String, dynamic>>(
         '/bookings/quote',
@@ -135,6 +139,7 @@ class ResetRepository {
           'serviceId': serviceId,
           'addonOptionIds': addonOptionIds,
           'rewardId': rewardId,
+          'couponCode': couponCode,
         },
       ));
 
@@ -145,11 +150,15 @@ class ResetRepository {
   /// booking. Sending one the API no longer considers current is refused with a 422 naming
   /// the field; reusing the same idempotency key afterwards is safe, because a failed
   /// attempt releases its key rather than replaying the refusal.
+  ///
+  /// [couponCode] is checked again inside the booking, so a code used up since the quote
+  /// is refused here with `COUPON_INVALID`.
   Future<Hold> hold({
     required String serviceId,
     required String startsAt,
     List<String> addonOptionIds = const [],
     String? rewardId,
+    String? couponCode,
     String? termsVersion,
     String paymentMethod = 'COUNTER',
     required String idempotencyKey,
@@ -161,6 +170,7 @@ class ResetRepository {
           'startsAt': startsAt,
           'addonOptionIds': addonOptionIds,
           'rewardId': rewardId,
+          'couponCode': couponCode,
           if (termsVersion != null) 'termsVersion': termsVersion,
           // Online or at the counter — the customer's choice since 28/10/2026.
           'paymentMethod': paymentMethod,

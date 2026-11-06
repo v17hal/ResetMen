@@ -45,6 +45,10 @@ class ResetApiException implements Exception {
   bool get isSlotGone =>
       code == ErrorCode.slotTaken || code == ErrorCode.slotUnavailable;
 
+  /// A typed coupon code the server will not take — unknown, expired, used up, or not enough
+  /// on the booking. `detail` says which, in words written for the customer.
+  bool get isCouponInvalid => code == ErrorCode.couponInvalid;
+
   bool get isAuthFailure => code == ErrorCode.unauthenticated;
 
   bool get isRetryable => status >= 500 || code == ErrorCode.rateLimited;

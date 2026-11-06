@@ -226,12 +226,15 @@ export class RewardsService {
   async creditCashback(bookingId: string): Promise<{ credited: boolean; label?: string }> {
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
-      include: { appliedReward: true },
+      include: { appliedReward: true, appliedCoupon: true },
     });
 
     if (booking?.userId == null) return { credited: false };
-    if (booking.appliedReward === null) return { credited: false };
-    if (booking.appliedReward.rewardType !== 'CASHBACK') return { credited: false };
+    // A wallet reward or a typed code — a booking carries at most one, and a cashback code
+    // pays out exactly as a cashback reward does.
+    const cashback = booking.appliedReward ?? booking.appliedCoupon;
+    if (cashback === null) return { credited: false };
+    if (cashback.rewardType !== 'CASHBACK') return { credited: false };
 
     const already = await this.prisma.userReward.findFirst({
       where: { userId: booking.userId, source: 'PROMO', sourceId: booking.id },
@@ -239,7 +242,7 @@ export class RewardsService {
     });
     if (already !== null) return { credited: false };
 
-    const amountPaise = Math.min(booking.appliedReward.rewardValue, booking.payablePaise);
+    const amountPaise = Math.min(cashback.rewardValue, booking.payablePaise);
     if (amountPaise <= 0) return { credited: false };
 
     const credited = await this.grant({

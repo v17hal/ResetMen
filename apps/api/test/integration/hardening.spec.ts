@@ -20,6 +20,7 @@ import { FcmProvider } from '../../src/notifications/fcm.provider.js';
 import { NotificationService } from '../../src/notifications/notification.service.js';
 import { PaymentService } from '../../src/payments/payment.service.js';
 import { RazorpayClient } from '../../src/payments/razorpay.client.js';
+import { CouponService } from '../../src/rewards/coupon.service.js';
 import { RewardsService } from '../../src/rewards/rewards.service.js';
 import { ScratchService } from '../../src/rewards/scratch.service.js';
 import { StreakService } from '../../src/rewards/streak.service.js';
@@ -59,6 +60,7 @@ describe('hardening', () => {
         PaymentService,
         RazorpayClient,
         RewardsService,
+        CouponService,
         ScratchService,
         StreakService,
         NotificationService,

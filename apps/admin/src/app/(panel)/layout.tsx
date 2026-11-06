@@ -9,6 +9,7 @@ import type { ReactNode } from 'react';
 
 import { useQuery } from '@tanstack/react-query';
 
+import { NewBookingAlerts } from '@/components/new-booking-alerts';
 import { useAuth } from '@/lib/auth';
 import { adminClient } from '@/lib/client';
 import { keys } from '@/lib/queries';
@@ -165,6 +166,9 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
         </ul>
 
         <div className="mt-auto border-t border-border p-base">
+          {/* Mounted once, for every screen. Inside the nav so the switch sits beside the
+              session; on a phone the nav is hidden, not unmounted, so the bell still rings. */}
+          <NewBookingAlerts />
           <p className="truncate text-body-sm font-medium">{session.name}</p>
           <p className="text-caption text-text-muted">{session.role.toLowerCase()}</p>
           <Button variant="secondary" size="sm" fullWidth onClick={signOut} className="mt-sm">

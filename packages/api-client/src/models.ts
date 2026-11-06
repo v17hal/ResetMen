@@ -332,6 +332,37 @@ export interface AdminCampaignReward {
   isActive: boolean;
 }
 
+/** A coupon code as the admin panel lists it — apps/api/src/rewards/coupon.service.ts. */
+export interface AdminCouponRow {
+  id: string;
+  code: string;
+  note: string | null;
+  rewardType: RewardType;
+  rewardValue: number;
+  /** "20% off", "₹50 cashback" — the same wording the customer sees. */
+  label: string;
+  minOrderPaise: number;
+  validFrom: string | null;
+  validTill: string | null;
+  maxUses: number | null;
+  maxUsesPerCustomer: number | null;
+  isActive: boolean;
+  createdAt: string;
+  /** Bookings carrying the code that were not cancelled or expired. */
+  uses: number;
+}
+
+/** A customer booking confirmed since the admin panel last asked — its new-booking bell. */
+export interface NewBookingAlert {
+  id: string;
+  publicId: string;
+  customerName: string;
+  customerPhone: string | null;
+  serviceName: string;
+  startsAt: string;
+  payablePaise: number;
+}
+
 export interface AdminCampaignRow {
   id: string;
   name: string;
@@ -384,7 +415,9 @@ export interface AdminCustomerDetail {
     id: string;
     label: string;
     source: string;
-    status: 'AVAILABLE' | 'USED' | 'EXPIRED' | 'REVOKED';
+    /** The RewardStatus the server sends. This said AVAILABLE/USED, which it never sends —
+     *  so the admin wallet never offered Revoke (found 06/11/2026). */
+    status: 'ACTIVE' | 'REDEEMED' | 'EXPIRED' | 'REVOKED';
     validTill: string;
   }>;
 }
@@ -548,6 +581,15 @@ export interface QuoteResponse {
     label: string;
     discountPaise: number;
     /** Cashback only. Credited on check-in, so it is never subtracted from `payablePaise`. */
+    postVisitCreditPaise: number;
+  } | null;
+  /** A typed coupon code, applied instead of a reward — never both. Same money fields. */
+  appliedCoupon: {
+    id: string;
+    /** As stored: upper case, no spaces — show this, not what was typed. */
+    code: string;
+    label: string;
+    discountPaise: number;
     postVisitCreditPaise: number;
   } | null;
 }

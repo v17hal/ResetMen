@@ -31,6 +31,7 @@ export const keys = {
   addonGroups: ['catalog', 'addon-groups'] as const,
   streakRules: ['rewards', 'streak-rules'] as const,
   campaigns: ['rewards', 'campaigns'] as const,
+  coupons: ['rewards', 'coupons'] as const,
   products: ['products'] as const,
   productOrders: (status?: ProductOrderStatus) => ['products', 'orders', status] as const,
   payments: (status?: PaymentStatus) => ['payments', status] as const,
@@ -44,6 +45,9 @@ export const keys = {
   supportList: (status: string) => ['support-list', status] as const,
   supportThread: (id: string) => ['support-thread', id] as const,
   supportUnread: ['support-unread'] as const,
+  // Not under `bookings`: invalidating that prefix would re-run the poll, which moves its
+  // cursor on — harmless, but a fetch nobody asked for.
+  bookingAlerts: ['booking-alerts'] as const,
 };
 
 export function useDashboard() {

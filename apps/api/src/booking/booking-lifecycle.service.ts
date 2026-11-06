@@ -48,12 +48,20 @@ export class BookingLifecycleService {
    * Called by the payment webhook, which is authoritative. Idempotent, because Razorpay
    * retries webhooks and a second delivery must not produce a second confirmation.
    */
-  async confirm(bookingId: string, actorId: string | null): Promise<{ checkinPayload: string }> {
+  async confirm(
+    bookingId: string,
+    actorId: string | null,
+  ): Promise<{ checkinPayload: string; changed: boolean }> {
     const booking = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
 
+    // `changed: false` is what keeps a second webhook delivery from announcing the booking
+    // a second time — see announceConfirmed.
     if (booking.status === 'CONFIRMED') {
       const payload = await this.checkin.payloadFor(bookingId);
-      return { checkinPayload: payload ?? (await this.checkin.issueToken(bookingId)) };
+      return {
+        checkinPayload: payload ?? (await this.checkin.issueToken(bookingId)),
+        changed: false,
+      };
     }
 
     if (booking.status === 'EXPIRED' || booking.status === 'CANCELLED') {
@@ -100,7 +108,40 @@ export class BookingLifecycleService {
       }),
     ]);
 
-    return { checkinPayload: await this.checkin.issueToken(bookingId) };
+    return { checkinPayload: await this.checkin.issueToken(bookingId), changed: true };
+  }
+
+  /**
+   * Everything that follows a booking becoming CONFIRMED, whichever way it got there.
+   *
+   * This lived only in the online-payment path, so a booking paid at the counter — every
+   * booking until 28/10/2026, and still the default — told nobody: no "Booking confirmed"
+   * for the customer, no nth-booking scratch card, and nothing for the shop. Client report
+   * 06/11/2026. One method, called by every confirming path, so the next path cannot forget.
+   *
+   * Never throws. The booking is already confirmed; a message that failed to send must not
+   * turn that into an error on the customer's screen.
+   */
+  async announceConfirmed(bookingId: string): Promise<void> {
+    try {
+      const booking = await this.prisma.booking.findUnique({
+        where: { id: bookingId },
+        select: { storeId: true, userId: true },
+      });
+      if (booking === null) return;
+
+      if (booking.userId !== null) {
+        await this.rewards.onBookingConfirmed(booking.storeId, booking.userId, bookingId);
+        await this.notifications.notifyBookingConfirmed(bookingId);
+      }
+      await this.notifications.notifyStoreOfBooking(bookingId);
+    } catch (error) {
+      this.logger.error(
+        `Messages after confirming ${bookingId} failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   /** Customer cancellation, subject to the store's cancellation window. */
@@ -130,6 +171,7 @@ export class BookingLifecycleService {
     }
 
     await this.confirm(bookingId, userId);
+    void this.announceConfirmed(bookingId);
     return { status: 'CONFIRMED' as const, changed: true };
   }
 
@@ -244,6 +286,13 @@ export class BookingLifecycleService {
     ]);
 
     this.logger.log(`${booking.publicId}: ${booking.status} → ${to}`);
+
+    // A visit earns the same streak, scratch card and cashback whichever button recorded it.
+    // Only the Check in page used to award them; the "Checked in" button on a booking in the
+    // admin panel moved the status and gave the customer nothing.
+    if (to === 'CHECKED_IN') {
+      await this.checkin.awardVisit(bookingId, actorType === 'ADMIN' ? actorId : null);
+    }
 
     // A reward reserved by a booking that never happened goes back to the wallet. Doing it
     // here covers every cancellation path — customer, admin and system — rather than only
@@ -399,6 +448,55 @@ export class BookingLifecycleService {
   }
 
   // ── Admin views ────────────────────────────────────────────────────────────
+
+  /**
+   * Customer bookings that became CONFIRMED after `after` — the admin panel's new-booking
+   * bell.
+   *
+   * Read from the status history rather than `createdAt`, because an online booking is
+   * created minutes before it is paid and confirmed: a poll keyed on creation would miss any
+   * payment that took longer than one polling interval. The returned `now` is the next
+   * cursor, from the server's clock, so a counter PC with the wrong time cannot skip or
+   * repeat a booking.
+   */
+  async confirmedSince(storeId: string, after: Date | null) {
+    const now = new Date();
+    if (after === null) return { now: now.toISOString(), bookings: [] };
+
+    const confirmations = await this.prisma.bookingStatusHistory.findMany({
+      where: {
+        toStatus: 'CONFIRMED',
+        createdAt: { gt: after, lte: now },
+        booking: { storeId, source: { not: 'ADMIN_WALKIN' } },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 20,
+      include: {
+        booking: {
+          include: {
+            store: { select: { timezone: true } },
+            user: { select: { name: true, phone: true } },
+          },
+        },
+      },
+    });
+
+    // A full page means more may be waiting: resume from the last one shown, not from now.
+    const cursor = confirmations.length === 20 ? confirmations[19]!.createdAt : now;
+
+    return {
+      now: cursor.toISOString(),
+      bookings: confirmations.map(({ booking }) => ({
+        id: booking.id,
+        publicId: booking.publicId,
+        customerName: booking.user?.name ?? 'A customer',
+        customerPhone: booking.user?.phone ?? null,
+        serviceName: booking.serviceNameSnapshot,
+        startsAt: toIso(booking.startsAt.getTime(), booking.store.timezone),
+        payablePaise: booking.payablePaise,
+      })),
+    };
+  }
 
   /**
    * Station-wise day timeline — the view counter staff actually live in.

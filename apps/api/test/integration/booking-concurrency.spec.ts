@@ -9,6 +9,7 @@ import { ScheduleResolverService } from '../../src/availability/schedule-resolve
 import { BookingService } from '../../src/booking/booking.service.js';
 import { AppError } from '../../src/common/errors.js';
 import { PrismaService } from '../../src/database/prisma.service.js';
+import { CouponService } from '../../src/rewards/coupon.service.js';
 import { RewardsService } from '../../src/rewards/rewards.service.js';
 import { ScratchService } from '../../src/rewards/scratch.service.js';
 
@@ -43,6 +44,7 @@ describe('booking concurrency', () => {
         // Booking applies wallet rewards at hold time, so it needs the real service here —
         // a stub would let a regression in reward reservation pass this suite unnoticed.
         RewardsService,
+        CouponService,
         ScratchService,
       ],
     }).compile();

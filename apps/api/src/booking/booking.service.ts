@@ -7,6 +7,7 @@ import { AvailabilityService, toIso } from '../availability/availability.service
 import { ScheduleResolverService } from '../availability/schedule-resolver.service.js';
 import { AppError } from '../common/errors.js';
 import { PrismaService, isSlotConflict } from '../database/prisma.service.js';
+import { CouponService } from '../rewards/coupon.service.js';
 import { labelFor } from '../rewards/reward-math.js';
 import { RewardsService } from '../rewards/rewards.service.js';
 import { generatePublicId } from './public-id.js';
@@ -17,6 +18,8 @@ export interface QuoteRequest {
   readonly addonOptionIds: readonly string[];
   readonly userId?: string | null;
   readonly rewardId?: string | null;
+  /** Already normalised by the request schema: upper case, no spaces. */
+  readonly couponCode?: string | null;
 }
 
 export interface QuoteDto {
@@ -37,6 +40,14 @@ export interface QuoteDto {
      * off the total, so the checkout screen shows it as "₹50 back after your visit" instead
      * of as a discount that never arrives.
      */
+    readonly postVisitCreditPaise: number;
+  } | null;
+  /** The typed code, when one was applied instead of a reward. Same money fields. */
+  readonly appliedCoupon: {
+    readonly id: string;
+    readonly code: string;
+    readonly label: string;
+    readonly discountPaise: number;
     readonly postVisitCreditPaise: number;
   } | null;
 }
@@ -75,6 +86,7 @@ export class BookingService {
     private readonly resolver: ScheduleResolverService,
     private readonly availability: AvailabilityService,
     private readonly rewards: RewardsService,
+    private readonly coupons: CouponService,
   ) {}
 
   /**
@@ -105,6 +117,14 @@ export class BookingService {
 
     const basket = { basePricePaise: service.pricePaise, addonsPricePaise };
 
+    // One discount per booking. Both screens clear one when the other is chosen; a client
+    // that sends both is told rather than having one silently dropped.
+    if (request.rewardId != null && request.couponCode != null) {
+      throw AppError.validation('Use a reward or a code on this booking, not both.', {
+        field: 'couponCode',
+      });
+    }
+
     // A reward that cannot be used throws rather than being ignored: a customer who picks
     // one and sees the total unchanged will assume the app is broken, and be right.
     const applied =
@@ -117,7 +137,17 @@ export class BookingService {
             basket,
           });
 
-    const discountPaise = applied?.discountPaise ?? 0;
+    const coupon =
+      request.couponCode == null
+        ? null
+        : await this.coupons.priceWith({
+            code: request.couponCode,
+            userId: request.userId ?? null,
+            storeId: request.storeId,
+            basket,
+          });
+
+    const discountPaise = applied?.discountPaise ?? coupon?.discountPaise ?? 0;
 
     return {
       serviceId: service.id,
@@ -136,6 +166,16 @@ export class BookingService {
               label: labelFor(applied.reward),
               discountPaise: applied.discountPaise,
               postVisitCreditPaise: applied.postVisitCreditPaise,
+            },
+      appliedCoupon:
+        coupon === null
+          ? null
+          : {
+              id: coupon.coupon.id,
+              code: coupon.coupon.code,
+              label: labelFor(coupon.coupon),
+              discountPaise: coupon.discountPaise,
+              postVisitCreditPaise: coupon.postVisitCreditPaise,
             },
     };
   }
@@ -265,6 +305,17 @@ export class BookingService {
           .plus({ minutes: store.settings!.holdTtlMinutes })
           .toJSDate();
 
+        // Before the booking row exists, so the code's use count does not include it.
+        if (quote.appliedCoupon !== null && request.userId !== null) {
+          await this.coupons.claim(tx, {
+            couponId: quote.appliedCoupon.id,
+            code: quote.appliedCoupon.code,
+            userId: request.userId,
+            storeId: store.id,
+            basket: { basePricePaise: quote.basePricePaise, addonsPricePaise: quote.addonsPricePaise },
+          });
+        }
+
         const created = await tx.booking.create({
           data: {
             publicId: generatePublicId(),
@@ -285,6 +336,7 @@ export class BookingService {
             discountPaise: quote.discountPaise,
             payablePaise: quote.payablePaise,
             appliedRewardId: quote.appliedReward?.id ?? null,
+            appliedCouponId: quote.appliedCoupon?.id ?? null,
             idempotencyKey: request.idempotencyKey ?? null,
             termsVersion: request.termsVersion ?? null,
             termsAcceptedAt: (request.termsVersion ?? null) === null ? null : new Date(),

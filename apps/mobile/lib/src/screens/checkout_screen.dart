@@ -66,6 +66,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   /// how this shop has always worked and the path every regular knows.
   String _method = 'COUNTER';
   String? _rewardId;
+
+  /// The coupon code on this booking, as the server spelled it back — client request
+  /// 06/11/2026.
+  ///
+  /// Set only once a quote has accepted it, so the hold never sends a code the customer has
+  /// not seen priced. One discount per booking: a code replaces a reward and a reward
+  /// replaces a code, because the API refuses the two together.
+  String? _couponCode;
+  final TextEditingController _code = TextEditingController();
+  bool _codeOpen = false;
+  bool _applyingCode = false;
+
+  /// Shown under the code field rather than in the card below, beside what was typed.
+  String? _codeError;
   String? _error;
 
   /// The version of the Terms the box was ticked against, or null while unticked.
@@ -98,6 +112,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   void dispose() {
     _ticker?.cancel();
     _razorpay?.clear();
+    _code.dispose();
     super.dispose();
   }
 
@@ -113,8 +128,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             serviceId: widget.serviceId,
             addonOptionIds: widget.addonIds,
             rewardId: _rewardId,
+            couponCode: _couponCode,
           );
       if (mounted) setState(() => _quote = quote);
+    } on ResetApiException catch (error) {
+      if (!mounted) return;
+      // A code that priced a moment ago can stop qualifying — the basket no longer meets
+      // its minimum, or it was used up. Kept, it would fail this quote and every one after,
+      // and the screen would have no price to show.
+      if (error.isCouponInvalid && _couponCode != null) {
+        await _dropCode(error);
+        return;
+      }
+      setState(() => _error = friendlyMessage(error));
     } catch (error) {
       if (mounted) setState(() => _error = friendlyMessage(error));
     } finally {
@@ -137,6 +163,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             startsAt: widget.startsAt,
             addonOptionIds: widget.addonIds,
             rewardId: _rewardId,
+            couponCode: _couponCode,
             termsVersion: _agreedVersion,
             // Only offered while the store has online payment switched on.
             paymentMethod: (ref.read(storeProvider).valueOrNull?.paymentsEnabled ?? false)
@@ -170,6 +197,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           _error = friendlyMessage(error);
         });
         ref.invalidate(termsProvider);
+        return null;
+      }
+
+      // The code was good when it was applied and is not now — used up by other customers,
+      // or expired while they were deciding. Sent again it would be refused on every press,
+      // so it comes off and the booking is priced without it. Nothing is booked: the total
+      // has just changed, and they should see the new one before pressing again.
+      if (error.isCouponInvalid && _couponCode != null) {
+        await _dropCode(error);
         return null;
       }
 
@@ -314,7 +350,89 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   Future<void> _applyReward(String? rewardId) async {
     setState(() {
       _rewardId = rewardId;
+      // One discount per booking: choosing a reward takes the code off.
+      _couponCode = null;
       _error = null;
+    });
+    await _loadQuote();
+  }
+
+  /// Prices the booking with the typed code, and applies it only if the server accepts it.
+  ///
+  /// Asked without the reward, because the API refuses the two together; the reward is let
+  /// go only once the code is in. A refusal leaves everything as it was, with the server's
+  /// reason under the field and what they typed still in it, so a typo is one letter to fix.
+  Future<void> _applyCode() async {
+    final typed = _code.text.trim();
+    if (typed.isEmpty || _applyingCode) return;
+
+    // The server counts uses per customer, so it refuses a code from a signed-out one. Book
+    // is the only other way to sign in on this screen, and it books — asked here, they see
+    // the new price before deciding.
+    if (ref.read(sessionProvider).valueOrNull == null) {
+      final signedIn = await showSignInSheet(
+        context,
+        reason: 'So we can check the code against your account.',
+      );
+      if (!signedIn || !mounted) return;
+    }
+
+    setState(() {
+      _applyingCode = true;
+      _codeError = null;
+      _error = null;
+    });
+
+    try {
+      final quote = await ref.read(repositoryProvider).quote(
+            serviceId: widget.serviceId,
+            addonOptionIds: widget.addonIds,
+            couponCode: typed,
+          );
+      if (!mounted) return;
+      final coupon = quote.appliedCoupon;
+      setState(() {
+        _applyingCode = false;
+        if (coupon == null) {
+          // A server from before codes ignores the field and prices without it. Showing
+          // that as applied would promise a discount nobody is giving.
+          _codeError = 'This code could not be applied.';
+        } else {
+          _quote = quote;
+          _couponCode = coupon.code;
+          _rewardId = null;
+          _codeOpen = false;
+          _code.clear();
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _applyingCode = false;
+        _codeError = friendlyMessage(error);
+      });
+    }
+  }
+
+  Future<void> _removeCode() async {
+    setState(() {
+      _couponCode = null;
+      _codeError = null;
+      _error = null;
+    });
+    await _loadQuote();
+  }
+
+  /// Takes off a code that has stopped qualifying, says why, and prices the booking without
+  /// it — so the base price shows and Book works, rather than every attempt failing on the
+  /// same code. It goes back in the field with the reason under it, so the customer can see
+  /// which code and why.
+  Future<void> _dropCode(ResetApiException error) async {
+    setState(() {
+      _code.text = _couponCode ?? _code.text;
+      _couponCode = null;
+      _codeOpen = true;
+      _codeError = friendlyMessage(error);
     });
     await _loadQuote();
   }
@@ -372,6 +490,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       ),
                     ),
                 ],
+
+                // Offered whether or not there are rewards above it: a code is something the
+                // customer was handed, not something the app already knows about.
+                const SizedBox(height: ResetTokens.spaceSm),
+                _CouponCode(
+                  controller: _code,
+                  applied: _couponCode == null ? null : quote?.appliedCoupon,
+                  open: _codeOpen,
+                  applying: _applyingCode,
+                  error: _codeError,
+                  onOpen: () => setState(() => _codeOpen = true),
+                  onApply: _applyCode,
+                  onRemove: _removeCode,
+                ),
 
                 if (_error != null) ...[
                   const SizedBox(height: ResetTokens.spaceBase),
@@ -702,6 +834,9 @@ class _QuoteCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final applied = quote.appliedReward;
+    final coupon = quote.appliedCoupon;
+    final postVisitCreditPaise =
+        applied?.postVisitCreditPaise ?? coupon?.postVisitCreditPaise ?? 0;
 
     return ResetCard(
       child: Column(
@@ -740,7 +875,10 @@ class _QuoteCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    applied?.label ?? 'Reward',
+                    // The code as well as what it does: "RESET20 · 20% off".
+                    coupon != null
+                        ? '${coupon.code} · ${coupon.label}'
+                        : applied?.label ?? 'Reward',
                     style: ResetTokens.bodySm
                         .copyWith(color: theme.colorScheme.primary),
                   ),
@@ -767,16 +905,149 @@ class _QuoteCard extends StatelessWidget {
           ),
 
           // Cashback discounts nothing now, so it is stated separately rather than looking
-          // like a reward that did nothing.
-          if (applied != null && applied.postVisitCreditPaise > 0) ...[
+          // like a reward that did nothing. A cashback code is shown the same way.
+          if (postVisitCreditPaise > 0) ...[
             const SizedBox(height: ResetTokens.spaceSm),
             ResetBadge(
-              '${formatMoney(applied.postVisitCreditPaise)} back after your visit',
+              '${formatMoney(postVisitCreditPaise)} back after your visit',
               color: theme.accentColor,
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+/// A code the shop handed out — client request 06/11/2026.
+///
+/// Folded behind one line until asked for: most customers have no code, and an empty box at
+/// checkout reads as a discount everybody else is getting. Once applied it says what the
+/// code does, the way a chosen reward does, with a way to take it off.
+class _CouponCode extends StatelessWidget {
+  const _CouponCode({
+    required this.controller,
+    required this.applied,
+    required this.open,
+    required this.applying,
+    required this.error,
+    required this.onOpen,
+    required this.onApply,
+    required this.onRemove,
+  });
+
+  final TextEditingController controller;
+  final AppliedCoupon? applied;
+  final bool open;
+  final bool applying;
+  final String? error;
+  final VoidCallback onOpen;
+  final VoidCallback onApply;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final coupon = applied;
+
+    if (coupon != null) {
+      return ResetCard(
+        color: theme.accentColor.withValues(alpha: 0.1),
+        borderColor: theme.accentColor,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    coupon.code,
+                    style: ResetTokens.body.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    coupon.label,
+                    style: ResetTokens.caption.copyWith(color: theme.mutedColor),
+                  ),
+                  // Cashback takes nothing off now, so it says when the money comes.
+                  if (coupon.discountPaise > 0)
+                    Text(
+                      '−${formatMoney(coupon.discountPaise)}',
+                      style: ResetTokens.bodySm
+                          .copyWith(color: theme.colorScheme.primary),
+                    )
+                  else if (coupon.postVisitCreditPaise > 0)
+                    Text(
+                      '${formatMoney(coupon.postVisitCreditPaise)} back after your visit',
+                      style: ResetTokens.bodySm
+                          .copyWith(color: theme.colorScheme.primary),
+                    ),
+                ],
+              ),
+            ),
+            TextButton(onPressed: onRemove, child: const Text('Remove')),
+          ],
+        ),
+      );
+    }
+
+    if (!open) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton(
+          onPressed: onOpen,
+          child: const Text('Have a coupon code?'),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                autofocus: true,
+                // Codes are printed in capitals. The server upper-cases them anyway; this
+                // only makes what is typed look like what is on the poster.
+                textCapitalization: TextCapitalization.characters,
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(hintText: 'Enter code'),
+                onSubmitted: (value) {
+                  if (value.trim().isNotEmpty && !applying) onApply();
+                },
+              ),
+            ),
+            const SizedBox(width: ResetTokens.spaceSm),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (context, value, _) => OutlinedButton(
+                onPressed: value.text.trim().isEmpty || applying ? null : onApply,
+                child: applying
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Apply'),
+              ),
+            ),
+          ],
+        ),
+
+        // The server's own sentence — "This code has expired", "needs a booking of ₹300 or
+        // more" — says what to do about it, so it is shown as it is.
+        if (error != null) ...[
+          const SizedBox(height: ResetTokens.spaceSm),
+          Text(
+            error!,
+            style: ResetTokens.bodySm.copyWith(color: theme.colorScheme.error),
+          ),
+        ],
+      ],
     );
   }
 }

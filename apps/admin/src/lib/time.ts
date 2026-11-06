@@ -11,7 +11,7 @@
  * The store's timezone.
  *
  * Most screens read it off a response that happens to carry it. The ones that fetch nothing
- * carrying it — closures, campaign windows — use this. The store is in Indore, and a date
+ * carrying it — closures, campaign windows — use this. The store is in Pune, and a date
  * typed as "the 14th" has to mean the 14th there whatever the tablet is set to.
  */
 export const STORE_TIMEZONE = 'Asia/Kolkata';
@@ -48,6 +48,19 @@ export function localInputToIso(value: string, timeZone: string): string {
   // the offset is only ever wrong within hours of a DST transition, which India does not have.
   const probe = new Date(`${datePart}T${timePart}:00Z`);
   return `${datePart}T${timePart.slice(0, 5)}:00${offsetFor(timeZone, probe)}`;
+}
+
+/**
+ * A store-local date from a `date` input → the instant that day starts or ends.
+ *
+ * `2026-11-30`, `'end'` → `2026-11-30T23:59:59+05:30`. For "valid from / until" fields, where
+ * "until the 30th" has to last to the end of the 30th in the store, not stop as it begins.
+ */
+export function localDateToIso(date: string, timeZone: string, edge: 'start' | 'end'): string {
+  if (date === '') return '';
+
+  const time = edge === 'start' ? '00:00:00' : '23:59:59';
+  return `${date}T${time}${offsetFor(timeZone, new Date(`${date}T${time}Z`))}`;
 }
 
 /** An instant → the `datetime-local` string showing that moment in the store's timezone. */

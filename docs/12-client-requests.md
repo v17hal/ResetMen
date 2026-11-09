@@ -19,7 +19,7 @@ chat history. Newest first. Earlier decisions are in [11 — Scope changes](11-s
 | # | Request | Status |
 |---|---|---|
 | 1 | Finalise the app | Open: release 1.1.0 not yet built |
-| 2 | Explain coupon code and cashback | There was no coupon code to explain: built, then a recorded walkthrough instead of a call |
+| 2 | Explain coupon code and cashback | There was no coupon code to explain: built and deployed 06/11/2026; captioned walkthrough recorded on the live site 09/11/2026 (`RESET-coupons-and-cashback-2026-11-09.mp4`, demo data removed afterwards) |
 | 3 | No notification after a booking | Three separate gaps, below |
 
 **Coupon codes.** RESET had rewards (streaks, scratch cards, staff grants) picked from a wallet

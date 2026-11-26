@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const ITEMS = [
-  { href: '/', label: 'Book', icon: CalendarIcon },
+  { href: '/book', label: 'Book', icon: CalendarIcon },
   { href: '/bookings', label: 'Visits', icon: TicketIcon },
   { href: '/rewards', label: 'Rewards', icon: GiftIcon },
   { href: '/shop', label: 'Shop', icon: BagIcon },
@@ -36,7 +36,7 @@ export function BottomNav() {
     >
       <ul className="mx-auto flex max-w-content items-stretch justify-around sm:justify-start sm:gap-base sm:px-base">
         {ITEMS.map((item) => {
-          const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+          const active = pathname.startsWith(item.href);
           const Icon = item.icon;
 
           return (

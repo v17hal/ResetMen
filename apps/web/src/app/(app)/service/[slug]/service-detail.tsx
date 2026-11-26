@@ -129,7 +129,7 @@ export function ServiceDetail({
 
       <div className="flex flex-col gap-lg p-base">
         <header className="flex flex-col gap-sm">
-          <Link href="/" className="text-body-sm text-primary underline underline-offset-4">
+          <Link href="/book" className="text-body-sm text-primary underline underline-offset-4">
             ← All services
           </Link>
           <div className="flex flex-col gap-0.5">

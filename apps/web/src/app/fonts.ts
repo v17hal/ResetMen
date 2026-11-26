@@ -17,14 +17,14 @@ export const display = Plus_Jakarta_Sans({
   subsets: ['latin'],
   // 600 and 700 only — those are the two weights the type scale actually uses. Shipping
   // the full range would be four more font files nobody sees.
-  weight: ['600', '700'],
+  weight: ['600', '700', '800'],
   display: 'swap',
   variable: '--reset-font-display',
 });
 
 export const body = Inter({
   subsets: ['latin'],
-  weight: ['400', '500'],
+  weight: ['400', '500', '600', '700'],
   display: 'swap',
   variable: '--reset-font-body',
 });

@@ -36,7 +36,7 @@ export default async function TermsPage() {
   return (
     <article className="flex flex-col gap-lg p-base">
       <header className="flex flex-col gap-sm pt-sm">
-        <Link href="/" className="text-body-sm text-primary underline underline-offset-4">
+        <Link href="/book" className="text-body-sm text-primary underline underline-offset-4">
           ← Book a session
         </Link>
         <h1 className="font-display text-h1">{TERMS.title}</h1>

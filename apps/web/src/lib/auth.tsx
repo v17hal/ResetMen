@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // reuses the same Google account, which looks broken to anyone trying to switch.
     void import('./firebase').then(({ signOutOfFirebase }) => signOutOfFirebase());
     queryClient.clear();
-    router.push('/');
+    router.push('/book');
   }, [queryClient, router]);
 
   const value = useMemo<AuthContextValue>(

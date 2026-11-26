@@ -114,12 +114,15 @@ export function HomeClient({ initialHome }: { initialHome: HomeDto | null }) {
           {/* The shop's own mark, above the greeting — client request 05/10/2026. Uploaded in
               Admin → Shop details; nothing is reserved for it until one exists, so a store
               without a logo keeps the layout it has today. */}
+          {/* Leads back to the homepage, which since 26/11/2026 is the shop's own page. */}
           {store.data?.logoUrl != null && store.data.logoUrl !== '' && (
-            <img
-              src={store.data.logoUrl}
-              alt={store.data.name}
-              className="mb-xs h-10 w-auto max-w-[180px] object-contain object-left"
-            />
+            <Link href="/" aria-label={`${store.data.name} — home`} className="self-start">
+              <img
+                src={store.data.logoUrl}
+                alt={store.data.name}
+                className="mb-xs h-10 w-auto max-w-[180px] object-contain object-left"
+              />
+            </Link>
           )}
           <h1 className="font-display text-h1">Book your reset</h1>
           <p className="text-body-sm text-text-muted">

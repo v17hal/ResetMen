@@ -102,7 +102,7 @@ function Slots() {
   return (
     <div className="flex flex-col gap-base p-base">
       <header className="flex flex-col gap-xs">
-        <Link href="/" className="text-body-sm text-primary underline underline-offset-4">
+        <Link href="/book" className="text-body-sm text-primary underline underline-offset-4">
           ← Back
         </Link>
         <h1 className="font-display text-h1">Choose a time</h1>

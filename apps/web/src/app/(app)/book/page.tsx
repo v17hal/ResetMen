@@ -46,7 +46,7 @@ export async function generateMetadata(): Promise<Metadata> {
     description:
       `Quick dry massage ${audienceWords(store)} — head, neck, shoulder and full body from ${from}. ` +
       'Ten to thirty minutes, no appointment needed. Pick a time and walk straight in.',
-    alternates: { canonical: '/' },
+    alternates: { canonical: '/book' },
   };
 }
 

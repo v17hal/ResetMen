@@ -223,7 +223,7 @@ export default function ConfirmationPage() {
         >
           All my visits
         </Link>
-        <Link href="/" className="text-body-sm text-primary underline underline-offset-4">
+        <Link href="/book" className="text-body-sm text-primary underline underline-offset-4">
           Book something else
         </Link>
         {/* Help in place of the phone number — client request 11/09/2026. Not inside the

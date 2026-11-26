@@ -5,6 +5,34 @@ chat history. Newest first. Earlier decisions are in [11 — Scope changes](11-s
 
 ---
 
+## 26/11/2026
+
+A new homepage for resetmen.in, as one designed picture
+([design/homepage-2026-11-26.jpg](design/homepage-2026-11-26.jpg)), to be built "exact same,
+every piece".
+
+**Built:** the homepage at `/` matches the design section by section: header, hero, *Why
+Massage is Important?*, *Our Services*, *Why Choose RESET?*, *Customer Feedback*, the booking
+band and the footer. On desktop every size is the design's own pixel measurement, so the page
+keeps its proportions from 1024 to 1440 pixels wide. On a phone the same sections stack. The
+booking screen that used to be the homepage moved to **`/book`**, and every *Book Appointment*
+leads there. All other URLs are unchanged. *Find Centre* opens the shop in Google Maps by the
+address in Admin → Shop details.
+
+**Needed from the client before or soon after launch:**
+
+| # | Item | Until then |
+|---|---|---|
+| 1 | The original logo (vector) and photos | Cut from the design picture, so softer than originals |
+| 2 | Confirmation that the two testimonials (Rahul S., Sneha M.) are real customers' words, and their videos | Shown as in the design; the play buttons do not play |
+| 3 | Instagram, YouTube and Facebook addresses | Icons shown without links; *Watch More Videos* hidden |
+| 4 | Whether Cupping Therapy, Ice Bath and Steam are offered | The homepage advertises them; the booking catalogue has none of them |
+
+The design uses "massage" and "therapy" throughout. That supersedes the wording rule of
+01/08/2026 (never spa, therapy or massage) for this page, by the client's own design.
+
+---
+
 ## 06/11/2026
 
 > **9:55 am** — Vishal bhai aaj app final kar dena, aur video call pe coupon code, cashback

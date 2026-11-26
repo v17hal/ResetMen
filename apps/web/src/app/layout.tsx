@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
-import { BottomNav } from '@/components/bottom-nav';
-import { SiteFooter } from '@/components/site-footer';
 import { SiteJsonLd } from '@/components/site-json-ld';
 import { SITE_URL, audienceTitle, audienceWords, getStore, locality } from '@/lib/seo';
 import { fontVariables } from './fonts';
@@ -137,14 +135,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           Skip to content
         </a>
 
-        <Providers>
-          {/* Padded for the fixed bottom nav, plus the home indicator on a gesture phone. */}
-          <div className="mx-auto min-h-dvh w-full max-w-content pb-[calc(var(--reset-layout-bottom-nav-height)+env(safe-area-inset-bottom))] sm:pb-0">
-            <main id="main">{children}</main>
-          </div>
-          <SiteFooter />
-        <BottomNav />
-        </Providers>
+        {/* The page shell lives in the route groups: (app) for booking, with its narrow
+            column, footer and bottom tabs; (marketing) for the full-width homepage, which
+            brings its own header and footer (client design of 26/11/2026). */}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
